@@ -1,0 +1,7 @@
+{
+  "buildCommand": "pnpm --filter @workspace/3d-game run build",
+  "outputDirectory": "artifacts/3d-game/dist/public",
+  "installCommand": "pnpm install",
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
