@@ -582,12 +582,22 @@ button {
 .touch-pad {
   position: fixed;
   bottom: max(22px, env(safe-area-inset-bottom));
+  width: clamp(104px, 18vw, 128px);
+  height: clamp(104px, 18vw, 128px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.12), rgba(3, 10, 18, 0.38));
   box-shadow: inset 0 0 28px rgba(125, 252, 255, 0.09), 0 18px 42px rgba(0, 0, 0, 0.26);
   pointer-events: auto;
   touch-action: none;
+  transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.touch-pad.active {
+  opacity: 1;
+  transform: scale(1.04);
+  border-color: rgba(125, 252, 255, 0.4);
+  background: radial-gradient(circle, rgba(125, 252, 255, 0.18), rgba(3, 10, 18, 0.44));
 }
 
 .touch-pad-left {
@@ -649,6 +659,13 @@ button {
   background: rgba(7, 21, 32, 0.78);
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
   touch-action: none;
+  transition: transform 110ms ease, border-color 110ms ease, background 110ms ease;
+}
+
+.touch-buttons button:active {
+  transform: scale(0.94);
+  border-color: rgba(125, 252, 255, 0.45);
+  background: rgba(125, 252, 255, 0.14);
 }
 
 .touch-buttons button:first-child {
@@ -1381,6 +1398,23 @@ button {
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.25);
 }
 
+.mobile-hud-toggle {
+  position: fixed;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(276px, calc(env(safe-area-inset-bottom) + 276px));
+  z-index: 40;
+  width: 42px;
+  height: 42px;
+  display: none;
+  place-items: center;
+  pointer-events: auto;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  color: #dffaff;
+  background: rgba(7, 21, 32, 0.72);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+}
+
 .loadout-menu {
   width: min(1040px, calc(100vw - 36px));
   max-height: calc(100vh - 36px);
@@ -2062,6 +2096,10 @@ button {
     display: grid;
   }
 
+  .mobile-hud-toggle {
+    display: grid;
+  }
+
   .cursor-reticle {
     display: none;
   }
@@ -2373,7 +2411,42 @@ button {
 
   .touch-pad {
     bottom: max(12px, env(safe-area-inset-bottom));
+    width: clamp(86px, 16vw, 106px);
+    height: clamp(86px, 16vw, 106px);
     transform: scale(0.9);
+  }
+
+  .touch-pad.active {
+    transform: scale(0.94);
+  }
+
+  .touch-knob {
+    width: 48px;
+    height: 48px;
+    margin: -24px 0 0 -24px;
+  }
+
+  .touch-buttons {
+    right: max(126px, calc(env(safe-area-inset-right) + 126px));
+    bottom: max(16px, calc(env(safe-area-inset-bottom) + 16px));
+    gap: 7px;
+  }
+
+  .touch-buttons button {
+    width: 46px;
+    height: 46px;
+  }
+
+  .mobile-pause-button {
+    bottom: max(164px, calc(env(safe-area-inset-bottom) + 164px));
+    width: 42px;
+    height: 42px;
+  }
+
+  .mobile-hud-toggle {
+    bottom: max(214px, calc(env(safe-area-inset-bottom) + 214px));
+    width: 38px;
+    height: 38px;
   }
 }
 

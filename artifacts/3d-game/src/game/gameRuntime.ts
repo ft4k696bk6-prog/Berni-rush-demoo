@@ -25,7 +25,7 @@ export const touchRuntime = {
   moveX: 0,
   moveZ: 0,
   aimX: 0,
-  aimY: -1,
+  aimY: 0,
   shooting: false,
   aimActive: false,
   dashPressed: false,
@@ -54,7 +54,7 @@ export function resetPlayerRuntime() {
   touchRuntime.moveX = 0;
   touchRuntime.moveZ = 0;
   touchRuntime.aimX = 0;
-  touchRuntime.aimY = -1;
+  touchRuntime.aimY = 0;
   touchRuntime.shooting = false;
   touchRuntime.aimActive = false;
   touchRuntime.dashPressed = false;

@@ -25,6 +25,7 @@ enum Controls {
 const BASE_SPEED = 8.65;
 const SNAPSHOT_RATE = 0.055;
 const MOUSE_SENSITIVITY = 0.0031;
+const MOBILE_LOOK_SPEED = 2.9;
 
 function getCameraYawVectors() {
   const forward2 = new THREE.Vector2(Math.sin(cameraRuntime.yaw), Math.cos(cameraRuntime.yaw)).normalize();
@@ -46,12 +47,14 @@ function FirstPersonCaster({ color }: { color: string }) {
   const coreRef = useRef<THREE.Mesh>(null);
   const flashRef = useRef<THREE.Group>(null);
   const chargeRef = useRef<THREE.Mesh>(null);
+  const compact = typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 780);
 
   useFrame((_, delta) => {
     const active = Date.now() < playerRuntime.attackAnimUntil && playerRuntime.attackAnimType === "shoot";
     const remaining = Math.max(0, playerRuntime.attackAnimUntil - Date.now()) / 260;
 
     if (coreRef.current) {
+      coreRef.current.visible = !compact || active;
       coreRef.current.rotation.z += delta * 4.2;
       coreRef.current.position.z = active ? 0.16 - remaining * 0.1 : 0.12;
       const material = coreRef.current.material as THREE.MeshStandardMaterial;
@@ -60,6 +63,7 @@ function FirstPersonCaster({ color }: { color: string }) {
     }
 
     if (chargeRef.current) {
+      chargeRef.current.visible = !compact || active;
       chargeRef.current.rotation.z -= delta * 9;
       const material = chargeRef.current.material as THREE.MeshStandardMaterial;
       material.emissive.set(color);
@@ -74,7 +78,7 @@ function FirstPersonCaster({ color }: { color: string }) {
   });
 
   return (
-    <group position={[-0.28, 0.22, 1.22]} rotation={[0.08, 0.04, 0]} scale={0.54}>
+    <group position={compact ? [0.02, 0.06, 1.36] : [-0.28, 0.22, 1.22]} rotation={[0.08, 0.04, 0]} scale={compact ? 0.34 : 0.54}>
       <mesh ref={coreRef} castShadow rotation={[Math.PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.055, 0.085, 0.62, 12]} />
         <meshStandardMaterial color="#201812" emissive={color} emissiveIntensity={0.9} roughness={0.34} metalness={0.58} />
@@ -259,15 +263,8 @@ export default function Player() {
     }
 
     if (touchRuntime.aimActive) {
-      const aim = new THREE.Vector2(
-        right2.x * touchRuntime.aimX + forward2.x * touchRuntime.aimY,
-        right2.y * touchRuntime.aimX + forward2.y * touchRuntime.aimY,
-      );
-      if (aim.lengthSq() > 0.01) {
-        aim.normalize();
-        const targetYaw = Math.atan2(aim.x, aim.y);
-        cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(dampAngle(cameraRuntime.yaw, targetYaw, 18, delta), Math.PI * 2);
-      }
+      cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw - touchRuntime.aimX * MOBILE_LOOK_SPEED * delta, Math.PI * 2);
+      cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + touchRuntime.aimY * MOBILE_LOOK_SPEED * 0.62 * delta, -0.2, 0.66);
     }
 
     const aimX = Math.sin(cameraRuntime.yaw);

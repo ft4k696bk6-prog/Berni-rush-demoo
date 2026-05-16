@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BadgePlus, Clock3, Coins, Crosshair, Gauge, HeartPulse, Pause, Skull, Swords, Trophy, Zap } from "lucide-react";
+import { BadgePlus, Clock3, Coins, Crosshair, Eye, EyeOff, Gauge, HeartPulse, Pause, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
 import { getClassDefinition, getSkinDefinition } from "./loadout";
@@ -134,6 +134,17 @@ export default function HUD() {
       {phase === "playing" && (
         <button className="mobile-pause-button" type="button" onClick={pauseGame} aria-label="Pause">
           <Pause size={20} />
+        </button>
+      )}
+
+      {phase === "playing" && (
+        <button
+          className="mobile-hud-toggle"
+          type="button"
+          onClick={() => setHudMode(mode => mode === "full" ? "minimal" : "full")}
+          aria-label={hudMode === "full" ? "Minimal HUD" : "Full HUD"}
+        >
+          {hudMode === "full" ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
       )}
 
