@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
 import { clampToArena, getSpawnInterval } from "./balance";
-import { cameraRuntime, playerRuntime, touchRuntime } from "./gameRuntime";
+import { cameraRuntime, defaultCameraPitch, playerRuntime, touchRuntime } from "./gameRuntime";
 import { CharacterAssetModel } from "./AssetModels";
 import { getClassDefinition, getLoadoutModifiers } from "./loadout";
 import { perkLevel } from "./perks";
@@ -25,7 +25,7 @@ enum Controls {
 const BASE_SPEED = 8.65;
 const SNAPSHOT_RATE = 0.055;
 const MOUSE_SENSITIVITY = 0.0031;
-const MOBILE_LOOK_SPEED = 2.9;
+const MOBILE_LOOK_SPEED = 3.12;
 const RUN_START_SPAWN_DELAY_MS = 950;
 
 function getCameraYawVectors() {
@@ -192,7 +192,7 @@ export default function Player() {
       playerRuntime.aimWorldX = 0;
       playerRuntime.aimWorldZ = -8;
       cameraRuntime.yaw = Math.PI;
-      cameraRuntime.pitch = 0.18;
+      cameraRuntime.pitch = defaultCameraPitch();
       velocity.current.set(0, 0);
       moveDir.current.set(0, -1);
       dashDir.current.set(0, -1);

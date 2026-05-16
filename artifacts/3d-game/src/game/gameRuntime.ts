@@ -21,6 +21,10 @@ export const cameraRuntime = {
   pitch: 0.18,
 };
 
+export function defaultCameraPitch() {
+  return typeof window !== "undefined" && window.innerWidth <= 780 ? 0.26 : 0.18;
+}
+
 export const touchRuntime = {
   moveX: 0,
   moveZ: 0,
@@ -50,7 +54,7 @@ export function resetPlayerRuntime() {
   playerRuntime.attackAnimUntil = 0;
   playerRuntime.attackAnimType = "shoot";
   cameraRuntime.yaw = Math.PI;
-  cameraRuntime.pitch = 0.18;
+  cameraRuntime.pitch = defaultCameraPitch();
   touchRuntime.moveX = 0;
   touchRuntime.moveZ = 0;
   touchRuntime.aimX = 0;

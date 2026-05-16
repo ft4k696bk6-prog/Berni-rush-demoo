@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { BadgePlus, Clock3, Coins, Crosshair, Eye, EyeOff, Gauge, HeartPulse, Pause, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
 import { getClassDefinition, getSkinDefinition } from "./loadout";
 import { WEAPON_CONFIG } from "./weapons";
+import { poisonCurrentPos } from "./poisonPositions";
 
 const STAT_ORDER: StatKey[] = ["strength", "superpower", "vitality", "luck", "dodge", "speed"];
 
@@ -38,6 +39,9 @@ export default function HUD() {
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
   const skillStatus = useGameStore(s => s.skillStatus);
+  const poisons = useGameStore(s => s.poisons);
+  const playerPos = useGameStore(s => s.playerPos);
+  const playerAngle = useGameStore(s => s.playerAngle);
   const boss = useGameStore(s => s.poisons.find(enemy => enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20"));
   const upgradeStat = useGameStore(s => s.upgradeStat);
   const pauseGame = useGameStore(s => s.pauseGame);
@@ -74,6 +78,37 @@ export default function HUD() {
   const bossHpPct = boss ? Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) : 0;
 
   const messageClass = useMemo(() => centerMessage ? `center-message ${centerMessage.tone}` : "center-message", [centerMessage]);
+  const threats = useMemo(() => {
+    return poisons
+      .map(enemy => {
+        const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
+        const dx = live[0] - playerPos[0];
+        const dz = live[1] - playerPos[1];
+        const distance = Math.hypot(dx, dz);
+        if (distance > 34) return null;
+
+        const worldAngle = Math.atan2(dx, dz);
+        const angle = Math.atan2(Math.sin(worldAngle - playerAngle), Math.cos(worldAngle - playerAngle));
+        const bossThreat = enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20";
+        const rangedThreat = enemy.type === "ranged_enemy" || enemy.type === "shooter";
+        const danger = bossThreat || distance < 9;
+        const urgency = Math.max(0.24, 1 - distance / 34);
+
+        return {
+          id: enemy.id,
+          angle,
+          distance,
+          bossThreat,
+          rangedThreat,
+          danger,
+          opacity: Math.min(0.92, 0.34 + urgency * 0.72),
+          scale: bossThreat ? 1.32 : danger ? 1.12 : rangedThreat ? 1.04 : 0.92,
+        };
+      })
+      .filter((threat): threat is NonNullable<typeof threat> => Boolean(threat))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5);
+  }, [now, playerAngle, playerPos, poisons]);
 
   if (!runVisible) return null;
 
@@ -206,6 +241,22 @@ export default function HUD() {
         <div className={messageClass}>
           <strong>{centerMessage.title}</strong>
           {centerMessage.subtitle && <span>{centerMessage.subtitle}</span>}
+        </div>
+      )}
+
+      {phase === "playing" && (
+        <div className="threat-ring" aria-hidden="true">
+          {threats.map(threat => (
+            <i
+              key={threat.id}
+              className={`threat-marker ${threat.bossThreat ? "boss" : ""} ${threat.rangedThreat ? "ranged" : ""} ${threat.danger ? "danger" : ""}`}
+              style={{
+                "--angle": `${threat.angle}rad`,
+                "--threat-alpha": threat.opacity,
+                "--threat-scale": threat.scale,
+              } as CSSProperties}
+            />
+          ))}
         </div>
       )}
 

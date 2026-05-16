@@ -21,6 +21,13 @@ export default function CameraRig() {
     }
 
     const compact = typeof window !== "undefined" && window.innerWidth <= 780;
+    const perspective = camera as THREE.PerspectiveCamera;
+    if (perspective.isPerspectiveCamera) {
+      const targetFov = compact ? 72 : 66;
+      perspective.fov = THREE.MathUtils.damp(perspective.fov, targetFov, 8, delta);
+      perspective.updateProjectionMatrix();
+    }
+
     const forwardX = Math.sin(cameraRuntime.yaw);
     const forwardZ = Math.cos(cameraRuntime.yaw);
 
