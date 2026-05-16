@@ -1,11 +1,11 @@
 {
-  "name": "Toxic Harvest",
-  "short_name": "Toxic",
-  "description": "Arcade arena survival game with touch and desktop controls.",
+  "name": "Berni Rush",
+  "short_name": "Berni Rush",
+  "description": "Mobile roguelite arena survival game with classes, skins and boss fights.",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#061019",
   "theme_color": "#061019",
   "icons": [

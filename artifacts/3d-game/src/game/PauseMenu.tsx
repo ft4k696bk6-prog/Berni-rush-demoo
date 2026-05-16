@@ -56,7 +56,7 @@ export default function PauseMenu() {
         <header className="pause-header">
           <div>
             <span>PAUSED</span>
-            <h2>TOXIC HARVEST</h2>
+            <h2>BERNI RUSH</h2>
           </div>
           <button className="icon-button" type="button" onClick={resumeGame} aria-label="Resume">
             <X size={22} />

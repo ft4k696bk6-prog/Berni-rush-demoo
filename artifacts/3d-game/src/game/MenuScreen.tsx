@@ -108,7 +108,7 @@ export default function MenuScreen() {
         <header className="menu-header">
           <div className="title-block">
             <span>MOBILE ROGUELITE</span>
-            <h1>TOXIC HARVEST</h1>
+            <h1>BERNI RUSH</h1>
           </div>
           <div className="profile-balance">
             <Coins size={18} />

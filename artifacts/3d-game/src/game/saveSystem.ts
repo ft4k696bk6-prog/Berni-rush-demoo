@@ -1,9 +1,12 @@
 import { DEFAULT_CLASS_ID, DEFAULT_SKIN_ID, getStarterUnlockedSkins, normalizeLoadout } from "./loadout";
 import type { ClassId, GameRecords, GameState, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, SkinId, WeaponId } from "./types";
 
-const SAVE_KEY = "toxic-harvest-save-v2";
-const RECORD_KEY = "toxic-harvest-records-v2";
-const PROFILE_KEY = "toxic-harvest-profile-v1";
+const SAVE_KEY = "berni-rush-save-v1";
+const RECORD_KEY = "berni-rush-records-v1";
+const PROFILE_KEY = "berni-rush-profile-v1";
+const LEGACY_SAVE_KEY = "toxic-harvest-save-v2";
+const LEGACY_RECORD_KEY = "toxic-harvest-records-v2";
+const LEGACY_PROFILE_KEY = "toxic-harvest-profile-v1";
 
 export interface ProfileData {
   selectedClassId: ClassId;
@@ -79,7 +82,11 @@ function safeParse<T>(value: string | null): T | null {
 
 export function loadRecords(): GameRecords {
   if (typeof window === "undefined") return emptyRecords();
-  return { ...emptyRecords(), ...safeParse<Partial<GameRecords>>(window.localStorage.getItem(RECORD_KEY)) };
+  return {
+    ...emptyRecords(),
+    ...safeParse<Partial<GameRecords>>(window.localStorage.getItem(LEGACY_RECORD_KEY)),
+    ...safeParse<Partial<GameRecords>>(window.localStorage.getItem(RECORD_KEY)),
+  };
 }
 
 export function saveRecords(records: GameRecords) {
@@ -90,7 +97,10 @@ export function saveRecords(records: GameRecords) {
 export function loadProfile(): ProfileData {
   const base = defaultProfile();
   if (typeof window === "undefined") return base;
-  const saved = safeParse<Partial<ProfileData>>(window.localStorage.getItem(PROFILE_KEY)) ?? {};
+  const saved = {
+    ...(safeParse<Partial<ProfileData>>(window.localStorage.getItem(LEGACY_PROFILE_KEY)) ?? {}),
+    ...(safeParse<Partial<ProfileData>>(window.localStorage.getItem(PROFILE_KEY)) ?? {}),
+  };
   const unlockedSkinIds = Array.from(new Set([...(saved.unlockedSkinIds ?? []), ...getStarterUnlockedSkins()])) as SkinId[];
   const loadout = normalizeLoadout({
     selectedClassId: saved.selectedClassId ?? base.selectedClassId,
@@ -199,7 +209,8 @@ export function saveGameState(state: GameState) {
 
 export function loadSavedGame(): SaveData | null {
   if (typeof window === "undefined") return null;
-  return safeParse<SaveData>(window.localStorage.getItem(SAVE_KEY));
+  return safeParse<SaveData>(window.localStorage.getItem(SAVE_KEY))
+    ?? safeParse<SaveData>(window.localStorage.getItem(LEGACY_SAVE_KEY));
 }
 
 export function hasSavedGame() {
