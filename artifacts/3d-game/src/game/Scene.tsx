@@ -20,6 +20,7 @@ enum Controls {
   right = "right",
   dash = "dash",
   melee = "melee",
+  power = "power",
 }
 
 const keyMap = [
@@ -29,6 +30,7 @@ const keyMap = [
   { name: Controls.right, keys: ["ArrowRight", "KeyD"] },
   { name: Controls.dash, keys: ["Space", "ShiftLeft", "ShiftRight"] },
   { name: Controls.melee, keys: ["Enter", "KeyF"] },
+  { name: Controls.power, keys: ["KeyQ", "KeyE"] },
 ];
 
 function SceneContent() {

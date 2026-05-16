@@ -19,13 +19,30 @@ interface Props {
 function PoisonItem({ poison }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const flashRef = useRef<THREE.MeshStandardMaterial>(null);
+  const meleeTelegraphRef = useRef<THREE.Mesh>(null);
+  const chargeTelegraphRef = useRef<THREE.Mesh>(null);
+  const shootTelegraphRef = useRef<THREE.Mesh>(null);
+  const slamTelegraphRef = useRef<THREE.Mesh>(null);
+  const explodeTelegraphRef = useRef<THREE.Mesh>(null);
   const posRef = useRef<[number, number]>([poison.position[0], poison.position[2]]);
+  const meleeWindup = useRef<number | null>(null);
+  const shootWindup = useRef<{ startedAt: number; dirX: number; dirZ: number } | null>(null);
+  const slamWindup = useRef<number | null>(null);
+  const chargeState = useRef<{ phase: "windup" | "dash" | "recover"; startedAt: number; dirX: number; dirZ: number } | null>(null);
   const t = useRef(Math.random() * Math.PI * 2);
 
   const phase = useGameStore(s => s.phase);
   const quality = useGameStore(s => s.quality);
   const hpRatio = Math.max(0, poison.hp / poison.maxHp);
   const isBoss = poison.type === "boss10" || poison.type === "boss20";
+
+  const setTelegraph = (mesh: THREE.Mesh | null, visible: boolean, opacity: number, scale = 1) => {
+    if (!mesh) return;
+    mesh.visible = visible;
+    mesh.scale.setScalar(scale);
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    material.opacity = opacity;
+  };
 
   useFrame((_, rawDelta) => {
     const group = groupRef.current;
@@ -41,12 +58,74 @@ function PoisonItem({ poison }: Props) {
     const dz = playerRuntime.z - posRef.current[1];
     const dist = Math.max(0.001, Math.sqrt(dx * dx + dz * dz));
     const wantsRange = poison.mechanics.includes("shoot") && !poison.mechanics.includes("melee");
-    const stopDistance = wantsRange ? 5.8 : 0.2;
+    const stopDistance = wantsRange ? 8.2 : poison.mechanics.includes("slam") ? 3.6 : 0.55;
+    const phaseScale = slow ? 0.42 : 1;
 
-    if (dist > stopDistance) {
-      const speed = poison.speed * (slow ? 0.42 : 1);
-      posRef.current[0] += (dx / dist) * speed * delta;
-      posRef.current[1] += (dz / dist) * speed * delta;
+    setTelegraph(meleeTelegraphRef.current, false, 0);
+    setTelegraph(chargeTelegraphRef.current, false, 0);
+    setTelegraph(shootTelegraphRef.current, false, 0);
+    setTelegraph(slamTelegraphRef.current, false, 0);
+    setTelegraph(explodeTelegraphRef.current, false, 0);
+
+    if (poison.mechanics.includes("charge")) {
+      const charge = chargeState.current;
+      const last = enemyContactTimers[poison.id] ?? 0;
+
+      if (!charge && dist > 4.2 && dist < 18 && now - last > 2100) {
+        chargeState.current = { phase: "windup", startedAt: now, dirX: dx / dist, dirZ: dz / dist };
+      }
+
+      if (chargeState.current) {
+        const state = chargeState.current;
+        const elapsed = now - state.startedAt;
+        group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(state.dirX, state.dirZ), 12, delta);
+
+        if (state.phase === "windup") {
+          setTelegraph(chargeTelegraphRef.current, true, 0.18 + Math.sin(elapsed * 0.018) * 0.08);
+          if (elapsed > 520) chargeState.current = { ...state, phase: "dash", startedAt: now };
+        } else if (state.phase === "dash") {
+          const speed = poison.speed * 4.6 * phaseScale;
+          posRef.current[0] += state.dirX * speed * delta;
+          posRef.current[1] += state.dirZ * speed * delta;
+          const pdx = playerRuntime.x - posRef.current[0];
+          const pdz = playerRuntime.z - posRef.current[1];
+          if (pdx * pdx + pdz * pdz < (1.18 + poison.scale * 0.36) ** 2) {
+            enemyContactTimers[poison.id] = now;
+            store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
+            chargeState.current = { ...state, phase: "recover", startedAt: now };
+          } else if (elapsed > 430) {
+            enemyContactTimers[poison.id] = now;
+            chargeState.current = { ...state, phase: "recover", startedAt: now };
+          }
+        } else if (elapsed > 720) {
+          chargeState.current = null;
+        }
+      }
+    }
+
+    const lockedByAttack = chargeState.current !== null || meleeWindup.current !== null || slamWindup.current !== null;
+    if (!lockedByAttack && dist > stopDistance) {
+      let moveX = dx / dist;
+      let moveZ = dz / dist;
+      let sepX = 0;
+      let sepZ = 0;
+      for (const [id, pos] of Object.entries(poisonCurrentPos)) {
+        if (id === poison.id) continue;
+        const ox = posRef.current[0] - pos[0];
+        const oz = posRef.current[1] - pos[1];
+        const od2 = ox * ox + oz * oz;
+        if (od2 < 0.001 || od2 > 3.1 * 3.1) continue;
+        const od = Math.sqrt(od2);
+        const force = (3.1 - od) / 3.1;
+        sepX += (ox / od) * force;
+        sepZ += (oz / od) * force;
+      }
+      moveX += sepX * 0.9;
+      moveZ += sepZ * 0.9;
+      const moveLen = Math.max(0.001, Math.sqrt(moveX * moveX + moveZ * moveZ));
+      const speed = poison.speed * phaseScale;
+      posRef.current[0] += (moveX / moveLen) * speed * delta;
+      posRef.current[1] += (moveZ / moveLen) * speed * delta;
     }
 
     posRef.current[0] = clampToArena(posRef.current[0], 1.4);
@@ -58,27 +137,65 @@ function PoisonItem({ poison }: Props) {
     group.position.set(posRef.current[0], baseY + Math.sin(t.current) * floatAmp, posRef.current[1]);
     group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(dx, dz), 9, delta);
 
-    if (poison.mechanics.includes("melee")) {
-      const meleeRange = isBoss ? 3.2 : poison.type === "elite" ? 2.15 : 1.72;
-      if (dist < meleeRange) {
-        const last = enemyContactTimers[poison.id] ?? 0;
-        const cd = isBoss ? 1200 : poison.type === "elite" ? 1350 : 1550;
-        if (now - last > cd) {
-          enemyContactTimers[poison.id] = now;
-          store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
+    if (poison.mechanics.includes("slam")) {
+      const slamRange = isBoss ? 5.4 : 4.35;
+      const last = enemyContactTimers[`${poison.id}:slam`] ?? 0;
+      if (dist < slamRange && now - last > (isBoss ? 2200 : 2600) && !slamWindup.current) {
+        slamWindup.current = now;
+      }
+      if (slamWindup.current) {
+        const elapsed = now - slamWindup.current;
+        setTelegraph(slamTelegraphRef.current, true, 0.16 + Math.min(0.28, elapsed / 2200), 0.55 + Math.min(0.65, elapsed / 780));
+        if (elapsed > 780) {
+          if (dist < slamRange) store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
+          enemyContactTimers[`${poison.id}:slam`] = now;
+          slamWindup.current = null;
         }
       }
     }
 
+    if (poison.mechanics.includes("melee") && !poison.mechanics.includes("slam")) {
+      const meleeRange = isBoss ? 3.2 : poison.type === "elite" ? 2.15 : poison.type === "grunt" ? 1.85 : 1.72;
+      if (dist < meleeRange) {
+        const last = enemyContactTimers[poison.id] ?? 0;
+        const cd = isBoss ? 1200 : poison.type === "elite" ? 1350 : 1550;
+        if (now - last > cd && !meleeWindup.current) {
+          meleeWindup.current = now;
+        }
+        if (meleeWindup.current) {
+          const elapsed = now - meleeWindup.current;
+          setTelegraph(meleeTelegraphRef.current, true, 0.2 + Math.sin(elapsed * 0.02) * 0.08, poison.type === "grunt" ? 0.96 : 1.08);
+          if (elapsed > 420) {
+            if (dist < meleeRange + 0.25) store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
+            enemyContactTimers[poison.id] = now;
+            meleeWindup.current = null;
+          }
+        }
+      } else {
+        meleeWindup.current = null;
+      }
+    }
+
     if (poison.mechanics.includes("shoot")) {
-      const shootRange = isBoss ? 24 : poison.type === "elite" ? 18 : 14;
+      const shootRange = isBoss ? 24 : poison.type === "elite" ? 18 : poison.type === "shooter" ? 19 : 14;
       if (dist < shootRange) {
         const last = enemyFireTimers[poison.id] ?? 0;
-        const fireCd = isBoss ? 1650 : poison.type === "elite" ? 2100 : 2700;
-        if (now - last > fireCd) {
-          enemyFireTimers[poison.id] = now;
-          store.fireEnemyProjectile(posRef.current[0], posRef.current[1], playerRuntime.x, playerRuntime.z, poison.damage);
+        const fireCd = isBoss ? 1650 : poison.type === "elite" ? 2100 : poison.type === "shooter" ? 2300 : 2700;
+        if (now - last > fireCd && !shootWindup.current) {
+          shootWindup.current = { startedAt: now, dirX: dx / dist, dirZ: dz / dist };
         }
+        if (shootWindup.current) {
+          const elapsed = now - shootWindup.current.startedAt;
+          group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(shootWindup.current.dirX, shootWindup.current.dirZ), 14, delta);
+          setTelegraph(shootTelegraphRef.current, true, 0.14 + Math.sin(elapsed * 0.017) * 0.06);
+          if (elapsed > 620) {
+            enemyFireTimers[poison.id] = now;
+            store.fireEnemyProjectile(posRef.current[0], posRef.current[1], playerRuntime.x, playerRuntime.z, poison.damage);
+            shootWindup.current = null;
+          }
+        }
+      } else {
+        shootWindup.current = null;
       }
     }
 
@@ -88,6 +205,7 @@ function PoisonItem({ poison }: Props) {
         if (!creeperCountdownStart[poison.id]) creeperCountdownStart[poison.id] = now;
         const elapsed = now - creeperCountdownStart[poison.id];
         const countdownMs = isBoss ? 2600 : 1850;
+        setTelegraph(explodeTelegraphRef.current, true, 0.18 + Math.min(0.24, elapsed / countdownMs * 0.24), 0.72 + Math.min(0.42, elapsed / countdownMs));
         if (flashRef.current) {
           const flash = Math.sin((elapsed / countdownMs) * Math.PI * 10) > 0;
           flashRef.current.color.set(flash ? "#fff6b0" : poison.type === "boss20" ? "#5d29ff" : "#4eff5a");
@@ -108,9 +226,11 @@ function PoisonItem({ poison }: Props) {
     }
   });
 
-  const bodyColor = poison.type === "ghost" ? "#8bb7ff"
-    : poison.type === "zombie" ? "#4bd46a"
+  const bodyColor = poison.type === "ghost" || poison.type === "shooter" ? "#8bb7ff"
+    : poison.type === "zombie" || poison.type === "grunt" ? "#4bd46a"
+    : poison.type === "charger" ? "#ff9d4d"
     : poison.type === "creeper" ? "#f6d24a"
+    : poison.type === "brute" ? "#d86bff"
     : poison.type === "elite" ? "#ff4f86"
     : poison.type === "boss10" ? "#f0e5c8"
     : "#231142";
@@ -123,7 +243,7 @@ function PoisonItem({ poison }: Props) {
         <meshBasicMaterial color={ENEMY_RING_COLOR[poison.type]} transparent opacity={0.34} />
       </mesh>
 
-      {poison.type === "ghost" ? (
+      {poison.type === "ghost" || poison.type === "shooter" ? (
         <group>
           <mesh castShadow position={[0, 0.1, 0]}>
             <octahedronGeometry args={[0.56, 1]} />
@@ -140,7 +260,7 @@ function PoisonItem({ poison }: Props) {
         </group>
       ) : (
         <group>
-          {poison.type === "zombie" ? (
+          {poison.type === "zombie" || poison.type === "grunt" ? (
             <>
               <mesh castShadow position={[0, 0.06, 0]} scale={[1.15, 0.72, 1.05]}>
                 <sphereGeometry args={[0.58, 14, 10]} />
@@ -151,7 +271,7 @@ function PoisonItem({ poison }: Props) {
                 <meshStandardMaterial color="#7cff92" roughness={0.45} />
               </mesh>
             </>
-          ) : poison.type === "creeper" ? (
+          ) : poison.type === "creeper" || poison.type === "charger" ? (
             <>
               <mesh castShadow position={[0, 0.2, 0]}>
                 <dodecahedronGeometry args={[0.56, 0]} />
@@ -199,6 +319,36 @@ function PoisonItem({ poison }: Props) {
         </mesh>
       )}
 
+      {poison.type === "charger" && (
+        <>
+          <mesh position={[0, 0.44, 0.68]} rotation={[Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.18, 0.92, 5]} />
+            <meshStandardMaterial color="#ffe0a8" emissive="#ff6d2f" emissiveIntensity={0.85} roughness={0.32} />
+          </mesh>
+          <mesh position={[0, 0.22, -0.48]} scale={[1.22, 0.34, 0.46]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial color="#9b431f" roughness={0.64} />
+          </mesh>
+        </>
+      )}
+
+      {poison.type === "brute" && (
+        <>
+          <mesh position={[0.62, 0.62, 0]} scale={[0.5, 0.48, 0.36]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial color="#6b2b86" roughness={0.58} metalness={0.12} />
+          </mesh>
+          <mesh position={[-0.62, 0.62, 0]} scale={[0.5, 0.48, 0.36]}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial color="#6b2b86" roughness={0.58} metalness={0.12} />
+          </mesh>
+          <mesh position={[0, 1.42, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.52, 0.055, 6, 28]} />
+            <meshStandardMaterial color="#f2b6ff" emissive="#d86bff" emissiveIntensity={1.15} />
+          </mesh>
+        </>
+      )}
+
       {isBoss && (
         <>
           <mesh position={[0, 1.62, 0]} rotation={[0, t.current, 0]}>
@@ -213,11 +363,36 @@ function PoisonItem({ poison }: Props) {
         <torusGeometry args={[0.56, 0.045, 5, 28, Math.PI * 2 * hpRatio]} />
         <meshBasicMaterial color={hpRatio > 0.45 ? "#80ff7a" : hpRatio > 0.2 ? "#ffd85a" : "#ff4d5d"} />
       </mesh>
+
+      <mesh ref={meleeTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, -Math.PI * 0.22]} position={[0, -1.14, 0]}>
+        <ringGeometry args={[0.38, 2.08, 28, 1, 0, Math.PI * 0.44]} />
+        <meshBasicMaterial color="#ff4d5d" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={chargeTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.16, 4.1]}>
+        <planeGeometry args={[0.54, 8.2]} />
+        <meshBasicMaterial color="#ff3f50" transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={shootTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.15, 4.8]}>
+        <planeGeometry args={[0.34, 9.6]} />
+        <meshBasicMaterial color="#b06cff" transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={slamTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.13, 0]}>
+        <ringGeometry args={[2.18, 2.7, 42]} />
+        <meshBasicMaterial color="#ff3f50" transparent opacity={0.24} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={explodeTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.12, 0]}>
+        <ringGeometry args={[2.18, 2.68, 36]} />
+        <meshBasicMaterial color="#ffb84a" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
 
 const ENEMY_RING_COLOR: Record<EnemyType["type"], string> = {
+  grunt: "#3cff7e",
+  charger: "#ff7d3d",
+  shooter: "#9aa8ff",
+  brute: "#d86bff",
   ghost: "#9aa8ff",
   zombie: "#3cff7e",
   creeper: "#ffb84a",

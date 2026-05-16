@@ -21,6 +21,7 @@ export const touchRuntime = {
   aimActive: false,
   dashPressed: false,
   meleePressed: false,
+  powerPressed: false,
 };
 
 export function resetPlayerRuntime() {
@@ -43,4 +44,5 @@ export function resetPlayerRuntime() {
   touchRuntime.aimActive = false;
   touchRuntime.dashPressed = false;
   touchRuntime.meleePressed = false;
+  touchRuntime.powerPressed = false;
 }

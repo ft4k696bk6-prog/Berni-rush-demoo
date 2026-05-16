@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BarChart3, Coins, Gauge, Play, Save, Settings, ShoppingBag, Swords, Trophy, X } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { QualityLevel, STAT_LABELS, StatKey } from "./types";
+import { SHOP_CATEGORIES, SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
 import { WEAPON_CONFIG, WEAPON_ORDER } from "./weapons";
 
 type PauseTab = "stats" | "shop" | "records";
@@ -22,6 +23,7 @@ export default function PauseMenu() {
   const exitToMenu = useGameStore(s => s.exitToMenu);
   const refreshRecords = useGameStore(s => s.refreshRecords);
   const buyWeapon = useGameStore(s => s.buyWeapon);
+  const buyShopUpgrade = useGameStore(s => s.buyShopUpgrade);
   const equipWeapon = useGameStore(s => s.equipWeapon);
   const setQuality = useGameStore(s => s.setQuality);
   const score = useGameStore(s => s.score);
@@ -36,6 +38,7 @@ export default function PauseMenu() {
   const stats = useGameStore(s => s.stats);
   const ownedWeapons = useGameStore(s => s.ownedWeapons);
   const currentWeapon = useGameStore(s => s.currentWeapon);
+  const shopUpgrades = useGameStore(s => s.shopUpgrades);
   const records = useGameStore(s => s.records);
   const quality = useGameStore(s => s.quality);
 
@@ -98,6 +101,7 @@ export default function PauseMenu() {
           {tab === "shop" && (
             <section className="pause-panel shop-view">
               <div className="shop-balance"><Coins size={18} /> {coins} coins</div>
+              <h3 className="shop-section-title">Weapons</h3>
               <div className="weapon-grid">
                 {WEAPON_ORDER.map(id => {
                   const weapon = WEAPON_CONFIG[id];
@@ -126,6 +130,32 @@ export default function PauseMenu() {
                     </article>
                   );
                 })}
+              </div>
+
+              <h3 className="shop-section-title">Run Upgrades</h3>
+              <div className="upgrade-shop">
+                {SHOP_CATEGORIES.map(category => (
+                  <section key={category} className="upgrade-category">
+                    <h4>{category}</h4>
+                    {Object.values(SHOP_UPGRADES).filter(item => item.category === category).map(item => {
+                      const level = shopUpgradeLevel(shopUpgrades, item.id);
+                      const capped = level >= item.maxLevel;
+                      const cost = shopUpgradeCost(shopUpgrades, item.id);
+                      return (
+                        <article key={item.id} className="shop-upgrade-card" style={{ borderColor: `${item.color}55` }}>
+                          <div>
+                            <strong>{item.name}</strong>
+                            <span>{item.maxLevel >= 90 ? "repeatable" : `LV ${level}/${item.maxLevel}`}</span>
+                          </div>
+                          <p>{item.description}</p>
+                          <button type="button" onClick={() => buyShopUpgrade(item.id)} disabled={capped || coins < cost}>
+                            {capped ? "MAX" : `${cost} coins`}
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </section>
+                ))}
               </div>
             </section>
           )}

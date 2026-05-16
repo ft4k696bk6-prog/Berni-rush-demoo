@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { CoinItem as CoinItemType } from "./types";
 import { playerRuntime } from "./gameRuntime";
+import { shopUpgradeLevel } from "./shop";
 import { useGameStore } from "./useGameStore";
 
 interface Props {
@@ -22,7 +23,8 @@ function CoinItem({ coin }: Props) {
     const dx = playerRuntime.x - pos.current.x;
     const dz = playerRuntime.z - pos.current.z;
     const distSq = dx * dx + dz * dz;
-    const magnetRange = 3.2 + useGameStore.getState().stats.luck * 0.08;
+    const state = useGameStore.getState();
+    const magnetRange = 3.2 + state.stats.luck * 0.08 + shopUpgradeLevel(state.shopUpgrades, "pickup_range") * 0.42;
 
     if (distSq < magnetRange * magnetRange) {
       const dist = Math.max(0.001, Math.sqrt(distSq));

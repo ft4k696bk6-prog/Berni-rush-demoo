@@ -5,7 +5,7 @@ import { MeleeSwing } from "./types";
 
 interface Props { swing: MeleeSwing; }
 
-const DURATION = 400;
+const DURATION = 460;
 
 function easeOut(t: number) { return 1 - (1 - t) * (1 - t); }
 
@@ -31,8 +31,9 @@ function MeleeEffect({ swing }: Props) {
       // 360° spin ring
       if (ringRef.current) {
         ringRef.current.rotation.y += 0.18;
+        ringRef.current.scale.setScalar(0.86 + eased * 0.34);
         const mat = ringRef.current.material as THREE.MeshStandardMaterial;
-        mat.emissiveIntensity = fade * 3;
+        mat.emissiveIntensity = fade * (swing.hits ? 4.2 : 3.1);
         mat.opacity = fade * 0.9;
       }
     } else {
@@ -46,7 +47,7 @@ function MeleeEffect({ swing }: Props) {
       }
       if (trailRef.current) {
         const mat = trailRef.current.material as THREE.MeshStandardMaterial;
-        mat.opacity = fade * 0.5;
+        mat.opacity = fade * 0.68;
       }
     }
   });
@@ -56,6 +57,16 @@ function MeleeEffect({ swing }: Props) {
   if (swing.is360) {
     return (
       <group position={[swing.playerPos[0], worldY, swing.playerPos[1]]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.03, 0]}>
+          <ringGeometry args={[2.25, 4.25, 72]} />
+          <meshBasicMaterial
+            color="#ffbd5a"
+            transparent
+            opacity={0.24}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
         <mesh ref={ringRef}>
           <torusGeometry args={[3.5, 0.18, 8, 48]} />
           <meshStandardMaterial
@@ -67,6 +78,15 @@ function MeleeEffect({ swing }: Props) {
             side={THREE.DoubleSide}
           />
         </mesh>
+        {Array.from({ length: Math.min(8, Math.max(3, swing.hits ?? 3)) }).map((_, index) => {
+          const angle = (index / Math.min(8, Math.max(3, swing.hits ?? 3))) * Math.PI * 2;
+          return (
+            <mesh key={index} position={[Math.sin(angle) * 2.45, 0.05, Math.cos(angle) * 2.45]} rotation={[0.2, angle, 0]}>
+              <coneGeometry args={[0.08, 0.62, 5]} />
+              <meshBasicMaterial color="#fff2a8" transparent opacity={0.62} />
+            </mesh>
+          );
+        })}
         {/* Inner ring */}
         <mesh rotation={[Math.PI / 4, 0, 0]}>
           <torusGeometry args={[2.6, 0.1, 6, 36]} />
@@ -90,16 +110,20 @@ function MeleeEffect({ swing }: Props) {
     >
       {/* Swing arc trail — at +Z (same as blade) */}
       <mesh ref={trailRef} position={[0, 0.1, 1.1]}>
-        <planeGeometry args={[0.7, 2.2]} />
+        <planeGeometry args={[0.95, 2.45]} />
         <meshStandardMaterial
           color="#88ddff"
           emissive={swing.color ?? "#44aaff"}
           emissiveIntensity={1}
           transparent
-          opacity={0.4}
+          opacity={0.58}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
+      </mesh>
+      <mesh position={[0, -1.02, 1.46]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.72, 3.16, 32, 1, -Math.PI * 0.2, Math.PI * 0.4]} />
+        <meshBasicMaterial color={swing.color ?? "#44aaff"} transparent opacity={0.24} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Handle — close to pivot (+Z start of sword) */}

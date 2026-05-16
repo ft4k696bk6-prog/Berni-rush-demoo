@@ -1,4 +1,4 @@
-import type { GameRecords, GameState, PerkId, PlayerStats, QualityLevel, WeaponId } from "./types";
+import type { GameRecords, GameState, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, WeaponId } from "./types";
 
 const SAVE_KEY = "toxic-harvest-save-v2";
 const RECORD_KEY = "toxic-harvest-records-v2";
@@ -21,6 +21,7 @@ export interface SaveData {
   gameTime: number;
   stats: PlayerStats;
   perks: Partial<Record<PerkId, number>>;
+  shopUpgrades?: Partial<Record<ShopUpgradeId, number>>;
   ownedWeapons: WeaponId[];
   currentWeapon: WeaponId;
   quality: QualityLevel;
@@ -89,6 +90,7 @@ export function toSaveData(state: GameState): SaveData {
     gameTime: state.gameTime,
     stats: state.stats,
     perks: state.perks,
+    shopUpgrades: state.shopUpgrades,
     ownedWeapons: state.ownedWeapons,
     currentWeapon: state.currentWeapon,
     quality: state.quality,

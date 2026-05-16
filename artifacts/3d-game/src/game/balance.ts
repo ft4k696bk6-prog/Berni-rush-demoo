@@ -55,13 +55,13 @@ export function pickEnemyType(stage: number, wave: number, forceBoss = false): E
   if (forceBoss) return stage >= 15 ? "boss20" : "boss10";
 
   const roll = Math.random();
-  const eliteChance = Math.min(0.2, 0.04 + stage * 0.012);
+  const eliteChance = Math.min(0.16, 0.03 + stage * 0.01);
   if (stage >= 4 && roll < eliteChance) return "elite";
 
-  if (stage <= 2) return Math.random() < 0.72 ? "zombie" : "ghost";
-  if (wave === 1) return roll < 0.5 ? "zombie" : roll < 0.82 ? "ghost" : "creeper";
-  if (wave === 2) return roll < 0.34 ? "zombie" : roll < 0.62 ? "ghost" : "creeper";
-  return roll < 0.25 ? "zombie" : roll < 0.5 ? "ghost" : roll < 0.82 ? "creeper" : "elite";
+  if (stage <= 2) return Math.random() < 0.72 ? "grunt" : "shooter";
+  if (wave === 1) return roll < 0.44 ? "grunt" : roll < 0.72 ? "shooter" : "charger";
+  if (wave === 2) return roll < 0.28 ? "grunt" : roll < 0.52 ? "shooter" : roll < 0.78 ? "charger" : "brute";
+  return roll < 0.22 ? "grunt" : roll < 0.44 ? "shooter" : roll < 0.7 ? "charger" : roll < 0.9 ? "brute" : "creeper";
 }
 
 export function clampToArena(value: number, margin = 1) {

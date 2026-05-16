@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { clampToArena, getSpawnInterval } from "./balance";
 import { playerRuntime, touchRuntime } from "./gameRuntime";
 import { perkLevel } from "./perks";
+import { shopUpgradeLevel } from "./shop";
 import { useGameStore } from "./useGameStore";
 import { WEAPON_CONFIG } from "./weapons";
 import { poisonCurrentPos } from "./poisonPositions";
@@ -16,6 +17,7 @@ enum Controls {
   right = "right",
   dash = "dash",
   melee = "melee",
+  power = "power",
 }
 
 const BASE_SPEED = 8.7;
@@ -46,8 +48,11 @@ export default function Player() {
   const dashHeld = useRef(false);
   const meleeCooldown = useRef(0);
   const meleeHeld = useRef(false);
+  const powerCooldown = useRef(0);
+  const powerHeld = useRef(false);
   const pulseT = useRef(0);
   const snapshotTimer = useRef(0);
+  const skillSnapshotTimer = useRef(0);
   const spawnTimer = useRef(0);
   const clockTimer = useRef(0);
   const cleanupTimer = useRef(0);
@@ -123,6 +128,7 @@ export default function Player() {
       dashCooldown.current = 0;
       dashTime.current = 0;
       meleeCooldown.current = 0;
+      powerCooldown.current = 0;
     }
   }, [phase]);
 
@@ -137,6 +143,7 @@ export default function Player() {
     dashCooldown.current = Math.max(0, dashCooldown.current - delta);
     dashTime.current = Math.max(0, dashTime.current - delta);
     meleeCooldown.current = Math.max(0, meleeCooldown.current - delta);
+    powerCooldown.current = Math.max(0, powerCooldown.current - delta);
 
     store.tickEffects(now);
     store.tickProjectiles(delta);
@@ -184,7 +191,12 @@ export default function Player() {
     }
 
     const swiftBoots = perkLevel(store.perks, "swift_boots");
-    const speed = BASE_SPEED * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
+    const moveUpgrade = shopUpgradeLevel(store.shopUpgrades, "move_speed");
+    const dashUpgrade = shopUpgradeLevel(store.shopUpgrades, "dash_mastery");
+    const attackCooldownUpgrade = shopUpgradeLevel(store.shopUpgrades, "attack_cooldown");
+    const pickupUpgrade = shopUpgradeLevel(store.shopUpgrades, "pickup_range");
+    const superUpgrade = shopUpgradeLevel(store.shopUpgrades, "super_charge");
+    const speed = BASE_SPEED * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055 + moveUpgrade * 0.045) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
     const targetVelocity = input.multiplyScalar(speed);
     const accel = 1 - Math.exp(-18 * delta);
     velocity.current.lerp(targetVelocity, accel);
@@ -195,7 +207,7 @@ export default function Player() {
       if (dashDir.current.lengthSq() < 0.01) dashDir.current.set(0, -1);
       dashDir.current.normalize();
       dashTime.current = 0.16;
-      dashCooldown.current = Math.max(0.42, 0.82 - store.stats.speed * 0.025 - swiftBoots * 0.035);
+      dashCooldown.current = Math.max(0.32, 0.82 - store.stats.speed * 0.025 - swiftBoots * 0.035 - dashUpgrade * 0.055);
       playerRuntime.dashUntil = now + 190;
     }
     touchRuntime.dashPressed = false;
@@ -204,7 +216,7 @@ export default function Player() {
     let dashBoostX = 0;
     let dashBoostZ = 0;
     if (dashTime.current > 0) {
-      const dashPower = 26 + store.stats.speed * 0.55 + swiftBoots * 1.25;
+      const dashPower = 26 + store.stats.speed * 0.55 + swiftBoots * 1.25 + dashUpgrade * 1.6;
       dashBoostX = dashDir.current.x * dashPower;
       dashBoostZ = dashDir.current.y * dashPower;
     }
@@ -230,11 +242,19 @@ export default function Player() {
 
     const meleeRequested = (controls.melee && !meleeHeld.current) || touchRuntime.meleePressed;
     if (meleeRequested && meleeCooldown.current <= 0) {
-      meleeCooldown.current = has360 ? 0.5 : 0.68;
+      meleeCooldown.current = has360 ? 0.5 : Math.max(0.42, 0.68 - attackCooldownUpgrade * 0.046);
       store.addMeleeSwing([playerRuntime.x, playerRuntime.z], facingAngle.current, has360);
     }
     touchRuntime.meleePressed = false;
     meleeHeld.current = controls.melee;
+
+    const powerRequested = (controls.power && !powerHeld.current) || touchRuntime.powerPressed;
+    if (powerRequested && powerCooldown.current <= 0) {
+      store.addMeleeSwing([playerRuntime.x, playerRuntime.z], facingAngle.current, true);
+      powerCooldown.current = Math.max(4.4, 7.6 - store.stats.superpower * 0.045 - superUpgrade * 0.55);
+    }
+    touchRuntime.powerPressed = false;
+    powerHeld.current = controls.power;
 
     if (hasStr) {
       for (const enemy of store.poisons) {
@@ -250,7 +270,8 @@ export default function Player() {
     for (const drug of store.drugs) {
       const dx = drug.position[0] - playerRuntime.x;
       const dz = drug.position[2] - playerRuntime.z;
-      if (dx * dx + dz * dz < 2.0 * 2.0) store.collectDrug(drug.id);
+      const pickupRadius = 2.0 + pickupUpgrade * 0.42;
+      if (dx * dx + dz * dz < pickupRadius * pickupRadius) store.collectDrug(drug.id);
     }
 
     groupRef.current.position.set(playerRuntime.x, playerRuntime.y, playerRuntime.z);
@@ -293,6 +314,16 @@ export default function Player() {
         [playerRuntime.aimWorldX, playerRuntime.aimWorldZ],
       );
       snapshotTimer.current = 0;
+    }
+
+    skillSnapshotTimer.current += delta;
+    if (skillSnapshotTimer.current > 0.12) {
+      const dashCdMs = Math.max(320, 820 - store.stats.speed * 25 - swiftBoots * 35 - dashUpgrade * 55);
+      const powerCdMs = Math.max(4400, 7600 - store.stats.superpower * 45 - superUpgrade * 550);
+      store.setSkillStatus("dash", now + dashCooldown.current * 1000, dashCdMs, dashTime.current > 0);
+      store.setSkillStatus("power_slash", now + powerCooldown.current * 1000, powerCdMs, powerCooldown.current <= 0);
+      store.setSkillStatus("energy_shot", now + fireCooldown.current * 1000, Math.max(90, (1 / fireRate) * 1000), shooting.current || touchRuntime.shooting);
+      skillSnapshotTimer.current = 0;
     }
   });
 

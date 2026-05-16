@@ -16,15 +16,38 @@ export type PerkId =
   | "lucky_coin"
   | "nimble";
 
+export type SkillId = "dash" | "power_slash" | "energy_shot";
+export type ShopUpgradeId =
+  | "melee_damage"
+  | "attack_range"
+  | "attack_cooldown"
+  | "max_health"
+  | "move_speed"
+  | "dash_mastery"
+  | "super_charge"
+  | "pickup_range"
+  | "heal_now"
+  | "random_perk";
+
 export type PowerupType =
   | "speed" | "heal" | "invincibility" | "strength"
   | "flight" | "time_slow" | "triple_shot" | "melee_360";
 
 export type DrugType = PowerupType;
 
-export type EnemySubType = "ghost" | "zombie" | "creeper" | "elite" | "boss10" | "boss20";
+export type EnemySubType =
+  | "grunt"
+  | "charger"
+  | "shooter"
+  | "brute"
+  | "ghost"
+  | "zombie"
+  | "creeper"
+  | "elite"
+  | "boss10"
+  | "boss20";
 export type PoisonType = EnemySubType;
-export type EnemyMechanic = "shoot" | "melee" | "explode";
+export type EnemyMechanic = "shoot" | "melee" | "explode" | "charge" | "slam";
 
 export interface PlayerStats {
   strength: number;
@@ -95,6 +118,15 @@ export interface MeleeSwing {
   angle: number;
   is360: boolean;
   color?: string;
+  hits?: number;
+}
+
+export interface SkillStatus {
+  id: SkillId;
+  label: string;
+  readyAt: number;
+  cooldownMs: number;
+  active: boolean;
 }
 
 export interface FloatingText {
@@ -164,6 +196,8 @@ export interface GameState {
   ownedWeapons: WeaponId[];
   currentWeapon: WeaponId;
   perks: Partial<Record<PerkId, number>>;
+  shopUpgrades: Partial<Record<ShopUpgradeId, number>>;
+  skillStatus: Record<SkillId, SkillStatus>;
   perkChoices: PerkId[];
   pendingLevelUps: number;
   records: GameRecords;
@@ -201,6 +235,10 @@ export const ENEMY_CONFIG: Record<EnemySubType, {
   scale: number;
   color: string;
 }> = {
+  grunt:  { label: "Basic Grunt", baseHp: 3.2,  speed: 3.45, damage: 14, mechanics: ["melee"],                 xp: 14,  coinValue: 3,  scale: 0.98, color: "#4bd46a" },
+  charger:{ label: "Charger",     baseHp: 4.2,  speed: 3.05, damage: 22, mechanics: ["charge"],                xp: 23,  coinValue: 5,  scale: 1.08, color: "#ff9d4d" },
+  shooter:{ label: "Spore Shooter", baseHp: 3.0, speed: 2.9, damage: 13, mechanics: ["shoot"],                 xp: 20,  coinValue: 5,  scale: 1.0,  color: "#8bb7ff" },
+  brute:  { label: "Heavy Brute", baseHp: 9.2,  speed: 2.15, damage: 30, mechanics: ["slam", "melee"],         xp: 38,  coinValue: 8,  scale: 1.42, color: "#d86bff" },
   ghost:  { label: "Crystal Bat", baseHp: 2.2,  speed: 5.1, damage: 12, mechanics: ["shoot"],                  xp: 16,  coinValue: 3,  scale: 1.0, color: "#8bb7ff" },
   zombie: { label: "Moss Slime",  baseHp: 4.4,  speed: 2.8, damage: 17, mechanics: ["melee"],                  xp: 18,  coinValue: 4,  scale: 1.15, color: "#4bd46a" },
   creeper:{ label: "Bomb Beetle", baseHp: 3.2,  speed: 4.1, damage: 28, mechanics: ["explode"],                xp: 22,  coinValue: 5,  scale: 1.05, color: "#f6d24a" },

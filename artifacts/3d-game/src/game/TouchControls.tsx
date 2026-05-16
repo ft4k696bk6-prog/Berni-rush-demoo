@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Crosshair, Gauge, Swords, Zap } from "lucide-react";
+import { Crosshair, Gauge, Sparkles, Swords, Zap } from "lucide-react";
 import { playerRuntime, touchRuntime } from "./gameRuntime";
 import { useGameStore } from "./useGameStore";
 
@@ -110,6 +110,9 @@ export default function TouchControls() {
         </button>
         <button type="button" onPointerDown={() => { touchRuntime.meleePressed = true; }}>
           <Swords size={22} />
+        </button>
+        <button type="button" onPointerDown={() => { touchRuntime.powerPressed = true; }}>
+          <Sparkles size={22} />
         </button>
       </div>
 

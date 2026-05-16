@@ -19,6 +19,8 @@ import {
   PoisonItem,
   Projectile,
   QualityLevel,
+  ShopUpgradeId,
+  SkillId,
   StatKey,
   WeaponId,
 } from "./types";
@@ -38,6 +40,7 @@ import {
 } from "./balance";
 import { playerRuntime, resetPlayerRuntime } from "./gameRuntime";
 import { perkLevel, rollPerkChoices } from "./perks";
+import { SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
 import { WEAPON_CONFIG } from "./weapons";
 import { clearAllEnemyRuntime, clearEnemyRuntime, poisonCurrentPos } from "./poisonPositions";
 import {
@@ -64,6 +67,14 @@ const baseStats = (): PlayerStats => ({
   dodge: 0,
   speed: 0,
 });
+
+function baseSkillStatus(): GameState["skillStatus"] {
+  return {
+    dash: { id: "dash", label: "Dash", readyAt: 0, cooldownMs: 820, active: false },
+    power_slash: { id: "power_slash", label: "360", readyAt: 0, cooldownMs: 7600, active: false },
+    energy_shot: { id: "energy_shot", label: "Shot", readyAt: 0, cooldownMs: 230, active: false },
+  };
+}
 
 function centerMessage(title: string, subtitle: string | undefined, tone: CenterMessage["tone"], duration = 2200): CenterMessage {
   return { id: nid("msg"), title, subtitle, createdAt: Date.now(), duration, tone };
@@ -177,6 +188,8 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
     ownedWeapons: ["blaster"],
     currentWeapon: "blaster",
     perks: {},
+    shopUpgrades: {},
+    skillStatus: baseSkillStatus(),
     perkChoices: [],
     pendingLevelUps: 0,
     records,
@@ -345,6 +358,8 @@ interface GameStore extends GameState {
   buyWeapon: (id: WeaponId) => void;
   equipWeapon: (id: WeaponId) => void;
   choosePerk: (id: PerkId) => void;
+  buyShopUpgrade: (id: ShopUpgradeId) => void;
+  setSkillStatus: (id: SkillId, readyAt: number, cooldownMs: number, active?: boolean) => void;
   setQuality: (quality: QualityLevel) => void;
   refreshRecords: () => void;
 }
@@ -417,6 +432,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       gameTime: saved.gameTime,
       stats: saved.stats,
       perks: saved.perks ?? {},
+      shopUpgrades: saved.shopUpgrades ?? {},
       ownedWeapons: saved.ownedWeapons.length ? saved.ownedWeapons : ["blaster"],
       currentWeapon: saved.currentWeapon,
       poisons,
@@ -797,6 +813,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   addMeleeSwing: (playerPos, angle, is360) => {
     set(s => {
+      const rangeLevel = shopUpgradeLevel(s.shopUpgrades, "attack_range");
+      const damageLevel = shopUpgradeLevel(s.shopUpgrades, "melee_damage");
+      const superLevel = shopUpgradeLevel(s.shopUpgrades, "super_charge");
       const swing: MeleeSwing = {
         id: nid("melee"),
         startedAt: Date.now(),
@@ -805,10 +824,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         is360,
         color: is360 ? "#ff9d2f" : WEAPON_CONFIG[s.currentWeapon].color,
       };
-      const range = is360 ? 4.1 : 3.25;
-      const arc = is360 ? Math.PI * 2 : Math.PI * 0.78;
+      const range = (is360 ? 4.25 : 3.25) + rangeLevel * (is360 ? 0.18 : 0.22);
+      const arc = is360 ? Math.PI * 2 : Math.PI * (0.78 + rangeLevel * 0.035);
       const killed: PoisonItem[] = [];
-      const damage = (2.2 + s.stats.strength * 0.32) * (is360 ? 1.1 : 1);
+      const damage = (2.25 + s.stats.strength * 0.34 + damageLevel * 0.55) * (is360 ? 1.75 + superLevel * 0.14 : 1);
+      let hits = 0;
       const poisons = s.poisons.flatMap(enemy => {
         const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
         const dx = live[0] - playerPos[0];
@@ -823,16 +843,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
           if (Math.abs(diff) > arc / 2) return [enemy];
         }
         const hp = enemy.hp - damage;
+        hits += 1;
         if (hp <= 0) {
           killed.push(enemy);
           return [];
         }
+        const knock = (is360 ? 1.55 + superLevel * 0.16 : 0.72 + damageLevel * 0.05) * enemy.scale;
+        const nx = dx / Math.max(0.001, dist);
+        const nz = dz / Math.max(0.001, dist);
+        poisonCurrentPos[enemy.id] = [
+          clampToArena(live[0] + nx * knock, 1.4),
+          clampToArena(live[1] + nz * knock, 1.4),
+        ];
         return [{ ...enemy, hp }];
       });
+      swing.hits = hits;
 
       return {
         ...applyKills(s, poisons, killed),
-        meleeSwings: [...s.meleeSwings.slice(-5), swing],
+        meleeSwings: [...s.meleeSwings.slice(-7), swing],
+        floatingTexts: hits > 0
+          ? [...s.floatingTexts.slice(-16), floater(is360 ? `POWER x${hits}` : `SLASH x${hits}`, playerPos[0], playerPos[1], is360 ? "#ffbd5a" : "#8fe9ff", 2.55, 520)]
+          : s.floatingTexts,
       };
     });
   },
@@ -906,6 +938,72 @@ export const useGameStore = create<GameStore>((set, get) => ({
         maxHealth: s.maxHealth + heartGain,
         health: Math.min(s.maxHealth + heartGain, s.health + heartGain),
         centerMessage: centerMessage("ABILITY READY", id.replaceAll("_", " ").toUpperCase(), "reward", 1450),
+      };
+    });
+  },
+
+  buyShopUpgrade: (id) => {
+    set(s => {
+      const cfg = SHOP_UPGRADES[id];
+      if (!cfg) return {};
+      const currentLevel = shopUpgradeLevel(s.shopUpgrades, id);
+      if (currentLevel >= cfg.maxLevel) {
+        return { centerMessage: centerMessage("MAX LEVEL", cfg.name, "save", 1200) };
+      }
+      const cost = shopUpgradeCost(s.shopUpgrades, id);
+      if (s.coins < cost) {
+        return { centerMessage: centerMessage("NOT ENOUGH COINS", `${cost} coins required`, "danger", 1200) };
+      }
+
+      if (id === "heal_now") {
+        return {
+          coins: s.coins - cost,
+          shopUpgrades: { ...s.shopUpgrades, [id]: currentLevel + 1 },
+          health: Math.min(s.maxHealth, s.health + 48),
+          centerMessage: centerMessage("HEALED", "+48 HP", "reward", 1100),
+        };
+      }
+
+      if (id === "random_perk") {
+        const choices = rollPerkChoices(s.perks, 1);
+        const perk = choices[0];
+        if (!perk) return {};
+        return {
+          coins: s.coins - cost,
+          shopUpgrades: { ...s.shopUpgrades, [id]: currentLevel + 1 },
+          perks: { ...s.perks, [perk]: perkLevel(s.perks, perk) + 1 },
+          centerMessage: centerMessage("WILD MUTATION", perk.replaceAll("_", " ").toUpperCase(), "reward", 1500),
+        };
+      }
+
+      const nextLevel = currentLevel + 1;
+      const vitalityGain = id === "max_health" ? 18 : 0;
+      return {
+        coins: s.coins - cost,
+        shopUpgrades: { ...s.shopUpgrades, [id]: nextLevel },
+        maxHealth: s.maxHealth + vitalityGain,
+        health: Math.min(s.maxHealth + vitalityGain, s.health + vitalityGain),
+        centerMessage: centerMessage("UPGRADE BOUGHT", `${cfg.name} LV ${nextLevel}`, "reward", 1300),
+      };
+    });
+  },
+
+  setSkillStatus: (id, readyAt, cooldownMs, active = false) => {
+    set(s => {
+      const current = s.skillStatus[id];
+      if (
+        current &&
+        Math.abs(current.readyAt - readyAt) < 30 &&
+        Math.abs(current.cooldownMs - cooldownMs) < 20 &&
+        current.active === active
+      ) {
+        return {};
+      }
+      return {
+        skillStatus: {
+          ...s.skillStatus,
+          [id]: { id, label: current?.label ?? id, readyAt, cooldownMs, active },
+        },
       };
     });
   },

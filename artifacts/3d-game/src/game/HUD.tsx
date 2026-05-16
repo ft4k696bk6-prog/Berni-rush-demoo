@@ -33,6 +33,7 @@ export default function HUD() {
   const stats = useGameStore(s => s.stats);
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
+  const skillStatus = useGameStore(s => s.skillStatus);
   const upgradeStat = useGameStore(s => s.upgradeStat);
 
   const [now, setNow] = useState(() => Date.now());
@@ -121,6 +122,23 @@ export default function HUD() {
           })}
         </div>
       )}
+
+      <div className="skill-dock" aria-hidden="true">
+        {Object.values(skillStatus).map(skill => {
+          const ready = now >= skill.readyAt;
+          const remaining = Math.max(0, skill.readyAt - now);
+          const progress = ready ? 100 : Math.max(0, 100 - (remaining / Math.max(1, skill.cooldownMs)) * 100);
+          const Icon = skill.id === "dash" ? Zap : skill.id === "power_slash" ? Swords : Crosshair;
+          return (
+            <div key={skill.id} className={`skill-chip ${ready ? "ready" : ""} ${skill.active ? "active" : ""}`}>
+              <Icon size={16} />
+              <span>{skill.label}</span>
+              <b>{ready ? "READY" : `${Math.ceil(remaining / 1000)}s`}</b>
+              <i style={{ width: `${progress}%` }} />
+            </div>
+          );
+        })}
+      </div>
 
       {statPoints > 0 && (
         <aside className="upgrade-panel">

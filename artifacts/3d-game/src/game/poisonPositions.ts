@@ -13,6 +13,7 @@ export const creeperCountdownStart: Record<string, number> = {};
 export function clearEnemyRuntime(id: string) {
   delete poisonCurrentPos[id];
   delete enemyContactTimers[id];
+  delete enemyContactTimers[`${id}:slam`];
   delete enemyFireTimers[id];
   delete creeperCountdownStart[id];
 }
