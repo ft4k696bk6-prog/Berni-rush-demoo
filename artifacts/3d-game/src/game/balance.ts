@@ -52,16 +52,16 @@ export function getEnemyLevelScale(stage: number) {
 }
 
 export function pickEnemyType(stage: number, wave: number, forceBoss = false): EnemySubType {
-  if (forceBoss) return stage >= 15 ? "boss20" : "boss10";
+  if (forceBoss) return "boss_dragon";
 
   const roll = Math.random();
   const eliteChance = Math.min(0.16, 0.03 + stage * 0.01);
-  if (stage >= 4 && roll < eliteChance) return "elite";
+  if (stage >= 4 && roll < eliteChance) return Math.random() < 0.55 ? "tank_enemy" : "ranged_enemy";
 
-  if (stage <= 2) return Math.random() < 0.72 ? "grunt" : "shooter";
-  if (wave === 1) return roll < 0.44 ? "grunt" : roll < 0.72 ? "shooter" : "charger";
-  if (wave === 2) return roll < 0.28 ? "grunt" : roll < 0.52 ? "shooter" : roll < 0.78 ? "charger" : "brute";
-  return roll < 0.22 ? "grunt" : roll < 0.44 ? "shooter" : roll < 0.7 ? "charger" : roll < 0.9 ? "brute" : "creeper";
+  if (stage <= 2) return Math.random() < 0.74 ? "basic_melee" : "ranged_enemy";
+  if (wave === 1) return roll < 0.4 ? "basic_melee" : roll < 0.66 ? "ranged_enemy" : "fast_melee";
+  if (wave === 2) return roll < 0.26 ? "basic_melee" : roll < 0.48 ? "ranged_enemy" : roll < 0.72 ? "fast_melee" : "tank_enemy";
+  return roll < 0.22 ? "basic_melee" : roll < 0.42 ? "ranged_enemy" : roll < 0.62 ? "fast_melee" : roll < 0.82 ? "tank_enemy" : "exploder_enemy";
 }
 
 export function clampToArena(value: number, margin = 1) {

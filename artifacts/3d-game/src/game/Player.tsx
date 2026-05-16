@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
 import { clampToArena, getSpawnInterval } from "./balance";
 import { playerRuntime, touchRuntime } from "./gameRuntime";
+import { CharacterAssetModel } from "./AssetModels";
+import { getClassDefinition, getLoadoutModifiers } from "./loadout";
 import { perkLevel } from "./perks";
 import { shopUpgradeLevel } from "./shop";
 import { useGameStore } from "./useGameStore";
@@ -25,11 +27,13 @@ const SNAPSHOT_RATE = 0.055;
 
 export default function Player() {
   const groupRef = useRef<THREE.Group>(null);
-  const bodyRef = useRef<THREE.Mesh>(null);
+  const bodyRef = useRef<THREE.Group>(null);
   const barrelRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.PointLight>(null);
 
   const phase = useGameStore(s => s.phase);
+  const selectedClassId = useGameStore(s => s.selectedClassId);
+  const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const [, getKeys] = useKeyboardControls<Controls>();
   const { gl, camera } = useThree();
 
@@ -196,7 +200,9 @@ export default function Player() {
     const attackCooldownUpgrade = shopUpgradeLevel(store.shopUpgrades, "attack_cooldown");
     const pickupUpgrade = shopUpgradeLevel(store.shopUpgrades, "pickup_range");
     const superUpgrade = shopUpgradeLevel(store.shopUpgrades, "super_charge");
-    const speed = BASE_SPEED * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055 + moveUpgrade * 0.045) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
+    const loadoutMods = getLoadoutModifiers(store.selectedClassId, store.selectedSkinId);
+    const klass = getClassDefinition(store.selectedClassId);
+    const speed = BASE_SPEED * loadoutMods.moveSpeedMultiplier * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055 + moveUpgrade * 0.045) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
     const targetVelocity = input.multiplyScalar(speed);
     const accel = 1 - Math.exp(-18 * delta);
     velocity.current.lerp(targetVelocity, accel);
@@ -234,16 +240,20 @@ export default function Player() {
 
     const weapon = WEAPON_CONFIG[store.currentWeapon];
     const rapid = perkLevel(store.perks, "rapid_fire");
-    const fireRate = weapon.fireRate * (1 + store.stats.superpower * 0.012 + rapid * 0.085) * (hasSpeed ? 1.05 : 1);
+    const fireRate = weapon.fireRate * loadoutMods.attackSpeedMultiplier * (1 + store.stats.superpower * 0.012 + rapid * 0.085) * (hasSpeed ? 1.05 : 1);
     if ((shooting.current || touchRuntime.shooting) && fireCooldown.current <= 0) {
       store.fireWeapon(playerRuntime.x, playerRuntime.z, playerRuntime.aimX, playerRuntime.aimZ);
+      playerRuntime.attackAnimUntil = now + 260;
+      playerRuntime.attackAnimType = "shoot";
       fireCooldown.current = 1 / fireRate;
     }
 
     const meleeRequested = (controls.melee && !meleeHeld.current) || touchRuntime.meleePressed;
     if (meleeRequested && meleeCooldown.current <= 0) {
-      meleeCooldown.current = has360 ? 0.5 : Math.max(0.42, 0.68 - attackCooldownUpgrade * 0.046);
+      meleeCooldown.current = has360 ? 0.5 : Math.max(0.36, (0.68 - attackCooldownUpgrade * 0.046) / loadoutMods.attackSpeedMultiplier);
       store.addMeleeSwing([playerRuntime.x, playerRuntime.z], facingAngle.current, has360);
+      playerRuntime.attackAnimUntil = now + 430;
+      playerRuntime.attackAnimType = "slash";
     }
     touchRuntime.meleePressed = false;
     meleeHeld.current = controls.melee;
@@ -251,7 +261,9 @@ export default function Player() {
     const powerRequested = (controls.power && !powerHeld.current) || touchRuntime.powerPressed;
     if (powerRequested && powerCooldown.current <= 0) {
       store.addMeleeSwing([playerRuntime.x, playerRuntime.z], facingAngle.current, true);
-      powerCooldown.current = Math.max(4.4, 7.6 - store.stats.superpower * 0.045 - superUpgrade * 0.55);
+      powerCooldown.current = Math.max(4.1, (7.6 - store.stats.superpower * 0.045 - superUpgrade * 0.55) * loadoutMods.cooldownMultiplier);
+      playerRuntime.attackAnimUntil = now + 620;
+      playerRuntime.attackAnimType = "slash";
     }
     touchRuntime.powerPressed = false;
     powerHeld.current = controls.power;
@@ -284,7 +296,7 @@ export default function Player() {
     if (barrelRef.current) {
       const recoil = fireCooldown.current > 0 ? Math.min(0.16, fireCooldown.current * 0.3) : 0;
       barrelRef.current.position.z = 0.72 - recoil;
-      (barrelRef.current.material as THREE.MeshStandardMaterial).emissive.set(weapon.color);
+      (barrelRef.current.material as THREE.MeshStandardMaterial).emissive.set(klass.color);
     }
     if (glowRef.current) {
       const pulse = 0.6 + Math.sin(pulseT.current * 9) * 0.25;
@@ -301,7 +313,7 @@ export default function Player() {
         glowRef.current.color.set("#59ffa8");
         glowRef.current.intensity = 1.8 + pulse;
       } else {
-        glowRef.current.color.set(weapon.color);
+        glowRef.current.color.set(klass.color);
         glowRef.current.intensity = store.quality === "low" ? 0.5 : 0.85;
       }
     }
@@ -319,7 +331,7 @@ export default function Player() {
     skillSnapshotTimer.current += delta;
     if (skillSnapshotTimer.current > 0.12) {
       const dashCdMs = Math.max(320, 820 - store.stats.speed * 25 - swiftBoots * 35 - dashUpgrade * 55);
-      const powerCdMs = Math.max(4400, 7600 - store.stats.superpower * 45 - superUpgrade * 550);
+      const powerCdMs = Math.max(4100, (7600 - store.stats.superpower * 45 - superUpgrade * 550) * loadoutMods.cooldownMultiplier);
       store.setSkillStatus("dash", now + dashCooldown.current * 1000, dashCdMs, dashTime.current > 0);
       store.setSkillStatus("power_slash", now + powerCooldown.current * 1000, powerCdMs, powerCooldown.current <= 0);
       store.setSkillStatus("energy_shot", now + fireCooldown.current * 1000, Math.max(90, (1 / fireRate) * 1000), shooting.current || touchRuntime.shooting);
@@ -327,91 +339,43 @@ export default function Player() {
     }
   });
 
+  const classColor = getClassDefinition(selectedClassId).color;
+
   return (
     <group ref={groupRef} position={[0, 1.2, 0]}>
-      <pointLight ref={glowRef} intensity={0.8} distance={6} color="#ffd84a" />
+      <pointLight ref={glowRef} intensity={0.8} distance={6} color={classColor} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.58, 0]}>
         <ringGeometry args={[0.95, 1.24, 36]} />
-        <meshBasicMaterial color="#7dfcff" transparent opacity={0.44} />
+        <meshBasicMaterial color={classColor} transparent opacity={0.44} />
       </mesh>
 
-      <mesh castShadow position={[0, -0.08, -0.29]}>
-        <boxGeometry args={[1.02, 1.44, 0.18]} />
-        <meshStandardMaterial color="#23336a" roughness={0.64} metalness={0.05} />
-      </mesh>
-
-      <mesh ref={bodyRef} castShadow position={[0, 0, 0]}>
-        <capsuleGeometry args={[0.46, 0.92, 6, 14]} />
-        <meshStandardMaterial color="#2ed0a2" roughness={0.5} metalness={0.08} />
-      </mesh>
-
-      <mesh castShadow position={[0, 0.74, 0.02]}>
-        <sphereGeometry args={[0.42, 16, 12]} />
-        <meshStandardMaterial color="#f1bb8b" roughness={0.42} />
-      </mesh>
-
-      <mesh castShadow position={[0, 0.88, -0.05]}>
-        <coneGeometry args={[0.58, 0.62, 7]} />
-        <meshStandardMaterial color="#1a826c" roughness={0.55} metalness={0.06} />
-      </mesh>
-
-      <mesh castShadow position={[0, 1.16, -0.08]}>
-        <coneGeometry args={[0.46, 0.42, 7]} />
-        <meshStandardMaterial color="#166858" roughness={0.58} />
-      </mesh>
-
-      <mesh ref={barrelRef} castShadow position={[0, 0.24, 0.74]}>
-        <boxGeometry args={[0.08, 0.08, 0.86]} />
-        <meshStandardMaterial color="#fff3c0" emissive="#ffd84a" emissiveIntensity={0.8} roughness={0.28} metalness={0.4} />
-      </mesh>
-
-      <group position={[0.53, 0.12, 0.62]} rotation={[0.08, 0.15, -0.08]}>
-        <mesh castShadow rotation={[Math.PI / 2, 0, 0.28]}>
-          <torusGeometry args={[0.56, 0.035, 8, 28, Math.PI * 1.38]} />
-          <meshStandardMaterial color="#d89a3b" roughness={0.38} metalness={0.34} />
-        </mesh>
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.012, 0.012, 1.12, 6]} />
-          <meshBasicMaterial color="#f8efe0" />
-        </mesh>
+      <group ref={bodyRef}>
+        <Suspense fallback={
+          <group>
+            <mesh castShadow position={[0, 0, 0]}>
+              <capsuleGeometry args={[0.46, 0.92, 6, 14]} />
+              <meshStandardMaterial color={classColor} roughness={0.5} metalness={0.08} />
+            </mesh>
+            <mesh castShadow position={[0, 0.74, 0.02]}>
+              <sphereGeometry args={[0.42, 16, 12]} />
+              <meshStandardMaterial color="#f1bb8b" roughness={0.42} />
+            </mesh>
+          </group>
+        }>
+          <CharacterAssetModel skinId={selectedSkinId} />
+        </Suspense>
       </group>
 
-      <mesh castShadow position={[0.5, -0.1, 0.12]} rotation={[0, 0, -0.24]}>
-        <capsuleGeometry args={[0.15, 0.62, 5, 8]} />
-        <meshStandardMaterial color="#2ed0a2" roughness={0.5} />
-      </mesh>
-      <mesh castShadow position={[-0.5, -0.1, 0.12]} rotation={[0, 0, 0.24]}>
-        <capsuleGeometry args={[0.15, 0.62, 5, 8]} />
-        <meshStandardMaterial color="#2ed0a2" roughness={0.5} />
+      <mesh ref={barrelRef} castShadow position={[0, 0.18, 0.74]}>
+        <boxGeometry args={[0.09, 0.09, 0.78]} />
+        <meshStandardMaterial color="#fff3c0" emissive={classColor} emissiveIntensity={0.82} roughness={0.28} metalness={0.4} />
       </mesh>
 
-      <mesh castShadow position={[0.24, -1.02, 0.02]}>
-        <capsuleGeometry args={[0.15, 0.7, 5, 8]} />
-        <meshStandardMaterial color="#25345f" roughness={0.58} />
+      <mesh position={[0, 1.38, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.55, 0.026, 6, 32]} />
+        <meshStandardMaterial color={classColor} emissive={classColor} emissiveIntensity={1.25} transparent opacity={0.72} />
       </mesh>
-      <mesh castShadow position={[-0.24, -1.02, 0.02]}>
-        <capsuleGeometry args={[0.15, 0.7, 5, 8]} />
-        <meshStandardMaterial color="#25345f" roughness={0.58} />
-      </mesh>
-
-      <mesh position={[0.16, 0.78, 0.36]}>
-        <sphereGeometry args={[0.055, 8, 8]} />
-        <meshStandardMaterial color="#ffffff" emissive="#7dfcff" emissiveIntensity={1.3} />
-      </mesh>
-      <mesh position={[-0.16, 0.78, 0.36]}>
-        <sphereGeometry args={[0.055, 8, 8]} />
-        <meshStandardMaterial color="#ffffff" emissive="#7dfcff" emissiveIntensity={1.3} />
-      </mesh>
-
-      <group position={[-0.48, 0.12, -0.32]} rotation={[0.2, -0.32, -0.2]}>
-        {[0, 0.11, 0.22].map((offset, index) => (
-          <mesh key={index} position={[offset, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.025, 0.025, 0.92, 6]} />
-            <meshStandardMaterial color="#ffe8a2" roughness={0.38} />
-          </mesh>
-        ))}
-      </group>
     </group>
   );
 }

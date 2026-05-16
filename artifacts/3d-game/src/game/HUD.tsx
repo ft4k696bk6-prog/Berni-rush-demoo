@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { BadgePlus, Clock3, Coins, Crosshair, Gauge, HeartPulse, Skull, Swords, Trophy, Zap } from "lucide-react";
+import { BadgePlus, Clock3, Coins, Crosshair, Gauge, HeartPulse, Pause, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
+import { getClassDefinition, getSkinDefinition } from "./loadout";
 import { WEAPON_CONFIG } from "./weapons";
 
 const STAT_ORDER: StatKey[] = ["strength", "superpower", "vitality", "luck", "dodge", "speed"];
@@ -26,7 +27,10 @@ export default function HUD() {
   const xp = useGameStore(s => s.xp);
   const xpToNext = useGameStore(s => s.xpToNext);
   const coins = useGameStore(s => s.coins);
+  const walletCoins = useGameStore(s => s.walletCoins);
   const currentWeapon = useGameStore(s => s.currentWeapon);
+  const selectedClassId = useGameStore(s => s.selectedClassId);
+  const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const activeEffects = useGameStore(s => s.activeEffects);
   const gameTime = useGameStore(s => s.gameTime);
   const statPoints = useGameStore(s => s.statPoints);
@@ -34,7 +38,9 @@ export default function HUD() {
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
   const skillStatus = useGameStore(s => s.skillStatus);
+  const boss = useGameStore(s => s.poisons.find(enemy => enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20"));
   const upgradeStat = useGameStore(s => s.upgradeStat);
+  const pauseGame = useGameStore(s => s.pauseGame);
 
   const [now, setNow] = useState(() => Date.now());
   const [cursor, setCursor] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2, visible: false });
@@ -58,9 +64,12 @@ export default function HUD() {
   const hpPct = Math.max(0, Math.min(100, (health / maxHealth) * 100));
   const xpPct = Math.max(0, Math.min(100, (xp / xpToNext) * 100));
   const weapon = WEAPON_CONFIG[currentWeapon];
+  const klass = getClassDefinition(selectedClassId);
+  const skin = getSkinDefinition(selectedSkinId);
   const monstersLeft = Math.max(0, killsRequired - killsThisStage);
   const runVisible = phase === "playing" || phase === "paused" || phase === "upgrade";
   const perkCount = Object.values(perks).reduce((total, value) => total + (value ?? 0), 0);
+  const bossHpPct = boss ? Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) : 0;
 
   const messageClass = useMemo(() => centerMessage ? `center-message ${centerMessage.tone}` : "center-message", [centerMessage]);
 
@@ -82,6 +91,10 @@ export default function HUD() {
           <div className="bar xp-bar">
             <div className="bar-fill" style={{ width: `${xpPct}%` }} />
           </div>
+          <div className="loadout-strip" style={{ borderColor: `${klass.color}55` }}>
+            <span style={{ color: klass.color }}>{klass.displayName}</span>
+            <b>{skin.displayName}</b>
+          </div>
         </section>
 
         <section className="hud-center-panel">
@@ -99,12 +112,28 @@ export default function HUD() {
 
         <section className="hud-panel hud-score-panel">
           <div className="hud-stat"><Coins size={18} /><span>{coins}</span></div>
+          <div className="hud-stat bank-stat"><Coins size={18} /><span>{walletCoins}</span></div>
           <div className="hud-stat"><Skull size={18} /><span>{totalKills}</span></div>
           <div className="hud-stat"><Clock3 size={18} /><span>{formatTime(gameTime)}</span></div>
           <div className="hud-stat"><Zap size={18} /><span>{perkCount} perks</span></div>
           <div className="weapon-pill"><Swords size={16} /><span>{weapon.shortName}</span></div>
         </section>
       </div>
+
+      {boss && (
+        <div className="boss-health">
+          <span>{boss.type === "boss_dragon" ? "HARVEST DRAGON" : "BOSS"}</span>
+          <div className="bar">
+            <div className="bar-fill" style={{ width: `${bossHpPct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {phase === "playing" && (
+        <button className="mobile-pause-button" type="button" onClick={pauseGame} aria-label="Pause">
+          <Pause size={20} />
+        </button>
+      )}
 
       {activeEffects.length > 0 && (
         <div className="effect-tray">

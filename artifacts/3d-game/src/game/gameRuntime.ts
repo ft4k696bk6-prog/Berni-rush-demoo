@@ -12,6 +12,8 @@ export const playerRuntime = {
   screenX: 0,
   screenY: 0,
   dashUntil: 0,
+  attackAnimUntil: 0,
+  attackAnimType: "shoot" as "shoot" | "slash",
 };
 
 export const touchRuntime = {
@@ -38,6 +40,8 @@ export function resetPlayerRuntime() {
   playerRuntime.screenX = window.innerWidth / 2;
   playerRuntime.screenY = window.innerHeight / 2;
   playerRuntime.dashUntil = 0;
+  playerRuntime.attackAnimUntil = 0;
+  playerRuntime.attackAnimType = "shoot";
   touchRuntime.moveX = 0;
   touchRuntime.moveZ = 0;
   touchRuntime.shooting = false;

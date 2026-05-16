@@ -1,6 +1,25 @@
 export type GamePhase = "menu" | "playing" | "paused" | "upgrade" | "gameover";
 export type QualityLevel = "low" | "medium" | "high";
 
+export type ClassId = "knight" | "ranger" | "mage" | "assassin" | "tank" | "miner";
+export type ClassAttackType = "melee_arc" | "rapid_projectile" | "magic_orb" | "dash_strike" | "heavy_cone" | "pickaxe_throw";
+export type VfxTheme = "knight" | "ranger" | "mage" | "assassin" | "tank" | "miner";
+export type SkinId =
+  | "knight_male"
+  | "blue_soldier"
+  | "casual_runner"
+  | "ninja_shadow"
+  | "wizard_arcane"
+  | "worker_miner"
+  | "pirate_rogue"
+  | "viking_brute"
+  | "soldier_scout"
+  | "witch_mystic"
+  | "golden_knight"
+  | "suit_agent";
+export type SkinRarity = "starter" | "common" | "rare" | "epic" | "legendary";
+export type SkinMiniBonusType = "move_speed" | "hp" | "cooldown" | "crit" | "coins" | "damage";
+
 export type StatKey = "strength" | "superpower" | "vitality" | "luck" | "dodge" | "speed";
 export type WeaponId = "blaster" | "rapid" | "shotgun" | "laser" | "nova" | "arcane";
 export type PerkId =
@@ -36,6 +55,12 @@ export type PowerupType =
 export type DrugType = PowerupType;
 
 export type EnemySubType =
+  | "basic_melee"
+  | "fast_melee"
+  | "tank_enemy"
+  | "ranged_enemy"
+  | "exploder_enemy"
+  | "boss_dragon"
   | "grunt"
   | "charger"
   | "shooter"
@@ -47,7 +72,47 @@ export type EnemySubType =
   | "boss10"
   | "boss20";
 export type PoisonType = EnemySubType;
-export type EnemyMechanic = "shoot" | "melee" | "explode" | "charge" | "slam";
+export type EnemyMechanic = "shoot" | "melee" | "explode" | "charge" | "slam" | "shockwave";
+
+export interface ClassDefinition {
+  id: ClassId;
+  displayName: string;
+  description: string;
+  icon: string;
+  baseHpMultiplier: number;
+  damageMultiplier: number;
+  attackSpeedMultiplier: number;
+  cooldownMultiplier: number;
+  critChanceBonus: number;
+  armorBonus: number;
+  coinMultiplier: number;
+  moveSpeedMultiplier: number;
+  attackType: ClassAttackType;
+  vfxTheme: VfxTheme;
+  color: string;
+  preferredRange: "close" | "ranged" | "hybrid";
+}
+
+export interface SkinDefinition {
+  id: SkinId;
+  displayName: string;
+  prefab: string;
+  icon: string;
+  rarity: SkinRarity;
+  unlockCost: number;
+  defaultUnlocked: boolean;
+  miniBonusType: SkinMiniBonusType;
+  miniBonusValue: number;
+  compatibleClasses: ClassId[];
+  previewOffset: [number, number, number];
+  previewScale: number;
+  animationProfile: "humanoid";
+}
+
+export interface PlayerLoadout {
+  selectedClassId: ClassId;
+  selectedSkinId: SkinId;
+}
 
 export interface PlayerStats {
   strength: number;
@@ -78,6 +143,9 @@ export interface PoisonItem {
   coinValue: number;
   mechanics: EnemyMechanic[];
   scale: number;
+  assetPath?: string;
+  modelScale?: number;
+  modelYOffset?: number;
 }
 
 export interface Projectile {
@@ -94,6 +162,9 @@ export interface Projectile {
   bounces: number;
   color: string;
   weaponId: WeaponId;
+  attackStyle?: ClassAttackType;
+  splashRadius?: number;
+  critical?: boolean;
 }
 
 export interface EnemyProjectile {
@@ -119,6 +190,7 @@ export interface MeleeSwing {
   is360: boolean;
   color?: string;
   hits?: number;
+  theme?: VfxTheme;
 }
 
 export interface SkillStatus {
@@ -159,11 +231,13 @@ export interface GameRecords {
   mostKills: number;
   mostCoins: number;
   longestTime: number;
+  mostBossesDefeated: number;
 }
 
 export interface GameState {
   phase: GamePhase;
   score: number;
+  walletCoins: number;
   health: number;
   maxHealth: number;
   stage: number;
@@ -173,6 +247,8 @@ export interface GameState {
   killsRequired: number;
   spawnedThisStage: number;
   totalKills: number;
+  bossesDefeated: number;
+  totalBossesDefeated: number;
   playerLevel: number;
   xp: number;
   xpToNext: number;
@@ -195,6 +271,9 @@ export interface GameState {
   aimWorld: [number, number];
   ownedWeapons: WeaponId[];
   currentWeapon: WeaponId;
+  selectedClassId: ClassId;
+  selectedSkinId: SkinId;
+  unlockedSkinIds: SkinId[];
   perks: Partial<Record<PerkId, number>>;
   shopUpgrades: Partial<Record<ShopUpgradeId, number>>;
   skillStatus: Record<SkillId, SkillStatus>;
@@ -234,7 +313,16 @@ export const ENEMY_CONFIG: Record<EnemySubType, {
   mechanics: EnemyMechanic[];
   scale: number;
   color: string;
+  assetPath?: string;
+  modelScale?: number;
+  modelYOffset?: number;
 }> = {
+  basic_melee:   { label: "Bone Grunt",    baseHp: 3.4, speed: 3.35, damage: 14, mechanics: ["melee"],            xp: 15,  coinValue: 3,  scale: 1.02, color: "#e5e2cf", assetPath: "/assets/enemies/Skeleton.fbx", modelScale: 0.010, modelYOffset: -1.1 },
+  fast_melee:    { label: "Tunnel Rat",    baseHp: 2.6, speed: 4.95, damage: 11, mechanics: ["melee"],            xp: 16,  coinValue: 3,  scale: 0.78, color: "#d6a06b", assetPath: "/assets/enemies/Rat.fbx", modelScale: 0.012, modelYOffset: -1.1 },
+  tank_enemy:    { label: "Stone Slime",    baseHp: 9.8, speed: 2.05, damage: 24, mechanics: ["slam", "melee"],   xp: 36,  coinValue: 8,  scale: 1.52, color: "#7dc96e", assetPath: "/assets/enemies/Slime.fbx", modelScale: 0.013, modelYOffset: -1.1 },
+  ranged_enemy:  { label: "Venom Wasp",     baseHp: 3.2, speed: 3.05, damage: 13, mechanics: ["shoot"],            xp: 22,  coinValue: 5,  scale: 1.0,  color: "#ffd45d", assetPath: "/assets/enemies/Wasp.fbx", modelScale: 0.010, modelYOffset: -1.0 },
+  exploder_enemy:{ label: "Angry Serpent",  baseHp: 4.0, speed: 4.25, damage: 28, mechanics: ["charge", "explode"], xp: 24,  coinValue: 6,  scale: 1.05, color: "#ff6b4c", assetPath: "/assets/enemies/Snake_angry.fbx", modelScale: 0.012, modelYOffset: -1.1 },
+  boss_dragon:   { label: "Harvest Dragon", baseHp: 84,  speed: 2.65, damage: 30, mechanics: ["shoot", "melee", "shockwave"], xp: 260, coinValue: 55, scale: 2.9, color: "#ff7048", assetPath: "/assets/enemies/Dragon.fbx", modelScale: 0.018, modelYOffset: -1.8 },
   grunt:  { label: "Basic Grunt", baseHp: 3.2,  speed: 3.45, damage: 14, mechanics: ["melee"],                 xp: 14,  coinValue: 3,  scale: 0.98, color: "#4bd46a" },
   charger:{ label: "Charger",     baseHp: 4.2,  speed: 3.05, damage: 22, mechanics: ["charge"],                xp: 23,  coinValue: 5,  scale: 1.08, color: "#ff9d4d" },
   shooter:{ label: "Spore Shooter", baseHp: 3.0, speed: 2.9, damage: 13, mechanics: ["shoot"],                 xp: 20,  coinValue: 5,  scale: 1.0,  color: "#8bb7ff" },

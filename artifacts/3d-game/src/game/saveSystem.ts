@@ -1,7 +1,22 @@
-import type { GameRecords, GameState, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, WeaponId } from "./types";
+import { DEFAULT_CLASS_ID, DEFAULT_SKIN_ID, getStarterUnlockedSkins, normalizeLoadout } from "./loadout";
+import type { ClassId, GameRecords, GameState, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, SkinId, WeaponId } from "./types";
 
 const SAVE_KEY = "toxic-harvest-save-v2";
 const RECORD_KEY = "toxic-harvest-records-v2";
+const PROFILE_KEY = "toxic-harvest-profile-v1";
+
+export interface ProfileData {
+  selectedClassId: ClassId;
+  selectedSkinId: SkinId;
+  unlockedSkinIds: SkinId[];
+  totalCoins: number;
+  bestScore: number;
+  highestWave: number;
+  bossesDefeated: number;
+  settings: {
+    quality: QualityLevel;
+  };
+}
 
 export interface SaveData {
   savedAt: number;
@@ -24,6 +39,9 @@ export interface SaveData {
   shopUpgrades?: Partial<Record<ShopUpgradeId, number>>;
   ownedWeapons: WeaponId[];
   currentWeapon: WeaponId;
+  selectedClassId?: ClassId;
+  selectedSkinId?: SkinId;
+  bossesDefeated?: number;
   quality: QualityLevel;
 }
 
@@ -34,6 +52,20 @@ export const emptyRecords = (): GameRecords => ({
   mostKills: 0,
   mostCoins: 0,
   longestTime: 0,
+  mostBossesDefeated: 0,
+});
+
+export const defaultProfile = (): ProfileData => ({
+  selectedClassId: DEFAULT_CLASS_ID,
+  selectedSkinId: DEFAULT_SKIN_ID,
+  unlockedSkinIds: getStarterUnlockedSkins(),
+  totalCoins: 0,
+  bestScore: 0,
+  highestWave: 1,
+  bossesDefeated: 0,
+  settings: {
+    quality: "medium",
+  },
 });
 
 function safeParse<T>(value: string | null): T | null {
@@ -55,8 +87,58 @@ export function saveRecords(records: GameRecords) {
   window.localStorage.setItem(RECORD_KEY, JSON.stringify(records));
 }
 
+export function loadProfile(): ProfileData {
+  const base = defaultProfile();
+  if (typeof window === "undefined") return base;
+  const saved = safeParse<Partial<ProfileData>>(window.localStorage.getItem(PROFILE_KEY)) ?? {};
+  const unlockedSkinIds = Array.from(new Set([...(saved.unlockedSkinIds ?? []), ...getStarterUnlockedSkins()])) as SkinId[];
+  const loadout = normalizeLoadout({
+    selectedClassId: saved.selectedClassId ?? base.selectedClassId,
+    selectedSkinId: saved.selectedSkinId ?? base.selectedSkinId,
+  }, unlockedSkinIds);
+
+  return {
+    ...base,
+    ...saved,
+    ...loadout,
+    unlockedSkinIds,
+    totalCoins: Math.max(0, Math.floor(saved.totalCoins ?? base.totalCoins)),
+    bestScore: Math.max(0, saved.bestScore ?? base.bestScore),
+    highestWave: Math.max(1, saved.highestWave ?? base.highestWave),
+    bossesDefeated: Math.max(0, saved.bossesDefeated ?? base.bossesDefeated),
+    settings: {
+      ...base.settings,
+      ...(saved.settings ?? {}),
+    },
+  };
+}
+
+export function saveProfile(profile: ProfileData) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+export function updateProfile(patch: Partial<ProfileData> | ((profile: ProfileData) => ProfileData)) {
+  const current = loadProfile();
+  const next = typeof patch === "function" ? patch(current) : { ...current, ...patch };
+  const normalized = normalizeLoadout(next, Array.from(new Set([...next.unlockedSkinIds, ...getStarterUnlockedSkins()])) as SkinId[]);
+  const profile: ProfileData = {
+    ...next,
+    ...normalized,
+    unlockedSkinIds: Array.from(new Set([...next.unlockedSkinIds, ...getStarterUnlockedSkins()])) as SkinId[],
+    totalCoins: Math.max(0, Math.floor(next.totalCoins)),
+    highestWave: Math.max(1, next.highestWave),
+    bossesDefeated: Math.max(0, next.bossesDefeated),
+    settings: {
+      quality: next.settings?.quality ?? "medium",
+    },
+  };
+  saveProfile(profile);
+  return profile;
+}
+
 export function updateRecordsFromState(state: Pick<GameState,
-  "score" | "stage" | "playerLevel" | "totalKills" | "coinsCollected" | "gameTime"
+  "score" | "stage" | "playerLevel" | "totalKills" | "coinsCollected" | "gameTime" | "bossesDefeated"
 >) {
   const records = loadRecords();
   const next: GameRecords = {
@@ -66,6 +148,7 @@ export function updateRecordsFromState(state: Pick<GameState,
     mostKills: Math.max(records.mostKills, state.totalKills),
     mostCoins: Math.max(records.mostCoins, state.coinsCollected),
     longestTime: Math.max(records.longestTime, state.gameTime),
+    mostBossesDefeated: Math.max(records.mostBossesDefeated, state.bossesDefeated),
   };
   saveRecords(next);
   return next;
@@ -93,6 +176,9 @@ export function toSaveData(state: GameState): SaveData {
     shopUpgrades: state.shopUpgrades,
     ownedWeapons: state.ownedWeapons,
     currentWeapon: state.currentWeapon,
+    selectedClassId: state.selectedClassId,
+    selectedSkinId: state.selectedSkinId,
+    bossesDefeated: state.bossesDefeated,
     quality: state.quality,
   };
 }
@@ -101,6 +187,14 @@ export function saveGameState(state: GameState) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(SAVE_KEY, JSON.stringify(toSaveData(state)));
   updateRecordsFromState(state);
+  updateProfile(profile => ({
+    ...profile,
+    selectedClassId: state.selectedClassId,
+    selectedSkinId: state.selectedSkinId,
+    bestScore: Math.max(profile.bestScore, state.score),
+    highestWave: Math.max(profile.highestWave, state.stage),
+    settings: { quality: state.quality },
+  }));
 }
 
 export function loadSavedGame(): SaveData | null {
