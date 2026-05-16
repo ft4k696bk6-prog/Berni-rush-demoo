@@ -39,6 +39,7 @@ export default function HUD() {
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
   const skillStatus = useGameStore(s => s.skillStatus);
+  const impactBursts = useGameStore(s => s.impactBursts);
   const poisons = useGameStore(s => s.poisons);
   const playerPos = useGameStore(s => s.playerPos);
   const playerAngle = useGameStore(s => s.playerAngle);
@@ -78,6 +79,22 @@ export default function HUD() {
   const bossHpPct = boss ? Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) : 0;
 
   const messageClass = useMemo(() => centerMessage ? `center-message ${centerMessage.tone}` : "center-message", [centerMessage]);
+  const recentHit = useMemo(() => {
+    for (let i = impactBursts.length - 1; i >= 0; i--) {
+      const burst = impactBursts[i];
+      const age = now - burst.createdAt;
+      if (age > 260) continue;
+      if (burst.kind === "coin" || burst.kind === "death") continue;
+      return {
+        key: burst.id,
+        kind: burst.kind,
+        color: burst.color,
+        theme: burst.theme,
+        age,
+      };
+    }
+    return null;
+  }, [impactBursts, now]);
   const threats = useMemo(() => {
     return poisons
       .map(enemy => {
@@ -257,6 +274,20 @@ export default function HUD() {
               } as CSSProperties}
             />
           ))}
+        </div>
+      )}
+
+      {phase === "playing" && (
+        <div
+          key={recentHit?.key ?? "idle"}
+          className={`hit-marker ${recentHit ? "active" : ""} ${recentHit?.kind ?? ""} ${recentHit?.theme ?? ""}`}
+          style={{ "--hit-color": recentHit?.color ?? "#ffffff" } as CSSProperties}
+          aria-hidden="true"
+        >
+          <i />
+          <i />
+          <i />
+          <i />
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { memo, Suspense, useRef } from "react";
+import { memo, Suspense, useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { ARENA_BOUND, clampToArena } from "./balance";
@@ -20,6 +20,7 @@ interface Props {
 function PoisonItem({ poison }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const flashRef = useRef<THREE.MeshStandardMaterial>(null);
+  const hitFlashRef = useRef<THREE.Mesh>(null);
   const meleeTelegraphRef = useRef<THREE.Mesh>(null);
   const chargeTelegraphRef = useRef<THREE.Mesh>(null);
   const shootTelegraphRef = useRef<THREE.Mesh>(null);
@@ -33,11 +34,18 @@ function PoisonItem({ poison }: Props) {
   const shockwaveWindup = useRef<number | null>(null);
   const chargeState = useRef<{ phase: "windup" | "dash" | "recover"; startedAt: number; dirX: number; dirZ: number } | null>(null);
   const t = useRef(Math.random() * Math.PI * 2);
+  const previousHp = useRef(poison.hp);
+  const hitPulse = useRef(0);
 
   const phase = useGameStore(s => s.phase);
   const quality = useGameStore(s => s.quality);
   const hpRatio = Math.max(0, poison.hp / poison.maxHp);
   const isBoss = poison.type === "boss10" || poison.type === "boss20" || poison.type === "boss_dragon";
+
+  useEffect(() => {
+    if (poison.hp < previousHp.current) hitPulse.current = 1;
+    previousHp.current = poison.hp;
+  }, [poison.hp]);
 
   const setTelegraph = (mesh: THREE.Mesh | null, visible: boolean, opacity: number, scale = 1) => {
     if (!mesh) return;
@@ -249,6 +257,34 @@ function PoisonItem({ poison }: Props) {
     } else {
       group.scale.setScalar(poison.scale);
     }
+
+    if (hitPulse.current > 0) {
+      const pulse = hitPulse.current;
+      group.position.x += Math.sin(t.current * 28) * 0.06 * pulse;
+      group.position.y += 0.08 * pulse;
+      group.position.z += Math.cos(t.current * 31) * 0.045 * pulse;
+      group.scale.multiplyScalar(1 + 0.055 * pulse);
+
+      if (hitFlashRef.current) {
+        hitFlashRef.current.visible = true;
+        hitFlashRef.current.scale.setScalar(0.68 + (1 - pulse) * 0.52);
+        const material = hitFlashRef.current.material as THREE.MeshBasicMaterial;
+        material.opacity = Math.min(0.46, pulse * 0.42);
+      }
+
+      if (flashRef.current && !poison.mechanics.includes("explode")) {
+        flashRef.current.emissive.set("#ffffff");
+        flashRef.current.emissiveIntensity = 0.32 + pulse * 1.9;
+      }
+
+      hitPulse.current = Math.max(0, hitPulse.current - delta * 6.2);
+    } else if (hitFlashRef.current) {
+      hitFlashRef.current.visible = false;
+      if (flashRef.current && !poison.mechanics.includes("explode")) {
+        flashRef.current.emissive.set(ENEMY_RING_COLOR[poison.type]);
+        flashRef.current.emissiveIntensity = 0.16;
+      }
+    }
   });
 
   const bodyColor = poison.type === "ghost" || poison.type === "shooter" ? "#8bb7ff"
@@ -263,6 +299,11 @@ function PoisonItem({ poison }: Props) {
 
   return (
     <group ref={groupRef} position={[posRef.current[0], isBoss ? 2 : 1.2, posRef.current[1]]} scale={poison.scale}>
+      <mesh ref={hitFlashRef} visible={false} position={[0, isBoss ? 0.72 : 0.34, 0]}>
+        <sphereGeometry args={[isBoss ? 1.35 : 0.72, 16, 10]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0} depthWrite={false} />
+      </mesh>
+
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.15, 0]}>
         <ringGeometry args={[0.74, 0.92, 24]} />
         <meshBasicMaterial color={ENEMY_RING_COLOR[poison.type]} transparent opacity={0.34} />

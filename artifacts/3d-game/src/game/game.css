@@ -1473,6 +1473,72 @@ button {
   animation: threat-pulse 760ms ease-in-out infinite alternate;
 }
 
+.hit-marker {
+  --hit-color: #ffffff;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 26;
+  width: 74px;
+  height: 74px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+.hit-marker.active {
+  animation: hit-marker-pop 260ms ease-out both;
+}
+
+.hit-marker i {
+  position: absolute;
+  width: 16px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--hit-color);
+  box-shadow: 0 0 10px var(--hit-color), 0 0 22px rgba(255, 255, 255, 0.28);
+}
+
+.hit-marker i:nth-child(1) {
+  left: 10px;
+  top: 23px;
+  transform: rotate(42deg);
+}
+
+.hit-marker i:nth-child(2) {
+  right: 10px;
+  top: 23px;
+  transform: rotate(-42deg);
+}
+
+.hit-marker i:nth-child(3) {
+  left: 10px;
+  bottom: 23px;
+  transform: rotate(-42deg);
+}
+
+.hit-marker i:nth-child(4) {
+  right: 10px;
+  bottom: 23px;
+  transform: rotate(42deg);
+}
+
+.hit-marker.crit {
+  width: 92px;
+  height: 92px;
+}
+
+.hit-marker.crit i {
+  height: 4px;
+  background: #ffffff;
+  box-shadow: 0 0 14px #ffffff, 0 0 30px var(--hit-color);
+}
+
+.hit-marker.heavy i,
+.hit-marker.magic i {
+  width: 20px;
+}
+
 .loadout-menu {
   width: min(1040px, calc(100vw - 36px));
   max-height: calc(100vh - 36px);
@@ -2041,6 +2107,20 @@ button {
   to {
     opacity: 1;
     filter: drop-shadow(0 0 18px rgba(255, 77, 77, 0.68));
+  }
+}
+
+@keyframes hit-marker-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.72);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.18);
   }
 }
 
