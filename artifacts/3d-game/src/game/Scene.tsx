@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { KeyboardControls } from "@react-three/drei";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Arena from "./Arena";
 import Player from "./Player";
 import DrugItem from "./DrugItem";
@@ -9,6 +9,8 @@ import Projectile from "./Projectile";
 import EnemyProjectile from "./EnemyProjectile";
 import MeleeEffect from "./MeleeEffect";
 import CameraRig from "./CameraRig";
+import CoinItem from "./CoinItem";
+import FloatingText from "./FloatingText";
 import { useGameStore } from "./useGameStore";
 
 enum Controls {
@@ -16,56 +18,63 @@ enum Controls {
   back = "back",
   left = "left",
   right = "right",
-  jump = "jump",
+  dash = "dash",
   melee = "melee",
 }
 
 const keyMap = [
   { name: Controls.forward, keys: ["ArrowUp", "KeyW"] },
-  { name: Controls.back,    keys: ["ArrowDown", "KeyS"] },
-  { name: Controls.left,    keys: ["ArrowLeft", "KeyA"] },
-  { name: Controls.right,   keys: ["ArrowRight", "KeyD"] },
-  { name: Controls.jump,    keys: ["Space"] },
-  { name: Controls.melee,   keys: ["Enter"] },
+  { name: Controls.back, keys: ["ArrowDown", "KeyS"] },
+  { name: Controls.left, keys: ["ArrowLeft", "KeyA"] },
+  { name: Controls.right, keys: ["ArrowRight", "KeyD"] },
+  { name: Controls.dash, keys: ["Space", "ShiftLeft", "ShiftRight"] },
+  { name: Controls.melee, keys: ["Enter", "KeyF"] },
 ];
 
 function SceneContent() {
-  const { drugs, poisons, projectiles, enemyProjectiles, meleeSwings, phase } = useGameStore();
+  const drugs = useGameStore(s => s.drugs);
+  const poisons = useGameStore(s => s.poisons);
+  const projectiles = useGameStore(s => s.projectiles);
+  const enemyProjectiles = useGameStore(s => s.enemyProjectiles);
+  const meleeSwings = useGameStore(s => s.meleeSwings);
+  const coins = useGameStore(s => s.coinItems);
+  const floatingTexts = useGameStore(s => s.floatingTexts);
+  const phase = useGameStore(s => s.phase);
+  const quality = useGameStore(s => s.quality);
+  const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
 
   return (
     <>
-      {/* Bright daylight for Minecraft look */}
-      <ambientLight intensity={0.7} color="#e8f4e8" />
+      <ambientLight intensity={quality === "low" ? 0.75 : 0.62} color="#eaf7ff" />
       <directionalLight
-        position={[15, 30, 20]}
-        intensity={1.6}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-far={80}
-        shadow-camera-left={-30}
-        shadow-camera-right={30}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
-        color="#fffde8"
+        position={[18, 32, 18]}
+        intensity={quality === "low" ? 1.15 : 1.55}
+        castShadow={quality !== "low"}
+        shadow-mapSize={quality === "high" ? [2048, 2048] : [1024, 1024]}
+        shadow-camera-far={100}
+        shadow-camera-left={-48}
+        shadow-camera-right={48}
+        shadow-camera-top={48}
+        shadow-camera-bottom={-48}
+        color="#fff7df"
       />
-      <directionalLight position={[-10, 15, -10]} intensity={0.35} color="#aaddff" />
-      {/* Sky hemisphere */}
-      <hemisphereLight args={["#87ceeb", "#3a7d3a", 0.5]} />
+      {quality !== "low" && <hemisphereLight args={["#84d8ff", "#122d38", 0.52]} />}
 
-      {/* Sky color (fog) */}
-      <fog attach="fog" args={["#7ec8e3", 35, 85]} />
-      <color attach="background" args={["#87ceeb"]} />
+      <fog attach="fog" args={["#123848", 48, 104]} />
+      <color attach="background" args={["#0b2432"]} />
 
       <Arena />
 
-      {phase === "playing" && (
+      {inRun && (
         <>
           <Player />
           {drugs.map(d => <DrugItem key={d.id} drug={d} />)}
           {poisons.map(p => <PoisonItem key={p.id} poison={p} />)}
+          {coins.map(c => <CoinItem key={c.id} coin={c} />)}
           {projectiles.map(p => <Projectile key={p.id} projectile={p} />)}
           {enemyProjectiles.map(p => <EnemyProjectile key={p.id} projectile={p} />)}
           {meleeSwings.map(m => <MeleeEffect key={m.id} swing={m} />)}
+          {floatingTexts.map(t => <FloatingText key={t.id} item={t} />)}
         </>
       )}
 
@@ -76,21 +85,20 @@ function SceneContent() {
 
 export default function Scene() {
   const [webglFailed, setWebglFailed] = useState(false);
+  const quality = useGameStore(s => s.quality);
+  const dpr = useMemo<[number, number] | number>(() => {
+    if (quality === "low") return 1;
+    if (quality === "medium") return [1, 1.35];
+    return [1, 1.75];
+  }, [quality]);
 
   if (webglFailed) {
     return (
-      <div style={{
-        width: "100vw", height: "100vh",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#1a3d1a", color: "#88ff88",
-        fontFamily: "monospace", textAlign: "center", padding: 40,
-      }}>
+      <div className="webgl-fallback">
         <div>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠</div>
-          <div style={{ fontSize: 20, marginBottom: 8 }}>WebGL Not Available</div>
-          <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>
-            Please open in Chrome or Firefox on a desktop.
-          </div>
+          <div className="webgl-icon">!</div>
+          <div className="webgl-title">WebGL Not Available</div>
+          <div className="webgl-copy">Please open the game in a modern desktop browser.</div>
         </div>
       </div>
     );
@@ -99,11 +107,16 @@ export default function Scene() {
   return (
     <KeyboardControls map={keyMap}>
       <Canvas
-        shadows
+        shadows={quality !== "low"}
+        dpr={dpr}
+        frameloop="always"
+        performance={{ min: 0.65 }}
+        gl={{ antialias: quality !== "low", powerPreference: "high-performance" }}
         style={{ width: "100vw", height: "100vh" }}
-        camera={{ fov: 58, near: 0.1, far: 150, position: [0, 20, 16] }}
+        camera={{ fov: 54, near: 0.1, far: 150, position: [0, 22, 18] }}
         onCreated={({ gl }) => {
           if (!gl.getContext()) setWebglFailed(true);
+          gl.setClearColor("#0b2432");
         }}
       >
         <Suspense fallback={null}>

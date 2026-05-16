@@ -1,186 +1,173 @@
 import { useMemo } from "react";
 import * as THREE from "three";
+import { ARENA_BOUND } from "./balance";
+import { useGameStore } from "./useGameStore";
 
-const ARENA = 24;
+const SIZE = ARENA_BOUND * 2;
 
-// Pre-calculated decoration positions (deterministic, no random in render)
-const TREES = (() => {
-  const list: Array<{ x: number; z: number; h: number; r: number }> = [];
-  const lcg = (s: number) => { let v = s; return () => { v = (v * 1664525 + 1013904223) >>> 0; return v / 0xffffffff; }; };
-  const r = lcg(77);
-  for (let i = 0; i < 28; i++) {
-    const x = (r() - 0.5) * (ARENA * 1.9);
-    const z = (r() - 0.5) * (ARENA * 1.9);
-    if (Math.abs(x) < ARENA - 1 && Math.abs(z) < ARENA - 1 && (Math.abs(x) > 5 || Math.abs(z) > 5)) {
-      list.push({ x, z, h: 2 + r() * 2.5, r: r() });
-    }
+function lcg(seed: number) {
+  let value = seed;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 0xffffffff;
+  };
+}
+
+const DECOR = (() => {
+  const rand = lcg(177);
+  const trees: Array<{ x: number; z: number; h: number; hue: number }> = [];
+  const rocks: Array<{ x: number; z: number; s: number; rot: number }> = [];
+  const flowers: Array<{ x: number; z: number; color: string }> = [];
+  const colors = ["#ff5d8f", "#ffd85a", "#69e7ff", "#f7f0d0", "#b98cff"];
+
+  for (let i = 0; i < 42; i++) {
+    const x = (rand() * 2 - 1) * (ARENA_BOUND - 4);
+    const z = (rand() * 2 - 1) * (ARENA_BOUND - 4);
+    if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
+    trees.push({ x, z, h: 2.2 + rand() * 2.1, hue: rand() });
   }
-  return list;
+
+  for (let i = 0; i < 34; i++) {
+    const x = (rand() * 2 - 1) * (ARENA_BOUND - 5);
+    const z = (rand() * 2 - 1) * (ARENA_BOUND - 5);
+    rocks.push({ x, z, s: 0.42 + rand() * 0.85, rot: rand() * Math.PI });
+  }
+
+  for (let i = 0; i < 56; i++) {
+    const x = (rand() * 2 - 1) * (ARENA_BOUND - 5);
+    const z = (rand() * 2 - 1) * (ARENA_BOUND - 5);
+    if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
+    flowers.push({ x, z, color: colors[Math.floor(rand() * colors.length)] });
+  }
+
+  return { trees, rocks, flowers };
 })();
 
-const FLOWERS = (() => {
-  const list: Array<{ x: number; z: number; color: string }> = [];
-  const lcg = (s: number) => { let v = s; return () => { v = (v * 1664525 + 1013904223) >>> 0; return v / 0xffffffff; }; };
-  const r = lcg(123);
-  const colors = ["#ff4488", "#ffee00", "#ff6600", "#ff2255", "#ffffff"];
-  for (let i = 0; i < 40; i++) {
-    const x = (r() - 0.5) * (ARENA * 1.8);
-    const z = (r() - 0.5) * (ARENA * 1.8);
-    if (Math.abs(x) < ARENA - 1 && Math.abs(z) < ARENA - 1 && (Math.abs(x) > 3 || Math.abs(z) > 3)) {
-      list.push({ x, z, color: colors[Math.floor(r() * colors.length)] });
-    }
-  }
-  return list;
-})();
-
-const ROCKS = (() => {
-  const list: Array<{ x: number; z: number; s: number; rot: number }> = [];
-  const lcg = (s: number) => { let v = s; return () => { v = (v * 1664525 + 1013904223) >>> 0; return v / 0xffffffff; }; };
-  const r = lcg(55);
-  for (let i = 0; i < 18; i++) {
-    const x = (r() - 0.5) * (ARENA * 1.8);
-    const z = (r() - 0.5) * (ARENA * 1.8);
-    if (Math.abs(x) < ARENA - 2 && Math.abs(z) < ARENA - 2) {
-      list.push({ x, z, s: 0.4 + r() * 0.8, rot: r() * Math.PI });
-    }
-  }
-  return list;
-})();
+const PILLARS = [
+  [-18, -16], [18, -16], [-18, 16], [18, 16],
+  [-30, 0], [30, 0], [0, -30], [0, 30],
+] as const;
 
 export default function Arena() {
-  const groundGeom = useMemo(() => new THREE.PlaneGeometry(ARENA * 2.5, ARENA * 2.5, 1, 1), []);
+  const quality = useGameStore(s => s.quality);
+  const groundGeom = useMemo(() => new THREE.PlaneGeometry(SIZE + 18, SIZE + 18, 1, 1), []);
+  const treeCount = quality === "low" ? 10 : quality === "medium" ? 24 : DECOR.trees.length;
+  const rockCount = quality === "low" ? 8 : quality === "medium" ? 20 : DECOR.rocks.length;
+  const flowerCount = quality === "low" ? 0 : quality === "medium" ? 28 : DECOR.flowers.length;
+  const gridLines = quality === "low" ? 7 : 11;
 
   return (
     <group>
-      {/* Grass ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <primitive object={groundGeom} />
-        <meshLambertMaterial color="#3a7d3a" />
+        <meshStandardMaterial color="#496f72" roughness={0.9} metalness={0.02} />
       </mesh>
 
-      {/* Dirt border patches */}
-      {[...Array(12)].map((_, i) => {
-        const angle = (i / 12) * Math.PI * 2;
-        const d = ARENA * 1.05;
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]} receiveShadow>
+        <planeGeometry args={[SIZE * 0.16, SIZE]} />
+        <meshStandardMaterial color="#b58a57" roughness={0.95} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.007, 0]} receiveShadow>
+        <planeGeometry args={[SIZE, SIZE * 0.16]} />
+        <meshStandardMaterial color="#b58a57" roughness={0.95} />
+      </mesh>
+
+      {Array.from({ length: gridLines }).map((_, i) => {
+        const offset = -ARENA_BOUND + ((i + 1) / (gridLines + 1)) * SIZE;
         return (
-          <mesh key={`dirt_${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[Math.cos(angle) * d, 0.01, Math.sin(angle) * d]}>
-            <planeGeometry args={[4, 4]} />
-            <meshLambertMaterial color="#6b4423" />
-          </mesh>
+          <group key={`grid-${i}`}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[offset, 0.012, 0]}>
+              <planeGeometry args={[0.07, SIZE]} />
+              <meshBasicMaterial color="#7dfcff" transparent opacity={0.1} />
+            </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.013, offset]}>
+              <planeGeometry args={[SIZE, 0.07]} />
+              <meshBasicMaterial color="#ffd85a" transparent opacity={0.075} />
+            </mesh>
+          </group>
         );
       })}
 
-      {/* Arena boundary fence posts */}
-      {[...Array(20)].map((_, i) => {
-        const t = i / 20;
-        const positions: [number, number, number][] = [
-          [(-ARENA) + t * ARENA * 2, 0, -ARENA],
-          [(-ARENA) + t * ARENA * 2, 0, ARENA],
-          [-ARENA, 0, (-ARENA) + t * ARENA * 2],
-          [ARENA, 0, (-ARENA) + t * ARENA * 2],
-        ];
-        return positions.map((pos, j) => (
-          <group key={`fence_${i}_${j}`} position={pos}>
-            {/* Post */}
-            <mesh position={[0, 0.8, 0]} castShadow>
-              <boxGeometry args={[0.25, 1.6, 0.25]} />
-              <meshLambertMaterial color="#5c3d1e" />
-            </mesh>
-            {/* Rail */}
-            {j < 2 && (
-              <mesh position={[0.6, 0.9, 0]} castShadow>
-                <boxGeometry args={[1.2, 0.15, 0.12]} />
-                <meshLambertMaterial color="#7a5230" />
-              </mesh>
-            )}
-            {j >= 2 && (
-              <mesh position={[0, 0.9, 0.6]} castShadow>
-                <boxGeometry args={[0.12, 0.15, 1.2]} />
-                <meshLambertMaterial color="#7a5230" />
-              </mesh>
-            )}
-          </group>
-        ));
-      })}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+        <ringGeometry args={[ARENA_BOUND - 0.8, ARENA_BOUND, 128]} />
+        <meshBasicMaterial color="#ff5d8f" transparent opacity={0.28} side={THREE.DoubleSide} />
+      </mesh>
 
-      {/* Trees */}
-      {TREES.map((t, i) => (
-        <group key={`tree_${i}`} position={[t.x, 0, t.z]}>
-          {/* Trunk */}
-          <mesh position={[0, t.h * 0.4, 0]} castShadow receiveShadow>
-            <boxGeometry args={[0.45, t.h * 0.8, 0.45]} />
-            <meshLambertMaterial color="#5c3d1e" />
+      {[
+        [0, -ARENA_BOUND, SIZE, 0.6],
+        [0, ARENA_BOUND, SIZE, 0.6],
+        [-ARENA_BOUND, 0, 0.6, SIZE],
+        [ARENA_BOUND, 0, 0.6, SIZE],
+      ].map(([x, z, w, d], i) => (
+        <group key={`wall-${i}`} position={[x, 0, z]}>
+          <mesh position={[0, 0.45, 0]} receiveShadow castShadow>
+            <boxGeometry args={[w, 0.9, d]} />
+            <meshStandardMaterial color="#172334" roughness={0.58} metalness={0.1} />
           </mesh>
-          {/* Leaves - 3 layers Minecraft style */}
-          <mesh position={[0, t.h * 0.75, 0]} castShadow>
-            <boxGeometry args={[2.2, 1.2, 2.2]} />
-            <meshLambertMaterial color="#2d7d2d" />
-          </mesh>
-          <mesh position={[0, t.h * 0.98, 0]} castShadow>
-            <boxGeometry args={[1.6, 1.0, 1.6]} />
-            <meshLambertMaterial color="#3a9a3a" />
-          </mesh>
-          <mesh position={[0, t.h * 1.18, 0]} castShadow>
-            <boxGeometry args={[1.0, 0.8, 1.0]} />
-            <meshLambertMaterial color="#44aa44" />
+          <mesh position={[0, 1.04, 0]}>
+            <boxGeometry args={[w, 0.08, d]} />
+            <meshBasicMaterial color={i < 2 ? "#7dfcff" : "#ffd85a"} transparent opacity={0.72} />
           </mesh>
         </group>
       ))}
 
-      {/* Rocks */}
-      {ROCKS.map((r, i) => (
-        <mesh key={`rock_${i}`} position={[r.x, r.s * 0.3, r.z]} rotation={[0.2, r.rot, 0.1]} castShadow receiveShadow>
-          <dodecahedronGeometry args={[r.s, 0]} />
-          <meshLambertMaterial color="#888877" />
+      {PILLARS.slice(0, quality === "low" ? 4 : PILLARS.length).map(([x, z], i) => (
+        <group key={`pillar-${i}`} position={[x, 0, z]}>
+          <mesh position={[0, 0.18, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.92, 1.05, 0.36, 8]} />
+            <meshStandardMaterial color="#2b3d53" roughness={0.56} metalness={0.12} />
+          </mesh>
+          <mesh position={[0, 1.06, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.64, 0.76, 1.76, 8]} />
+            <meshStandardMaterial color="#53687f" roughness={0.52} metalness={0.18} />
+          </mesh>
+          <mesh position={[0, 2.05, 0]} castShadow>
+            <cylinderGeometry args={[0.95, 0.78, 0.34, 8]} />
+            <meshStandardMaterial color="#2b3d53" roughness={0.56} metalness={0.12} />
+          </mesh>
+          <mesh position={[0, 2.36, 0]}>
+            <octahedronGeometry args={[0.32, 0]} />
+            <meshStandardMaterial color={i % 2 === 0 ? "#7dfcff" : "#ffd85a"} emissive={i % 2 === 0 ? "#2ed0ff" : "#ffb000"} emissiveIntensity={0.8} roughness={0.28} />
+          </mesh>
+        </group>
+      ))}
+
+      {DECOR.trees.slice(0, treeCount).map((tree, i) => (
+        <group key={`tree-${i}`} position={[tree.x, 0, tree.z]}>
+          <mesh position={[0, tree.h * 0.34, 0]} castShadow receiveShadow>
+            <cylinderGeometry args={[0.22, 0.34, tree.h * 0.68, 6]} />
+            <meshStandardMaterial color="#5f3f28" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, tree.h * 0.82, 0]} castShadow>
+            <coneGeometry args={[1.05 + tree.h * 0.12, 1.65, 7]} />
+            <meshStandardMaterial color={tree.hue > 0.5 ? "#2fac72" : "#2a935f"} roughness={0.64} />
+          </mesh>
+          {quality === "high" && (
+            <mesh position={[0, tree.h * 1.1, 0]} castShadow>
+              <coneGeometry args={[0.72, 1.25, 7]} />
+              <meshStandardMaterial color="#41c48a" roughness={0.64} />
+            </mesh>
+          )}
+        </group>
+      ))}
+
+      {DECOR.rocks.slice(0, rockCount).map((rock, i) => (
+        <mesh key={`rock-${i}`} position={[rock.x, rock.s * 0.28, rock.z]} rotation={[0.18, rock.rot, 0.1]} castShadow receiveShadow>
+          <dodecahedronGeometry args={[rock.s, 0]} />
+          <meshStandardMaterial color="#8f96a4" roughness={0.72} metalness={0.08} />
         </mesh>
       ))}
 
-      {/* Flowers */}
-      {FLOWERS.map((f, i) => (
-        <group key={`flower_${i}`} position={[f.x, 0, f.z]}>
-          <mesh position={[0, 0.3, 0]}>
-            <boxGeometry args={[0.08, 0.5, 0.08]} />
-            <meshLambertMaterial color="#2a6e2a" />
+      {DECOR.flowers.slice(0, flowerCount).map((flower, i) => (
+        <group key={`flower-${i}`} position={[flower.x, 0, flower.z]}>
+          <mesh position={[0, 0.18, 0]}>
+            <boxGeometry args={[0.05, 0.36, 0.05]} />
+            <meshBasicMaterial color="#1d7d4b" />
           </mesh>
-          <mesh position={[0, 0.58, 0]}>
-            <boxGeometry args={[0.28, 0.2, 0.28]} />
-            <meshLambertMaterial color={f.color} />
+          <mesh position={[0, 0.4, 0]}>
+            <boxGeometry args={[0.22, 0.16, 0.22]} />
+            <meshBasicMaterial color={flower.color} />
           </mesh>
-          <mesh position={[0, 0.58, 0]}>
-            <boxGeometry args={[0.12, 0.22, 0.12]} />
-            <meshLambertMaterial color="#ffee55" />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Dirt path (center cross) */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
-        <planeGeometry args={[3, ARENA * 2]} />
-        <meshLambertMaterial color="#8a6040" />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
-        <planeGeometry args={[ARENA * 2, 3]} />
-        <meshLambertMaterial color="#8a6040" />
-      </mesh>
-
-      {/* Mushrooms */}
-      {[[-8, -6], [10, 8], [-12, 10], [7, -14]].map(([x, z], i) => (
-        <group key={`mush_${i}`} position={[x, 0, z]}>
-          <mesh position={[0, 0.5, 0]} castShadow>
-            <cylinderGeometry args={[0.15, 0.15, 1.0, 8]} />
-            <meshLambertMaterial color="#ddb89a" />
-          </mesh>
-          <mesh position={[0, 1.1, 0]} castShadow>
-            <sphereGeometry args={[0.45, 8, 6]} />
-            <meshLambertMaterial color="#cc3311" />
-          </mesh>
-          {/* White dots */}
-          {[[0.2, 0.1, 0.3], [-0.2, 0.2, 0.25]].map(([dx, dy, dz], j) => (
-            <mesh key={j} position={[dx, 1.1 + dy, dz]}>
-              <sphereGeometry args={[0.07, 6, 6]} />
-              <meshLambertMaterial color="#ffffff" />
-            </mesh>
-          ))}
         </group>
       ))}
     </group>

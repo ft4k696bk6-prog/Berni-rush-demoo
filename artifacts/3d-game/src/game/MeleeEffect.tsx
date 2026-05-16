@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { MeleeSwing } from "./types";
@@ -9,7 +9,7 @@ const DURATION = 400;
 
 function easeOut(t: number) { return 1 - (1 - t) * (1 - t); }
 
-export default function MeleeEffect({ swing }: Props) {
+function MeleeEffect({ swing }: Props) {
   const pivotRef  = useRef<THREE.Group>(null);
   const bladeRef  = useRef<THREE.Mesh>(null);
   const ringRef   = useRef<THREE.Mesh>(null);
@@ -59,8 +59,8 @@ export default function MeleeEffect({ swing }: Props) {
         <mesh ref={ringRef}>
           <torusGeometry args={[3.5, 0.18, 8, 48]} />
           <meshStandardMaterial
-            color="#ff8800"
-            emissive="#ff6600"
+            color={swing.color ?? "#ff8800"}
+            emissive={swing.color ?? "#ff6600"}
             emissiveIntensity={3}
             transparent
             opacity={0.85}
@@ -72,13 +72,12 @@ export default function MeleeEffect({ swing }: Props) {
           <torusGeometry args={[2.6, 0.1, 6, 36]} />
           <meshStandardMaterial
             color="#ffcc00"
-            emissive="#ff8800"
+            emissive={swing.color ?? "#ff8800"}
             emissiveIntensity={2}
             transparent
             opacity={0.6}
           />
         </mesh>
-        <pointLight color="#ff6600" intensity={6} distance={7} />
       </group>
     );
   }
@@ -94,7 +93,7 @@ export default function MeleeEffect({ swing }: Props) {
         <planeGeometry args={[0.7, 2.2]} />
         <meshStandardMaterial
           color="#88ddff"
-          emissive="#44aaff"
+          emissive={swing.color ?? "#44aaff"}
           emissiveIntensity={1}
           transparent
           opacity={0.4}
@@ -157,7 +156,8 @@ export default function MeleeEffect({ swing }: Props) {
         <meshStandardMaterial color="#ddeeff" metalness={0.95} roughness={0.05} emissive="#88ccff" emissiveIntensity={1.5} />
       </mesh>
 
-      <pointLight position={[0, 0, 1.5]} color="#88ccff" intensity={4} distance={5} />
     </group>
   );
 }
+
+export default memo(MeleeEffect);

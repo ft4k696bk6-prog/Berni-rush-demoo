@@ -1,380 +1,229 @@
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { PoisonItem as EnemyType, ENEMY_CONFIG } from "./types";
+import { ARENA_BOUND, clampToArena } from "./balance";
+import { playerRuntime } from "./gameRuntime";
+import { PoisonItem as EnemyType } from "./types";
 import { useGameStore } from "./useGameStore";
 import {
-  poisonCurrentPos, enemyContactTimers,
-  enemyFireTimers, creeperCountdownStart,
+  creeperCountdownStart,
+  enemyContactTimers,
+  enemyFireTimers,
+  poisonCurrentPos,
 } from "./poisonPositions";
 
-interface Props { poison: EnemyType; }
+interface Props {
+  poison: EnemyType;
+}
 
-const BOUND = 21;
-
-export default function PoisonItem({ poison }: Props) {
+function PoisonItem({ poison }: Props) {
   const groupRef = useRef<THREE.Group>(null);
+  const flashRef = useRef<THREE.MeshStandardMaterial>(null);
   const posRef = useRef<[number, number]>([poison.position[0], poison.position[2]]);
   const t = useRef(Math.random() * Math.PI * 2);
-  const flashRef = useRef<THREE.Mesh>(null);
 
-  const { phase, playerPos, activeEffects, fireEnemyProjectile, damagePlayer, explodeAt, damageEnemy } = useGameStore();
-  const cfg = ENEMY_CONFIG[poison.type];
+  const phase = useGameStore(s => s.phase);
+  const quality = useGameStore(s => s.quality);
+  const hpRatio = Math.max(0, poison.hp / poison.maxHp);
   const isBoss = poison.type === "boss10" || poison.type === "boss20";
-  const hpRatio = Math.max(0, poison.hp / cfg.baseHp);
 
-  useFrame((_, delta) => {
-    if (!groupRef.current || poison.collected || phase !== "playing") return;
-    t.current += delta * 1.5;
+  useFrame((_, rawDelta) => {
+    const group = groupRef.current;
+    if (!group || phase !== "playing") return;
+
+    const delta = Math.min(rawDelta, 1 / 30);
     const now = Date.now();
+    const store = useGameStore.getState();
+    t.current += delta * (poison.type === "ghost" ? 2.2 : 1.45);
 
-    const slow = activeEffects.some(e => e.type === "time_slow" && e.expiresAt > now);
-    const speed = cfg.speed * (slow ? 0.3 : 1);
+    const slow = store.activeEffects.some(e => e.type === "time_slow" && e.expiresAt > now);
+    const dx = playerRuntime.x - posRef.current[0];
+    const dz = playerRuntime.z - posRef.current[1];
+    const dist = Math.max(0.001, Math.sqrt(dx * dx + dz * dz));
+    const wantsRange = poison.mechanics.includes("shoot") && !poison.mechanics.includes("melee");
+    const stopDistance = wantsRange ? 5.8 : 0.2;
 
-    // Move toward player
-    const dx = playerPos[0] - posRef.current[0];
-    const dz = playerPos[1] - posRef.current[1];
-    const dist = Math.sqrt(dx * dx + dz * dz);
-
-    if (dist > 0.1) {
+    if (dist > stopDistance) {
+      const speed = poison.speed * (slow ? 0.42 : 1);
       posRef.current[0] += (dx / dist) * speed * delta;
       posRef.current[1] += (dz / dist) * speed * delta;
     }
-    posRef.current[0] = THREE.MathUtils.clamp(posRef.current[0], -BOUND, BOUND);
-    posRef.current[1] = THREE.MathUtils.clamp(posRef.current[1], -BOUND, BOUND);
 
-    // Update registry so collision/bullet systems see live position
+    posRef.current[0] = clampToArena(posRef.current[0], 1.4);
+    posRef.current[1] = clampToArena(posRef.current[1], 1.4);
     poisonCurrentPos[poison.id] = [posRef.current[0], posRef.current[1]];
 
-    const baseY = isBoss ? 2.0 : 1.2;
-    const floatAmp = poison.type === "ghost" ? 0.4 : 0.08;
-    groupRef.current.position.set(
-      posRef.current[0],
-      baseY + Math.sin(t.current) * floatAmp,
-      posRef.current[1],
-    );
+    const floatAmp = poison.type === "ghost" ? 0.42 : poison.type === "elite" ? 0.16 : 0.08;
+    const baseY = isBoss ? 2.0 : 1.18;
+    group.position.set(posRef.current[0], baseY + Math.sin(t.current) * floatAmp, posRef.current[1]);
+    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(dx, dz), 9, delta);
 
-    // Face player
-    if (dist > 0.1) {
-      const angle = Math.atan2(dx, dz);
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, angle, 0.1);
-    }
-
-    // ── Mechanic: MELEE (zombie / boss) ──
     if (poison.mechanics.includes("melee")) {
-      const meleeRange = isBoss ? 3.0 : 1.8;
+      const meleeRange = isBoss ? 3.2 : poison.type === "elite" ? 2.15 : 1.72;
       if (dist < meleeRange) {
         const last = enemyContactTimers[poison.id] ?? 0;
-        const cd = isBoss ? 1200 : 1600;
+        const cd = isBoss ? 1200 : poison.type === "elite" ? 1350 : 1550;
         if (now - last > cd) {
           enemyContactTimers[poison.id] = now;
-          damagePlayer(cfg.damage);
+          store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
         }
       }
     }
 
-    // ── Mechanic: SHOOT (ghost / boss) ──
     if (poison.mechanics.includes("shoot")) {
-      const shootRange = isBoss ? 20 : 13;
+      const shootRange = isBoss ? 24 : poison.type === "elite" ? 18 : 14;
       if (dist < shootRange) {
         const last = enemyFireTimers[poison.id] ?? 0;
-        const fireCd = isBoss ? 2000 : 2800;
+        const fireCd = isBoss ? 1650 : poison.type === "elite" ? 2100 : 2700;
         if (now - last > fireCd) {
           enemyFireTimers[poison.id] = now;
-          fireEnemyProjectile(
-            posRef.current[0], posRef.current[1],
-            playerPos[0], playerPos[1],
-            cfg.damage,
-          );
+          store.fireEnemyProjectile(posRef.current[0], posRef.current[1], playerRuntime.x, playerRuntime.z, poison.damage);
         }
       }
     }
 
-    // ── Mechanic: EXPLODE (creeper / boss) ──
     if (poison.mechanics.includes("explode")) {
-      const triggerRange = isBoss ? 4.0 : 2.8;
+      const triggerRange = isBoss ? 4.2 : 2.75;
       if (dist < triggerRange) {
-        if (!creeperCountdownStart[poison.id]) {
-          creeperCountdownStart[poison.id] = now;
-        }
+        if (!creeperCountdownStart[poison.id]) creeperCountdownStart[poison.id] = now;
         const elapsed = now - creeperCountdownStart[poison.id];
-        const countdownMs = isBoss ? 3000 : 2200;
-
-        // Flash during countdown
+        const countdownMs = isBoss ? 2600 : 1850;
         if (flashRef.current) {
-          const flash = Math.sin((elapsed / countdownMs) * Math.PI * 8) > 0;
-          (flashRef.current.material as THREE.MeshLambertMaterial).color.set(flash ? "#ffffff" : "#33bb33");
+          const flash = Math.sin((elapsed / countdownMs) * Math.PI * 10) > 0;
+          flashRef.current.color.set(flash ? "#fff6b0" : poison.type === "boss20" ? "#5d29ff" : "#4eff5a");
+          flashRef.current.emissiveIntensity = flash ? 1.3 : 0.35;
         }
-
+        group.scale.setScalar(poison.scale * (1 + Math.min(0.18, elapsed / countdownMs * 0.18)));
         if (elapsed > countdownMs) {
           delete creeperCountdownStart[poison.id];
-          const blastRadius = isBoss ? 6 : 4;
-          explodeAt(posRef.current[0], posRef.current[1], blastRadius, cfg.damage);
-          if (!isBoss) damageEnemy(poison.id, 99); // creeper dies after exploding
+          store.explodeAt(posRef.current[0], posRef.current[1], isBoss ? 6.2 : 4.0, poison.damage);
+          if (!isBoss) store.damageEnemy(poison.id, 999);
         }
       } else {
-        // Reset countdown if creeper retreated
         if (creeperCountdownStart[poison.id]) delete creeperCountdownStart[poison.id];
-        if (flashRef.current) {
-          (flashRef.current.material as THREE.MeshLambertMaterial).color.set("#33bb33");
-        }
+        group.scale.setScalar(poison.scale);
       }
+    } else {
+      group.scale.setScalar(poison.scale);
     }
   });
 
-  if (poison.collected) return null;
-
-  const s = poison.scale;
-
-  const renderModel = () => {
-    switch (poison.type) {
-      case "ghost":
-        return (
-          <group scale={[s, s, s]}>
-            {/* Ghost body */}
-            <mesh castShadow>
-              <sphereGeometry args={[0.65, 12, 10]} />
-              <meshStandardMaterial color="#f0f0ff" transparent opacity={0.82} roughness={0.2} metalness={0} emissive="#8888ff" emissiveIntensity={0.15} />
-            </mesh>
-            {/* Wavy skirt */}
-            {[-0.4, -0.15, 0.15, 0.4].map((x, i) => (
-              <mesh key={i} position={[x, -0.55 + Math.sin((t.current + i) * 2) * 0.1, 0]}>
-                <sphereGeometry args={[0.22, 8, 6]} />
-                <meshStandardMaterial color="#e0e0ff" transparent opacity={0.7} />
-              </mesh>
-            ))}
-            {/* Eyes */}
-            <mesh position={[0.22, 0.15, 0.55]}>
-              <sphereGeometry args={[0.14, 8, 8]} />
-              <meshStandardMaterial color="#000022" />
-            </mesh>
-            <mesh position={[-0.22, 0.15, 0.55]}>
-              <sphereGeometry args={[0.14, 8, 8]} />
-              <meshStandardMaterial color="#000022" />
-            </mesh>
-            {/* Pupils (red glow) */}
-            <mesh position={[0.22, 0.15, 0.68]}>
-              <sphereGeometry args={[0.07, 6, 6]} />
-              <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={2} />
-            </mesh>
-            <mesh position={[-0.22, 0.15, 0.68]}>
-              <sphereGeometry args={[0.07, 6, 6]} />
-              <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={2} />
-            </mesh>
-            {/* Open mouth */}
-            <mesh position={[0, -0.12, 0.62]}>
-              <boxGeometry args={[0.28, 0.14, 0.06]} />
-              <meshStandardMaterial color="#220044" />
-            </mesh>
-            <pointLight color="#8888ff" intensity={1.5} distance={4} />
-          </group>
-        );
-
-      case "zombie":
-        return (
-          <group scale={[s, s, s]}>
-            {/* Head */}
-            <mesh position={[0, 1.05, 0]} castShadow>
-              <boxGeometry args={[0.72, 0.72, 0.72]} />
-              <meshLambertMaterial color="#5a9a5a" />
-            </mesh>
-            {/* Dark eyes */}
-            <mesh position={[0.2, 1.12, 0.37]}>
-              <boxGeometry args={[0.18, 0.12, 0.04]} />
-              <meshStandardMaterial color="#001a00" emissive="#003300" emissiveIntensity={1} />
-            </mesh>
-            <mesh position={[-0.2, 1.12, 0.37]}>
-              <boxGeometry args={[0.18, 0.12, 0.04]} />
-              <meshStandardMaterial color="#001a00" emissive="#003300" emissiveIntensity={1} />
-            </mesh>
-            {/* Mouth slash */}
-            <mesh position={[0, 0.9, 0.37]}>
-              <boxGeometry args={[0.3, 0.06, 0.04]} />
-              <meshLambertMaterial color="#003300" />
-            </mesh>
-            {/* Body */}
-            <mesh position={[0, 0.28, 0]} castShadow>
-              <boxGeometry args={[0.78, 0.84, 0.52]} />
-              <meshLambertMaterial color="#2a5a2a" />
-            </mesh>
-            {/* Torn shirt detail */}
-            <mesh position={[0, 0.38, 0.27]}>
-              <boxGeometry args={[0.6, 0.5, 0.05]} />
-              <meshLambertMaterial color="#1a3a1a" />
-            </mesh>
-            {/* Arms outstretched */}
-            <mesh position={[0.78, 0.45, 0.2]} rotation={[0.6, 0, 0.1]} castShadow>
-              <boxGeometry args={[0.38, 0.75, 0.38]} />
-              <meshLambertMaterial color="#5a9a5a" />
-            </mesh>
-            <mesh position={[-0.78, 0.45, 0.2]} rotation={[0.6, 0, -0.1]} castShadow>
-              <boxGeometry args={[0.38, 0.75, 0.38]} />
-              <meshLambertMaterial color="#5a9a5a" />
-            </mesh>
-            {/* Legs */}
-            <mesh position={[0.22, -0.48, Math.sin(t.current * 3) * 0.1]} castShadow>
-              <boxGeometry args={[0.34, 0.68, 0.38]} />
-              <meshLambertMaterial color="#1a4a1a" />
-            </mesh>
-            <mesh position={[-0.22, -0.48, -Math.sin(t.current * 3) * 0.1]} castShadow>
-              <boxGeometry args={[0.34, 0.68, 0.38]} />
-              <meshLambertMaterial color="#1a4a1a" />
-            </mesh>
-          </group>
-        );
-
-      case "creeper":
-        return (
-          <group scale={[s, s, s]}>
-            {/* Head */}
-            <mesh ref={flashRef} position={[0, 1.05, 0]} castShadow>
-              <boxGeometry args={[0.72, 0.72, 0.72]} />
-              <meshLambertMaterial color="#33bb33" />
-            </mesh>
-            {/* Creeper face (dark boxes) */}
-            <mesh position={[0.18, 1.18, 0.37]}>
-              <boxGeometry args={[0.2, 0.18, 0.04]} />
-              <meshLambertMaterial color="#0a2a0a" />
-            </mesh>
-            <mesh position={[-0.18, 1.18, 0.37]}>
-              <boxGeometry args={[0.2, 0.18, 0.04]} />
-              <meshLambertMaterial color="#0a2a0a" />
-            </mesh>
-            <mesh position={[0, 0.92, 0.37]}>
-              <boxGeometry args={[0.14, 0.2, 0.04]} />
-              <meshLambertMaterial color="#0a2a0a" />
-            </mesh>
-            <mesh position={[0.18, 0.85, 0.37]}>
-              <boxGeometry args={[0.18, 0.14, 0.04]} />
-              <meshLambertMaterial color="#0a2a0a" />
-            </mesh>
-            <mesh position={[-0.18, 0.85, 0.37]}>
-              <boxGeometry args={[0.18, 0.14, 0.04]} />
-              <meshLambertMaterial color="#0a2a0a" />
-            </mesh>
-            {/* Body */}
-            <mesh position={[0, 0.22, 0]} castShadow>
-              <boxGeometry args={[0.55, 0.82, 0.46]} />
-              <meshLambertMaterial color="#2e9a2e" />
-            </mesh>
-            {/* 4 stubby legs */}
-            {[[-0.18, -0.5, 0.14], [0.18, -0.5, 0.14], [-0.18, -0.5, -0.14], [0.18, -0.5, -0.14]].map(([lx, ly, lz], i) => (
-              <mesh key={i} position={[lx, ly, lz]} castShadow>
-                <boxGeometry args={[0.24, 0.44, 0.24]} />
-                <meshLambertMaterial color="#228822" />
-              </mesh>
-            ))}
-          </group>
-        );
-
-      case "boss10":
-        return (
-          <group scale={[s, s, s]}>
-            {/* Skeleton King body */}
-            <mesh position={[0, 0.4, 0]} castShadow>
-              <boxGeometry args={[1.0, 1.3, 0.65]} />
-              <meshLambertMaterial color="#ddddcc" />
-            </mesh>
-            {/* Rib lines */}
-            {[-0.4, -0.15, 0.1, 0.35].map((y, i) => (
-              <mesh key={i} position={[0, y, 0.34]}>
-                <boxGeometry args={[0.82, 0.1, 0.06]} />
-                <meshLambertMaterial color="#aaaaaa" />
-              </mesh>
-            ))}
-            {/* Head */}
-            <mesh position={[0, 1.15, 0]} castShadow>
-              <boxGeometry args={[0.9, 0.82, 0.82]} />
-              <meshLambertMaterial color="#eeeecc" />
-            </mesh>
-            {/* Red glowing eyes */}
-            <mesh position={[0.22, 1.22, 0.42]}>
-              <sphereGeometry args={[0.14, 8, 8]} />
-              <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={3} />
-            </mesh>
-            <mesh position={[-0.22, 1.22, 0.42]}>
-              <sphereGeometry args={[0.14, 8, 8]} />
-              <meshStandardMaterial color="#ff0000" emissive="#ff0000" emissiveIntensity={3} />
-            </mesh>
-            {/* Crown */}
-            {[-0.3, 0, 0.3].map((x, i) => (
-              <mesh key={i} position={[x, 1.72, 0]} castShadow>
-                <boxGeometry args={[0.2, 0.35 + (i === 1 ? 0.2 : 0), 0.2]} />
-                <meshStandardMaterial color="#ffcc00" emissive="#ffaa00" emissiveIntensity={0.5} metalness={0.8} />
-              </mesh>
-            ))}
-            {/* Huge arms */}
-            <mesh position={[1.0, 0.4, 0]} castShadow>
-              <boxGeometry args={[0.45, 1.1, 0.42]} />
-              <meshLambertMaterial color="#ddddcc" />
-            </mesh>
-            <mesh position={[-1.0, 0.4, 0]} castShadow>
-              <boxGeometry args={[0.45, 1.1, 0.42]} />
-              <meshLambertMaterial color="#ddddcc" />
-            </mesh>
-            <pointLight color="#ff3300" intensity={3} distance={8} />
-          </group>
-        );
-
-      case "boss20":
-        return (
-          <group scale={[s, s, s]}>
-            {/* Dark Lord body */}
-            <mesh position={[0, 0.5, 0]} castShadow>
-              <boxGeometry args={[1.1, 1.5, 0.72]} />
-              <meshStandardMaterial color="#110011" emissive="#440066" emissiveIntensity={0.5} roughness={0.3} metalness={0.6} />
-            </mesh>
-            {/* Cape */}
-            <mesh position={[0, 0.3, -0.42]}>
-              <boxGeometry args={[1.5, 1.7, 0.08]} />
-              <meshStandardMaterial color="#1a0033" emissive="#330055" emissiveIntensity={0.3} transparent opacity={0.9} />
-            </mesh>
-            {/* Head */}
-            <mesh position={[0, 1.4, 0]} castShadow>
-              <boxGeometry args={[1.0, 0.9, 0.9]} />
-              <meshStandardMaterial color="#0a0011" emissive="#330044" emissiveIntensity={0.4} roughness={0.2} metalness={0.7} />
-            </mesh>
-            {/* 4 glowing eyes */}
-            {[[0.28, 1.5, 0.46], [-0.28, 1.5, 0.46], [0.1, 1.28, 0.46], [-0.1, 1.28, 0.46]].map(([ex, ey, ez], i) => (
-              <mesh key={i} position={[ex, ey, ez]}>
-                <sphereGeometry args={[0.1, 6, 6]} />
-                <meshStandardMaterial color="#aa00ff" emissive="#aa00ff" emissiveIntensity={4} />
-              </mesh>
-            ))}
-            {/* Horns */}
-            <mesh position={[0.35, 1.95, 0]} rotation={[0, 0, 0.3]} castShadow>
-              <coneGeometry args={[0.12, 0.55, 6]} />
-              <meshStandardMaterial color="#330033" emissive="#aa00ff" emissiveIntensity={0.6} />
-            </mesh>
-            <mesh position={[-0.35, 1.95, 0]} rotation={[0, 0, -0.3]} castShadow>
-              <coneGeometry args={[0.12, 0.55, 6]} />
-              <meshStandardMaterial color="#330033" emissive="#aa00ff" emissiveIntensity={0.6} />
-            </mesh>
-            {/* Giant arms */}
-            <mesh position={[1.1, 0.5, 0]} castShadow>
-              <boxGeometry args={[0.5, 1.3, 0.48]} />
-              <meshStandardMaterial color="#110011" emissive="#220033" emissiveIntensity={0.3} />
-            </mesh>
-            <mesh position={[-1.1, 0.5, 0]} castShadow>
-              <boxGeometry args={[0.5, 1.3, 0.48]} />
-              <meshStandardMaterial color="#110011" emissive="#220033" emissiveIntensity={0.3} />
-            </mesh>
-            <pointLight color="#aa00ff" intensity={5} distance={12} />
-            <pointLight color="#ff0033" intensity={2} distance={8} />
-          </group>
-        );
-    }
-  };
+  const bodyColor = poison.type === "ghost" ? "#8bb7ff"
+    : poison.type === "zombie" ? "#4bd46a"
+    : poison.type === "creeper" ? "#f6d24a"
+    : poison.type === "elite" ? "#ff4f86"
+    : poison.type === "boss10" ? "#f0e5c8"
+    : "#231142";
+  const accent = poison.type === "boss20" ? "#b06cff" : poison.type === "elite" ? "#ffd1e0" : "#101828";
 
   return (
-    <group ref={groupRef} position={[posRef.current[0], isBoss ? 2.0 : 1.2, posRef.current[1]]}>
-      {renderModel()}
+    <group ref={groupRef} position={[posRef.current[0], isBoss ? 2 : 1.2, posRef.current[1]]} scale={poison.scale}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.15, 0]}>
+        <ringGeometry args={[0.74, 0.92, 24]} />
+        <meshBasicMaterial color={ENEMY_RING_COLOR[poison.type]} transparent opacity={0.34} />
+      </mesh>
 
-      {/* HP bar */}
-      <mesh position={[0, (isBoss ? 3.2 : 1.8) * s, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.6 * s, 0.05 * s, 4, 24, Math.PI * 2 * hpRatio]} />
-        <meshStandardMaterial color="#ff2200" emissive="#ff0000" emissiveIntensity={1.5} />
+      {poison.type === "ghost" ? (
+        <group>
+          <mesh castShadow position={[0, 0.1, 0]}>
+            <octahedronGeometry args={[0.56, 1]} />
+            <meshStandardMaterial color={bodyColor} emissive="#4f7dff" emissiveIntensity={0.42} roughness={0.22} metalness={0.25} />
+          </mesh>
+          <mesh position={[0.56, 0.03, 0]} rotation={[0.15, 0, -0.42]}>
+            <coneGeometry args={[0.12, 0.78, 3]} />
+            <meshStandardMaterial color="#c8d7ff" emissive="#7490ff" emissiveIntensity={0.25} transparent opacity={0.9} />
+          </mesh>
+          <mesh position={[-0.56, 0.03, 0]} rotation={[0.15, 0, 0.42]}>
+            <coneGeometry args={[0.12, 0.78, 3]} />
+            <meshStandardMaterial color="#c8d7ff" emissive="#7490ff" emissiveIntensity={0.25} transparent opacity={0.9} />
+          </mesh>
+        </group>
+      ) : (
+        <group>
+          {poison.type === "zombie" ? (
+            <>
+              <mesh castShadow position={[0, 0.06, 0]} scale={[1.15, 0.72, 1.05]}>
+                <sphereGeometry args={[0.58, 14, 10]} />
+                <meshStandardMaterial ref={flashRef} color={bodyColor} emissive="#22a15c" emissiveIntensity={0.16} roughness={0.55} />
+              </mesh>
+              <mesh position={[0, 0.5, 0.03]} scale={[0.82, 0.55, 0.82]}>
+                <sphereGeometry args={[0.42, 12, 8]} />
+                <meshStandardMaterial color="#7cff92" roughness={0.45} />
+              </mesh>
+            </>
+          ) : poison.type === "creeper" ? (
+            <>
+              <mesh castShadow position={[0, 0.2, 0]}>
+                <dodecahedronGeometry args={[0.56, 0]} />
+                <meshStandardMaterial ref={flashRef} color={bodyColor} emissive="#ff7a2f" emissiveIntensity={0.35} roughness={0.44} />
+              </mesh>
+              <mesh position={[0, 0.82, 0]}>
+                <sphereGeometry args={[0.22, 10, 8]} />
+                <meshStandardMaterial color="#ff7048" emissive="#ff4b2f" emissiveIntensity={0.6} />
+              </mesh>
+              {[[-0.34, -0.22, 0.24], [0.34, -0.22, 0.24], [-0.34, -0.22, -0.24], [0.34, -0.22, -0.24]].map(([x, y, z], index) => (
+                <mesh key={index} position={[x, y, z]}>
+                  <sphereGeometry args={[0.13, 8, 6]} />
+                  <meshStandardMaterial color="#8c5f22" roughness={0.6} />
+                </mesh>
+              ))}
+            </>
+          ) : (
+            <>
+              <mesh castShadow position={[0, 0.18, 0]}>
+                <capsuleGeometry args={[0.46, isBoss ? 1.12 : 0.82, 5, 10]} />
+                <meshStandardMaterial ref={flashRef} color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={0.12} roughness={0.46} metalness={isBoss ? 0.24 : 0.04} />
+              </mesh>
+              <mesh castShadow position={[0, isBoss ? 1.14 : 0.88, 0]}>
+                <boxGeometry args={[isBoss ? 0.76 : 0.62, isBoss ? 0.68 : 0.56, isBoss ? 0.76 : 0.62]} />
+                <meshStandardMaterial color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={isBoss ? 0.38 : 0.12} roughness={0.42} />
+              </mesh>
+            </>
+          )}
+        </group>
+      )}
+
+      <mesh position={[0.18, isBoss ? 1.2 : 0.92, 0.36]}>
+        <sphereGeometry args={[isBoss ? 0.085 : 0.065, 8, 8]} />
+        <meshStandardMaterial color="#ffffff" emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={2.4} />
+      </mesh>
+      <mesh position={[-0.18, isBoss ? 1.2 : 0.92, 0.36]}>
+        <sphereGeometry args={[isBoss ? 0.085 : 0.065, 8, 8]} />
+        <meshStandardMaterial color="#ffffff" emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={2.4} />
+      </mesh>
+
+      {poison.type === "elite" && (
+        <mesh position={[0, 1.32, 0]} rotation={[0, 0, Math.PI / 4]}>
+          <torusGeometry args={[0.46, 0.035, 6, 24]} />
+          <meshStandardMaterial color="#ffd1e0" emissive="#ff4f86" emissiveIntensity={1.2} />
+        </mesh>
+      )}
+
+      {isBoss && (
+        <>
+          <mesh position={[0, 1.62, 0]} rotation={[0, t.current, 0]}>
+            <torusGeometry args={[0.7, 0.05, 6, 30]} />
+            <meshStandardMaterial color={accent} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={1.1} />
+          </mesh>
+          {quality !== "low" && <pointLight color={ENEMY_RING_COLOR[poison.type]} intensity={2.2} distance={8} />}
+        </>
+      )}
+
+      <mesh position={[0, (isBoss ? 2.05 : 1.48), 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.56, 0.045, 5, 28, Math.PI * 2 * hpRatio]} />
+        <meshBasicMaterial color={hpRatio > 0.45 ? "#80ff7a" : hpRatio > 0.2 ? "#ffd85a" : "#ff4d5d"} />
       </mesh>
     </group>
   );
 }
+
+const ENEMY_RING_COLOR: Record<EnemyType["type"], string> = {
+  ghost: "#9aa8ff",
+  zombie: "#3cff7e",
+  creeper: "#ffb84a",
+  elite: "#ff4f86",
+  boss10: "#ff7048",
+  boss20: "#b06cff",
+};
+
+export default memo(PoisonItem);

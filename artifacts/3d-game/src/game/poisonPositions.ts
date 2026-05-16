@@ -9,3 +9,17 @@ export const enemyFireTimers: Record<string, number> = {};
 
 /** Per-creeper: 0 = idle, >0 = timestamp when countdown started */
 export const creeperCountdownStart: Record<string, number> = {};
+
+export function clearEnemyRuntime(id: string) {
+  delete poisonCurrentPos[id];
+  delete enemyContactTimers[id];
+  delete enemyFireTimers[id];
+  delete creeperCountdownStart[id];
+}
+
+export function clearAllEnemyRuntime() {
+  for (const key of Object.keys(poisonCurrentPos)) delete poisonCurrentPos[key];
+  for (const key of Object.keys(enemyContactTimers)) delete enemyContactTimers[key];
+  for (const key of Object.keys(enemyFireTimers)) delete enemyFireTimers[key];
+  for (const key of Object.keys(creeperCountdownStart)) delete creeperCountdownStart[key];
+}

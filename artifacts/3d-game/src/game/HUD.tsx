@@ -1,113 +1,154 @@
+import { useEffect, useMemo, useState } from "react";
+import { BadgePlus, Clock3, Coins, Crosshair, Gauge, HeartPulse, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
-import { DRUG_CONFIG } from "./types";
+import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
+import { WEAPON_CONFIG } from "./weapons";
+
+const STAT_ORDER: StatKey[] = ["strength", "superpower", "vitality", "luck", "dodge", "speed"];
+
+function formatTime(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+  const seconds = Math.floor(totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
 
 export default function HUD() {
-  const { health, maxHealth, score, activeEffects, phase, wave } = useGameStore();
+  const phase = useGameStore(s => s.phase);
+  const health = useGameStore(s => s.health);
+  const maxHealth = useGameStore(s => s.maxHealth);
+  const stage = useGameStore(s => s.stage);
+  const wave = useGameStore(s => s.wave);
+  const wavesTotal = useGameStore(s => s.wavesTotal);
+  const killsThisStage = useGameStore(s => s.killsThisStage);
+  const killsRequired = useGameStore(s => s.killsRequired);
+  const totalKills = useGameStore(s => s.totalKills);
+  const playerLevel = useGameStore(s => s.playerLevel);
+  const xp = useGameStore(s => s.xp);
+  const xpToNext = useGameStore(s => s.xpToNext);
+  const coins = useGameStore(s => s.coins);
+  const currentWeapon = useGameStore(s => s.currentWeapon);
+  const activeEffects = useGameStore(s => s.activeEffects);
+  const gameTime = useGameStore(s => s.gameTime);
+  const statPoints = useGameStore(s => s.statPoints);
+  const stats = useGameStore(s => s.stats);
+  const centerMessage = useGameStore(s => s.centerMessage);
+  const perks = useGameStore(s => s.perks);
+  const upgradeStat = useGameStore(s => s.upgradeStat);
 
-  if (phase !== "playing") return null;
+  const [now, setNow] = useState(() => Date.now());
+  const [cursor, setCursor] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2, visible: false });
 
-  const now = Date.now();
-  const isBossWave = wave === 10 || wave === 20;
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const move = (event: PointerEvent) => setCursor({ x: event.clientX, y: event.clientY, visible: true });
+    const leave = () => setCursor(c => ({ ...c, visible: false }));
+    window.addEventListener("pointermove", move);
+    window.addEventListener("blur", leave);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("blur", leave);
+    };
+  }, []);
+
+  const hpPct = Math.max(0, Math.min(100, (health / maxHealth) * 100));
+  const xpPct = Math.max(0, Math.min(100, (xp / xpToNext) * 100));
+  const weapon = WEAPON_CONFIG[currentWeapon];
+  const monstersLeft = Math.max(0, killsRequired - killsThisStage);
+  const runVisible = phase === "playing" || phase === "paused" || phase === "upgrade";
+  const perkCount = Object.values(perks).reduce((total, value) => total + (value ?? 0), 0);
+
+  const messageClass = useMemo(() => centerMessage ? `center-message ${centerMessage.tone}` : "center-message", [centerMessage]);
+
+  if (!runVisible) return null;
 
   return (
-    <div style={{
-      position: "fixed", top: 0, left: 0, right: 0,
-      pointerEvents: "none", zIndex: 10,
-      fontFamily: "'Courier New', monospace",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "14px 20px" }}>
+    <div className="hud-shell">
+      <div className="hud-top">
+        <section className="hud-panel hud-health-panel">
+          <div className="hud-panel-title"><HeartPulse size={18} /> ZYCIE</div>
+          <div className="bar health-bar">
+            <div className="bar-fill" style={{ width: `${hpPct}%` }} />
+            <span>{Math.ceil(health)} / {maxHealth}</span>
+          </div>
+          <div className="hud-mini-row">
+            <span><Gauge size={14} /> LVL {playerLevel}</span>
+            <span>{xp} / {xpToNext} XP</span>
+          </div>
+          <div className="bar xp-bar">
+            <div className="bar-fill" style={{ width: `${xpPct}%` }} />
+          </div>
+        </section>
 
-        {/* Health */}
-        <div style={{ minWidth: 210 }}>
-          <div style={{ color: "#ff3333", fontSize: 12, marginBottom: 3, letterSpacing: 2, textShadow: "1px 1px 0 #000, 0 0 8px #ff0000" }}>
-            ♥ HEALTH
+        <section className="hud-center-panel">
+          <div className="stage-badge">
+            <Trophy size={18} />
+            <span>LEVEL {stage}</span>
           </div>
-          <div style={{ width: 210, height: 16, background: "rgba(0,0,0,0.7)", border: "2px solid #333", borderRadius: 2, overflow: "hidden" }}>
-            <div style={{
-              width: `${(health / maxHealth) * 100}%`,
-              height: "100%",
-              background: health > 50 ? "#44cc44" : health > 25 ? "#ffaa00" : "#ff2200",
-              transition: "width 0.3s ease",
-              boxShadow: health > 50 ? "0 0 6px #44cc44" : "0 0 6px #ff2200",
-            }} />
+          <div className="stage-progress">
+            <strong>{monstersLeft}</strong>
+            <span>LEFT</span>
           </div>
-          <div style={{ color: "#ffff88", fontSize: 11, marginTop: 2, textShadow: "1px 1px 0 #000" }}>{health} / {maxHealth}</div>
-        </div>
+          <div className="wave-strip">WAVE {wave}/{wavesTotal} - {killsThisStage}/{killsRequired}</div>
+          <div className="archero-hint">HOLD CLICK / RIGHT PAD TO SHOOT - MOVE TO DODGE</div>
+        </section>
 
-        {/* Wave + Score */}
-        <div style={{ textAlign: "center" }}>
-          <div style={{
-            color: isBossWave ? "#ff4400" : "#88ffaa",
-            fontSize: isBossWave ? 13 : 11,
-            letterSpacing: 4,
-            marginBottom: 2,
-            textShadow: isBossWave
-              ? "1px 1px 0 #000, 0 0 12px #ff4400"
-              : "1px 1px 0 #000",
-            fontWeight: isBossWave ? "bold" : "normal",
-          }}>
-            {isBossWave ? "⚠ BOSS WAVE " : "WAVE "}{wave}
-          </div>
-          <div style={{
-            color: "#ffffff",
-            fontSize: 30,
-            fontWeight: "bold",
-            textShadow: "2px 2px 0 #000, 0 0 20px rgba(255,255,255,0.3)",
-            letterSpacing: 4,
-          }}>
-            {score.toString().padStart(6, "0")}
-          </div>
-        </div>
-
-        {/* Controls hint */}
-        <div style={{ textAlign: "right", color: "#ffff88", fontSize: 10, lineHeight: 1.9, textShadow: "1px 1px 0 #000", opacity: 0.7 }}>
-          <div>WASD — Move</div>
-          <div>SPACE — Jump</div>
-          <div>CLICK — Shoot</div>
-          <div>ENTER — Melee</div>
-        </div>
+        <section className="hud-panel hud-score-panel">
+          <div className="hud-stat"><Coins size={18} /><span>{coins}</span></div>
+          <div className="hud-stat"><Skull size={18} /><span>{totalKills}</span></div>
+          <div className="hud-stat"><Clock3 size={18} /><span>{formatTime(gameTime)}</span></div>
+          <div className="hud-stat"><Zap size={18} /><span>{perkCount} perks</span></div>
+          <div className="weapon-pill"><Swords size={16} /><span>{weapon.shortName}</span></div>
+        </section>
       </div>
 
-      {/* Active mushroom effects */}
       {activeEffects.length > 0 && (
-        <div style={{ padding: "0 20px", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="effect-tray">
           {activeEffects.map(effect => {
             const cfg = DRUG_CONFIG[effect.type];
-            const remaining = ((effect.expiresAt - now) / 1000).toFixed(1);
-            const pct = (effect.expiresAt - now) / (cfg.duration * 1000);
+            const remaining = Math.max(0, (effect.expiresAt - now) / 1000);
+            const pct = cfg.duration > 0 ? Math.max(0, Math.min(100, (remaining / cfg.duration) * 100)) : 100;
             return (
-              <div key={effect.type} style={{
-                background: "rgba(0,0,0,0.82)",
-                border: `2px solid ${cfg.color}`,
-                borderRadius: 4,
-                padding: "6px 10px",
-                minWidth: 140,
-                boxShadow: `0 0 10px ${cfg.color}44`,
-              }}>
-                <div style={{ color: cfg.color, fontSize: 11, fontWeight: "bold", letterSpacing: 2, textShadow: `0 0 8px ${cfg.color}` }}>
-                  🍄 {cfg.label}
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 9, margin: "2px 0" }}>{cfg.description}</div>
-                <div style={{ width: "100%", height: 4, background: "rgba(255,255,255,0.1)", borderRadius: 2, overflow: "hidden", marginTop: 3 }}>
-                  <div style={{ width: `${Math.max(0, pct * 100)}%`, height: "100%", background: cfg.color, transition: "width 0.1s linear", boxShadow: `0 0 4px ${cfg.color}` }} />
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, marginTop: 2 }}>{remaining}s</div>
+              <div className="effect-chip" key={effect.type} style={{ borderColor: cfg.color }}>
+                <span style={{ color: cfg.color }}>{cfg.label}</span>
+                <b>{remaining.toFixed(1)}s</b>
+                <i style={{ width: `${pct}%`, background: cfg.color }} />
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Crosshair */}
-      <div style={{
-        position: "fixed", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: 22, height: 22, pointerEvents: "none",
-      }}>
-        <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 2, background: "rgba(255,255,100,0.75)", marginTop: -1, boxShadow: "0 0 4px #fff" }} />
-        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, background: "rgba(255,255,100,0.75)", marginLeft: -1, boxShadow: "0 0 4px #fff" }} />
-        <div style={{ position: "absolute", top: "50%", left: "50%", width: 6, height: 6, marginTop: -3, marginLeft: -3, borderRadius: "50%", background: "rgba(255,255,100,0.5)" }} />
-      </div>
+      {statPoints > 0 && (
+        <aside className="upgrade-panel">
+          <div className="upgrade-title"><BadgePlus size={18} /> {statPoints} STAT POINT{statPoints > 1 ? "S" : ""}</div>
+          <div className="upgrade-grid">
+            {STAT_ORDER.map(stat => (
+              <button key={stat} type="button" onClick={() => upgradeStat(stat)}>
+                <span>{STAT_LABELS[stat].label}</span>
+                <b>{stats[stat]}</b>
+              </button>
+            ))}
+          </div>
+        </aside>
+      )}
+
+      {centerMessage && (
+        <div className={messageClass}>
+          <strong>{centerMessage.title}</strong>
+          {centerMessage.subtitle && <span>{centerMessage.subtitle}</span>}
+        </div>
+      )}
+
+      {phase === "playing" && cursor.visible && (
+        <div className="cursor-reticle" style={{ transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)` }}>
+          <Crosshair size={26} />
+          <Zap size={12} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,11 +1,11 @@
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { DrugItem as MushroomItemType, DRUG_CONFIG } from "./types";
 
 interface Props { drug: MushroomItemType; }
 
-export default function DrugItem({ drug }: Props) {
+function DrugItem({ drug }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const t = useRef(Math.random() * Math.PI * 2);
   const cfg = DRUG_CONFIG[drug.type];
@@ -287,7 +287,6 @@ export default function DrugItem({ drug }: Props) {
 
   return (
     <group ref={groupRef} position={[drug.position[0], drug.position[1], drug.position[2]]}>
-      <pointLight color={col} intensity={2} distance={5} />
       {renderMushroom()}
       {/* Pickup ring */}
       <mesh rotation={[Math.PI / 2, 0, 0]}>
@@ -297,3 +296,5 @@ export default function DrugItem({ drug }: Props) {
     </group>
   );
 }
+
+export default memo(DrugItem);

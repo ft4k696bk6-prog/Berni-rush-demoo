@@ -1,0 +1,19 @@
+{
+  "name": "Toxic Harvest",
+  "short_name": "Toxic",
+  "description": "Arcade arena survival game with touch and desktop controls.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#061019",
+  "theme_color": "#061019",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

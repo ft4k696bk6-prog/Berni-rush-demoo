@@ -1,148 +1,530 @@
 import { create } from "zustand";
 import {
-  GameState, DrugItem, PoisonItem, DrugType, EnemySubType,
-  Projectile, EnemyProjectile, MeleeSwing,
-  DRUG_CONFIG, ENEMY_CONFIG,
+  ActiveEffect,
+  CenterMessage,
+  CoinItem,
+  DRUG_CONFIG,
+  DrugItem,
+  DrugType,
+  ENEMY_CONFIG,
+  EnemyProjectile,
+  EnemySubType,
+  FloatingText,
+  GamePhase,
+  GameRecords,
+  GameState,
+  MeleeSwing,
+  PerkId,
+  PlayerStats,
+  PoisonItem,
+  Projectile,
+  QualityLevel,
+  StatKey,
+  WeaponId,
 } from "./types";
-import { poisonCurrentPos } from "./poisonPositions";
-
-const ARENA = 22;
-let idc = 0;
-const nid = () => `e${++idc}`;
+import {
+  ARENA_BOUND,
+  clampToArena,
+  getEnemyBudget,
+  getEnemyLevelScale,
+  getSpawnInterval,
+  getStageKillTarget,
+  getStageReward,
+  getStageWaveCount,
+  getWaveIndex,
+  getXpRequirement,
+  pickEnemyType,
+  SAFE_SPAWN_RADIUS,
+} from "./balance";
+import { playerRuntime, resetPlayerRuntime } from "./gameRuntime";
+import { perkLevel, rollPerkChoices } from "./perks";
+import { WEAPON_CONFIG } from "./weapons";
+import { clearAllEnemyRuntime, clearEnemyRuntime, poisonCurrentPos } from "./poisonPositions";
+import {
+  loadRecords,
+  loadSavedGame as readSavedGame,
+  saveGameState,
+  updateRecordsFromState,
+} from "./saveSystem";
 
 const DRUG_TYPES: DrugType[] = [
-  "speed","heal","invincibility","strength","flight","time_slow","triple_shot","melee_360"
+  "speed", "heal", "invincibility", "strength",
+  "flight", "time_slow", "triple_shot", "melee_360",
 ];
-const REG_ENEMY: EnemySubType[] = ["ghost","zombie","creeper"];
 
-function randEdge(): [number, number, number] {
-  const a = Math.random() * Math.PI * 2;
-  return [Math.cos(a) * ARENA * 0.88, 1.2, Math.sin(a) * ARENA * 0.88];
+let idc = 0;
+const nid = (prefix = "g") => `${prefix}${++idc}`;
+const MELEE_DUR = 360;
+
+const baseStats = (): PlayerStats => ({
+  strength: 0,
+  superpower: 0,
+  vitality: 0,
+  luck: 0,
+  dodge: 0,
+  speed: 0,
+});
+
+function centerMessage(title: string, subtitle: string | undefined, tone: CenterMessage["tone"], duration = 2200): CenterMessage {
+  return { id: nid("msg"), title, subtitle, createdAt: Date.now(), duration, tone };
+}
+
+function floater(text: string, x: number, z: number, color: string, y = 2.2, duration = 850): FloatingText {
+  return { id: nid("txt"), text, position: [x, y, z], color, createdAt: Date.now(), duration };
+}
+
+function randomArenaPoint(margin = 5): [number, number, number] {
+  const x = (Math.random() * 2 - 1) * (ARENA_BOUND - margin);
+  const z = (Math.random() * 2 - 1) * (ARENA_BOUND - margin);
+  return [x, 1.05, z];
 }
 
 function spawnMushroom(): DrugItem {
-  const a = Math.random() * Math.PI * 2;
-  const d = 4 + Math.random() * (ARENA - 5);
+  const pos = randomArenaPoint(7);
   return {
-    id: nid(),
-    position: [Math.cos(a) * d, 1.2, Math.sin(a) * d],
+    id: nid("drug"),
+    position: [pos[0], 1.15, pos[2]],
     type: DRUG_TYPES[Math.floor(Math.random() * DRUG_TYPES.length)],
     collected: false,
   };
 }
 
-function spawnRegEnemy(wave: number): PoisonItem {
-  let type: EnemySubType;
-  if (wave < 3)       type = "zombie";
-  else if (wave < 5)  type = Math.random() < 0.5 ? "zombie" : "ghost";
-  else                type = REG_ENEMY[Math.floor(Math.random() * REG_ENEMY.length)];
+function spawnPositionAwayFromPlayer(): [number, number, number] {
+  for (let i = 0; i < 12; i++) {
+    const side = Math.floor(Math.random() * 4);
+    const spread = (Math.random() * 2 - 1) * ARENA_BOUND * 0.86;
+    const edge = ARENA_BOUND - 2.5 - Math.random() * 3;
+    const x = side === 0 ? -edge : side === 1 ? edge : spread;
+    const z = side === 2 ? -edge : side === 3 ? edge : spread;
+    const dx = x - playerRuntime.x;
+    const dz = z - playerRuntime.z;
+    if (dx * dx + dz * dz > SAFE_SPAWN_RADIUS * SAFE_SPAWN_RADIUS) {
+      return [x, 1.2, z];
+    }
+  }
+
+  const a = Math.random() * Math.PI * 2;
+  return [
+    clampToArena(playerRuntime.x + Math.cos(a) * SAFE_SPAWN_RADIUS * 1.5, 2),
+    1.2,
+    clampToArena(playerRuntime.z + Math.sin(a) * SAFE_SPAWN_RADIUS * 1.5, 2),
+  ];
+}
+
+function createEnemy(stage: number, type: EnemySubType, position = spawnPositionAwayFromPlayer()): PoisonItem {
   const cfg = ENEMY_CONFIG[type];
-  const extra = Math.floor(wave / 3);
+  const scale = getEnemyLevelScale(stage);
+  const bossScale = type === "boss10" || type === "boss20" ? 1 + Math.floor(stage / 5) * 0.12 : 1;
+  const maxHp = Math.ceil(cfg.baseHp * scale.hp * bossScale);
+
   return {
-    id: nid(), position: randEdge(), type,
-    collected: false, hp: cfg.baseHp + extra,
-    mechanics: cfg.mechanics, scale: cfg.scale,
+    id: nid("enemy"),
+    position,
+    type,
+    collected: false,
+    hp: maxHp,
+    maxHp,
+    damage: Math.round(cfg.damage * scale.damage * bossScale),
+    speed: cfg.speed * scale.speed,
+    xp: Math.round(cfg.xp * scale.reward),
+    coinValue: Math.round(cfg.coinValue * scale.reward),
+    mechanics: cfg.mechanics,
+    scale: cfg.scale,
   };
 }
 
-function spawnBoss(wave: number): PoisonItem {
-  const type: EnemySubType = wave >= 20 ? "boss20" : "boss10";
-  const cfg = ENEMY_CONFIG[type];
+function initialEnemies(stage: number, quality: QualityLevel) {
+  const count = Math.min(quality === "low" ? 3 : 4, getStageKillTarget(stage));
+  return Array.from({ length: count }, (_, index) => {
+    const type = pickEnemyType(stage, 1, stage % 5 === 0 && index === count - 1);
+    return createEnemy(stage, type);
+  });
+}
+
+function fresh(quality: QualityLevel = "medium", records: GameRecords = loadRecords()): GameState {
   return {
-    id: nid(), position: [0, 2.0, -ARENA * 0.7], type,
-    collected: false, hp: cfg.baseHp,
-    mechanics: cfg.mechanics, scale: cfg.scale,
+    phase: "menu",
+    score: 0,
+    health: 120,
+    maxHealth: 120,
+    stage: 1,
+    wave: 1,
+    wavesTotal: getStageWaveCount(1),
+    killsThisStage: 0,
+    killsRequired: getStageKillTarget(1),
+    spawnedThisStage: 0,
+    totalKills: 0,
+    playerLevel: 1,
+    xp: 0,
+    xpToNext: getXpRequirement(1),
+    statPoints: 0,
+    coins: 0,
+    coinsCollected: 0,
+    gameTime: 0,
+    stats: baseStats(),
+    activeEffects: [],
+    drugs: [],
+    poisons: [],
+    projectiles: [],
+    enemyProjectiles: [],
+    meleeSwings: [],
+    coinItems: [],
+    floatingTexts: [],
+    centerMessage: null,
+    playerPos: [0, 0],
+    playerAngle: Math.PI,
+    aimWorld: [0, -8],
+    ownedWeapons: ["blaster"],
+    currentWeapon: "blaster",
+    perks: {},
+    perkChoices: [],
+    pendingLevelUps: 0,
+    records,
+    quality,
+  };
+}
+
+function addXp(level: number, xp: number, xpToNext: number, amount: number) {
+  let nextLevel = level;
+  let nextXp = xp + amount;
+  let nextNeed = xpToNext;
+  let levelUps = 0;
+
+  while (nextXp >= nextNeed) {
+    nextXp -= nextNeed;
+    nextLevel += 1;
+    levelUps += 1;
+    nextNeed = getXpRequirement(nextLevel);
+  }
+
+  return { playerLevel: nextLevel, xp: nextXp, xpToNext: nextNeed, levelUps };
+}
+
+function applyKills(state: GameState, nextPoisons: PoisonItem[], killed: PoisonItem[]) {
+  const uniqueKilled = Array.from(new Map(killed.map(enemy => [enemy.id, enemy])).values());
+  if (uniqueKilled.length === 0) return { poisons: nextPoisons };
+
+  for (const enemy of uniqueKilled) clearEnemyRuntime(enemy.id);
+
+  const droppedCoins: CoinItem[] = [];
+  const newFloaters: FloatingText[] = [];
+  let scoreGain = 0;
+  let xpGain = 0;
+
+  for (const enemy of uniqueKilled) {
+    const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
+    scoreGain += Math.round(enemy.xp * 7);
+    xpGain += enemy.xp;
+
+    const boss = enemy.type === "boss10" || enemy.type === "boss20";
+    const coinPerk = perkLevel(state.perks, "lucky_coin");
+    const dropChance = boss ? 1 : Math.min(0.95, 0.48 + state.stats.luck * 0.032 + coinPerk * 0.06);
+    if (Math.random() < dropChance) {
+      const value = Math.max(1, Math.round(enemy.coinValue * (1 + state.stats.luck * 0.055 + coinPerk * 0.18) * (0.85 + Math.random() * 0.35)));
+      droppedCoins.push({ id: nid("coin"), position: [live[0], 0.65, live[1]], value });
+    }
+
+    newFloaters.push(floater(`+${enemy.xp} XP`, live[0], live[1], "#7dffb2", 2.1, 720));
+  }
+
+  let nextStage = state.stage;
+  let nextWave = getWaveIndex(state.stage, state.killsThisStage + uniqueKilled.length);
+  let nextWavesTotal = state.wavesTotal;
+  let nextKillsThisStage = state.killsThisStage + uniqueKilled.length;
+  let nextKillsRequired = state.killsRequired;
+  let nextSpawnedThisStage = state.spawnedThisStage;
+  let nextScore = state.score + scoreGain;
+  let nextCoins = state.coins;
+  let nextCoinsCollected = state.coinsCollected;
+  let nextStatPoints = state.statPoints;
+  let nextProjectiles = state.projectiles;
+  let nextEnemyProjectiles = state.enemyProjectiles;
+  let nextCenterMessage = state.centerMessage;
+  let nextPhase: GamePhase = state.phase;
+  let nextPerkChoices = state.perkChoices;
+  let nextPendingLevelUps = state.pendingLevelUps;
+  let gainedLevelUps = 0;
+
+  let xpResult = addXp(state.playerLevel, state.xp, state.xpToNext, xpGain);
+  if (xpResult.levelUps > 0) {
+    nextStatPoints += xpResult.levelUps;
+    gainedLevelUps += xpResult.levelUps;
+    nextCenterMessage = centerMessage(
+      "LEVEL UP",
+      `Choose a new ability - hero level ${xpResult.playerLevel}`,
+      "level",
+      2600,
+    );
+  }
+
+  if (nextKillsThisStage >= state.killsRequired) {
+    const reward = getStageReward(state.stage);
+    xpResult = addXp(xpResult.playerLevel, xpResult.xp, xpResult.xpToNext, reward.xp);
+    nextStatPoints += reward.statPoints + xpResult.levelUps;
+    gainedLevelUps += xpResult.levelUps;
+    nextCoins += reward.coins;
+    nextCoinsCollected += reward.coins;
+    nextScore += reward.xp * 9 + reward.coins * 20;
+    nextStage = state.stage + 1;
+    nextWave = 1;
+    nextWavesTotal = getStageWaveCount(nextStage);
+    nextKillsThisStage = 0;
+    nextKillsRequired = getStageKillTarget(nextStage);
+    nextSpawnedThisStage = 0;
+    nextPoisons = [];
+    nextProjectiles = [];
+    nextEnemyProjectiles = [];
+    clearAllEnemyRuntime();
+    nextCenterMessage = centerMessage(
+      "LEVEL COMPLETE",
+      `LEVEL ${nextStage} START - +${reward.xp} XP, +${reward.coins} coins, +${reward.statPoints} stat point${reward.statPoints > 1 ? "s" : ""}`,
+      "reward",
+      3100,
+    );
+  }
+
+  if (gainedLevelUps > 0) {
+    nextPhase = "upgrade";
+    nextPendingLevelUps += gainedLevelUps;
+    nextPerkChoices = rollPerkChoices(state.perks);
+  }
+
+  return {
+    phase: nextPhase,
+    score: nextScore,
+    playerLevel: xpResult.playerLevel,
+    xp: xpResult.xp,
+    xpToNext: xpResult.xpToNext,
+    statPoints: nextStatPoints,
+    coins: nextCoins,
+    coinsCollected: nextCoinsCollected,
+    stage: nextStage,
+    wave: nextWave,
+    wavesTotal: nextWavesTotal,
+    killsThisStage: nextKillsThisStage,
+    killsRequired: nextKillsRequired,
+    spawnedThisStage: nextSpawnedThisStage,
+    totalKills: state.totalKills + uniqueKilled.length,
+    poisons: nextPoisons,
+    projectiles: nextProjectiles,
+    enemyProjectiles: nextEnemyProjectiles,
+    coinItems: [...state.coinItems.slice(-45), ...droppedCoins],
+    floatingTexts: [...state.floatingTexts.slice(-18), ...newFloaters],
+    centerMessage: nextCenterMessage,
+    perkChoices: nextPerkChoices,
+    pendingLevelUps: nextPendingLevelUps,
   };
 }
 
 interface GameStore extends GameState {
   startGame: () => void;
   restartGame: () => void;
+  pauseGame: () => void;
+  resumeGame: () => void;
+  exitToMenu: () => void;
+  loadGame: () => void;
+  saveGame: () => void;
   collectDrug: (id: string) => void;
+  collectCoin: (id: string) => void;
   damageEnemy: (id: string, dmg: number) => void;
-  damagePlayer: (amount: number) => void;
+  damagePlayer: (amount: number, x?: number, z?: number) => void;
   tickEffects: (now: number) => void;
+  tickFloaters: (now: number) => void;
+  tickGameClock: (delta: number) => void;
   spawnItems: () => void;
   addScore: (n: number) => void;
-  setPlayerPos: (pos: [number, number], angle: number) => void;
-  fireProjectile: (ox: number, oz: number, dx: number, dz: number, count?: number) => void;
+  setPlayerSnapshot: (pos: [number, number], angle: number, aim: [number, number]) => void;
+  fireWeapon: (ox: number, oz: number, dx: number, dz: number) => void;
   tickProjectiles: (delta: number) => void;
   fireEnemyProjectile: (ex: number, ez: number, px: number, pz: number, damage: number) => void;
   tickEnemyProjectiles: (delta: number, px: number, pz: number) => void;
   addMeleeSwing: (playerPos: [number, number], angle: number, is360: boolean) => void;
   clearOldMelee: (now: number) => void;
   explodeAt: (ex: number, ez: number, radius: number, damage: number) => void;
+  upgradeStat: (stat: StatKey) => void;
+  buyWeapon: (id: WeaponId) => void;
+  equipWeapon: (id: WeaponId) => void;
+  choosePerk: (id: PerkId) => void;
+  setQuality: (quality: QualityLevel) => void;
+  refreshRecords: () => void;
 }
 
-const fresh = (): GameState => ({
-  phase: "menu", score: 0, health: 100, maxHealth: 100, wave: 1,
-  activeEffects: [], drugs: [], poisons: [],
-  projectiles: [], enemyProjectiles: [], meleeSwings: [],
-  playerPos: [0, 0], playerAngle: 0,
-});
-
-const MELEE_DUR = 400;
-
 export const useGameStore = create<GameStore>((set, get) => ({
-  ...fresh(),
+  ...fresh(readSavedGame()?.quality ?? "medium"),
 
   startGame: () => {
-    const drugs = Array.from({ length: 7 }, spawnMushroom);
-    const poisons = Array.from({ length: 5 }, () => spawnRegEnemy(1));
-    set({ ...fresh(), phase: "playing", drugs, poisons });
+    const quality = get().quality;
+    resetPlayerRuntime();
+    clearAllEnemyRuntime();
+    const poisons = initialEnemies(1, quality);
+    set({
+      ...fresh(quality, loadRecords()),
+      phase: "playing",
+      drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
+      poisons,
+      spawnedThisStage: poisons.length,
+      centerMessage: centerMessage("LEVEL 1 START", "Kill 10 monsters. Aim with mouse, move with WASD.", "level", 2600),
+    });
   },
 
   restartGame: () => get().startGame(),
 
-  collectDrug: (id) => {
-    const { drugs, activeEffects, health, maxHealth, score } = get();
-    const drug = drugs.find(d => d.id === id);
-    if (!drug || drug.collected) return;
-    const cfg = DRUG_CONFIG[drug.type];
-    const now = Date.now();
-    const newDrugs = drugs.map(d => d.id === id ? { ...d, collected: true } : d);
-    // Heal is instant
-    if (drug.type === "heal") {
-      set({ drugs: newDrugs, health: Math.min(maxHealth, health + 40), score: score + 100 });
+  pauseGame: () => set(s => s.phase === "playing" ? { phase: "paused" } : {}),
+
+  resumeGame: () => set(s => s.phase === "paused" ? { phase: "playing" } : {}),
+
+  exitToMenu: () => {
+    const state = get();
+    if (state.phase !== "menu") saveGameState(state);
+    clearAllEnemyRuntime();
+    set({ ...fresh(state.quality, loadRecords()), phase: "menu" });
+  },
+
+  loadGame: () => {
+    const saved = readSavedGame();
+    if (!saved) {
+      get().startGame();
       return;
     }
+
+    resetPlayerRuntime();
+    clearAllEnemyRuntime();
+    const stage = Math.max(1, saved.stage);
+    const killsRequired = getStageKillTarget(stage);
+    const killsThisStage = Math.min(killsRequired - 1, saved.killsThisStage ?? 0);
+    const quality = saved.quality ?? "medium";
+    const poisons = initialEnemies(stage, quality);
+
     set({
-      drugs: newDrugs,
-      activeEffects: [
-        ...activeEffects.filter(e => e.type !== drug.type),
-        { type: drug.type, expiresAt: now + cfg.duration * 1000 },
-      ],
-      score: score + 100,
+      ...fresh(quality, loadRecords()),
+      phase: "playing",
+      score: saved.score,
+      health: Math.max(1, saved.health),
+      maxHealth: saved.maxHealth,
+      stage,
+      wave: getWaveIndex(stage, saved.spawnedThisStage ?? killsThisStage),
+      wavesTotal: getStageWaveCount(stage),
+      killsThisStage,
+      killsRequired,
+      spawnedThisStage: Math.max(saved.spawnedThisStage ?? poisons.length, poisons.length),
+      totalKills: saved.totalKills,
+      playerLevel: saved.playerLevel,
+      xp: saved.xp,
+      xpToNext: saved.xpToNext,
+      statPoints: saved.statPoints,
+      coins: saved.coins,
+      coinsCollected: saved.coinsCollected,
+      gameTime: saved.gameTime,
+      stats: saved.stats,
+      perks: saved.perks ?? {},
+      ownedWeapons: saved.ownedWeapons.length ? saved.ownedWeapons : ["blaster"],
+      currentWeapon: saved.currentWeapon,
+      poisons,
+      drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
+      centerMessage: centerMessage("SAVE LOADED", `LEVEL ${stage} - ${saved.coins} coins`, "save", 2200),
+    });
+  },
+
+  saveGame: () => {
+    const state = get();
+    saveGameState(state);
+    set({
+      records: loadRecords(),
+      centerMessage: centerMessage("GAME SAVED", "Local save and records updated.", "save", 1800),
+    });
+  },
+
+  collectDrug: (id) => {
+    set(s => {
+      const drug = s.drugs.find(d => d.id === id);
+      if (!drug) return {};
+
+      const now = Date.now();
+      const cfg = DRUG_CONFIG[drug.type];
+      const drugs = s.drugs.filter(d => d.id !== id);
+      const float = floater(cfg.label, drug.position[0], drug.position[2], cfg.color, 2.2, 900);
+
+      if (drug.type === "heal") {
+        return {
+          drugs,
+          health: Math.min(s.maxHealth, s.health + 40),
+          score: s.score + 120,
+          floatingTexts: [...s.floatingTexts.slice(-18), float],
+        };
+      }
+
+      return {
+        drugs,
+        activeEffects: [
+          ...s.activeEffects.filter(e => e.type !== drug.type),
+          { type: drug.type, expiresAt: now + cfg.duration * 1000 },
+        ],
+        score: s.score + 120,
+        floatingTexts: [...s.floatingTexts.slice(-18), float],
+      };
+    });
+  },
+
+  collectCoin: (id) => {
+    set(s => {
+      const coin = s.coinItems.find(c => c.id === id);
+      if (!coin) return {};
+      return {
+        coinItems: s.coinItems.filter(c => c.id !== id),
+        coins: s.coins + coin.value,
+        coinsCollected: s.coinsCollected + coin.value,
+        score: s.score + coin.value * 15,
+        floatingTexts: [...s.floatingTexts.slice(-18), floater(`+${coin.value}`, coin.position[0], coin.position[2], "#ffd85a", 1.8, 650)],
+      };
     });
   },
 
   damageEnemy: (id, dmg) => {
-    const { poisons, score, activeEffects } = get();
-    const p = poisons.find(x => x.id === id);
-    if (!p || p.collected) return;
-    const now = Date.now();
-    const str = activeEffects.some(e => e.type === "strength" && e.expiresAt > now);
-    const realDmg = str ? 99 : dmg;
-    const newHp = p.hp - realDmg;
-    if (newHp <= 0) {
-      const bonus = (p.type === "boss10" || p.type === "boss20") ? 500 : 30;
-      set({
-        poisons: poisons.map(x => x.id === id ? { ...x, collected: true } : x),
-        score: score + bonus,
+    set(s => {
+      const killed: PoisonItem[] = [];
+      const poisons = s.poisons.flatMap(enemy => {
+        if (enemy.id !== id) return [enemy];
+        const hp = enemy.hp - dmg;
+        if (hp <= 0) {
+          killed.push(enemy);
+          return [];
+        }
+        return [{ ...enemy, hp }];
       });
-    } else {
-      set({ poisons: poisons.map(x => x.id === id ? { ...x, hp: newHp } : x) });
-    }
+      return applyKills(s, poisons, killed);
+    });
   },
 
-  damagePlayer: (amount) => {
-    const { health, activeEffects, phase } = get();
-    if (phase !== "playing") return;
-    const now = Date.now();
-    const inv = activeEffects.some(e => e.type === "invincibility" && e.expiresAt > now);
-    if (inv) return;
-    const newHp = Math.max(0, health - amount);
-    set({ health: newHp, phase: newHp <= 0 ? "gameover" : "playing" });
+  damagePlayer: (amount, x = playerRuntime.x, z = playerRuntime.z) => {
+    set(s => {
+      if (s.phase !== "playing") return {};
+      const now = Date.now();
+      const inv = s.activeEffects.some(e => e.type === "invincibility" && e.expiresAt > now) || playerRuntime.dashUntil > now;
+      if (inv) {
+        return { floatingTexts: [...s.floatingTexts.slice(-18), floater("DODGE", x, z, "#8af7ff", 2.4, 620)] };
+      }
+
+      const dodgeChance = Math.min(0.54, 0.045 + s.stats.dodge * 0.026 + s.stats.luck * 0.006 + perkLevel(s.perks, "nimble") * 0.035);
+      if (Math.random() < dodgeChance) {
+        return { floatingTexts: [...s.floatingTexts.slice(-18), floater("UNIK", x, z, "#f8ff7a", 2.45, 720)] };
+      }
+
+      const newHp = Math.max(0, Math.round(s.health - amount));
+      if (newHp <= 0) {
+        const records = updateRecordsFromState(s);
+        return {
+          health: 0,
+          phase: "gameover",
+          records,
+          centerMessage: centerMessage("GAME OVER", `Score ${s.score.toString().padStart(6, "0")}`, "danger", 3200),
+        };
+      }
+
+      return {
+        health: newHp,
+        floatingTexts: [...s.floatingTexts.slice(-18), floater(`-${Math.round(amount)}`, playerRuntime.x, playerRuntime.z, "#ff5b6a", 2.45, 680)],
+      };
+    });
   },
 
   tickEffects: (now) => {
@@ -150,124 +532,245 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (active.length !== get().activeEffects.length) set({ activeEffects: active });
   },
 
+  tickFloaters: (now) => {
+    const state = get();
+    const floatingTexts = state.floatingTexts.filter(t => now - t.createdAt < t.duration);
+    const center = state.centerMessage && now - state.centerMessage.createdAt < state.centerMessage.duration
+      ? state.centerMessage
+      : null;
+    if (floatingTexts.length !== state.floatingTexts.length || center !== state.centerMessage) {
+      set({ floatingTexts, centerMessage: center });
+    }
+  },
+
+  tickGameClock: (delta) => set(s => s.phase === "playing" ? { gameTime: s.gameTime + delta } : {}),
+
   spawnItems: () => {
-    const { drugs, poisons, wave } = get();
-    let np = poisons;
-    let nd = drugs;
-    let nw = wave;
+    set(s => {
+      if (s.phase !== "playing") return {};
 
-    const alive = poisons.filter(p => !p.collected);
-    const aliveCount = alive.length;
+      const aliveCount = s.poisons.length;
+      const budget = getEnemyBudget(s.stage, s.quality);
+      const remaining = s.killsRequired - s.spawnedThisStage;
+      let poisons = s.poisons;
+      let spawnedThisStage = s.spawnedThisStage;
+      let wave = s.wave;
+      let center = s.centerMessage;
 
-    // Advance wave when all enemies cleared
-    if (aliveCount === 0 && poisons.length > 0) {
-      nw = wave + 1;
-    }
+      if (remaining > 0 && aliveCount < budget) {
+        const spawnBatch = Math.min(remaining, Math.max(1, Math.min(3, budget - aliveCount)));
+        const nextEnemies: PoisonItem[] = [];
+        for (let i = 0; i < spawnBatch; i++) {
+          const enemyNumber = spawnedThisStage + i + 1;
+          const nextWave = getWaveIndex(s.stage, enemyNumber);
+          const forceBoss = s.stage % 5 === 0 && enemyNumber === s.killsRequired;
+          nextEnemies.push(createEnemy(s.stage, pickEnemyType(s.stage, nextWave, forceBoss)));
+        }
+        spawnedThisStage += nextEnemies.length;
+        const newWave = getWaveIndex(s.stage, spawnedThisStage);
+        if (newWave !== wave) {
+          center = centerMessage(`WAVE ${newWave}`, `${s.killsRequired - s.killsThisStage} monsters left`, "level", 1300);
+        }
+        wave = newWave;
+        poisons = [...poisons, ...nextEnemies];
+      }
 
-    // Spawn boss at wave 10 or 20 (once each)
-    const hasBoss = alive.some(p => p.type === "boss10" || p.type === "boss20");
-    if ((nw === 10 || nw === 20) && !hasBoss) {
-      np = [...np, spawnBoss(nw)];
-    }
+      const maxDrugs = s.quality === "low" ? 3 : s.quality === "medium" ? 4 : 5;
+      const drugs = s.drugs.length < maxDrugs && Math.random() < 0.5
+        ? [...s.drugs, spawnMushroom()]
+        : s.drugs;
 
-    // Regular spawning
-    const maxEnemies = Math.min(4 + nw * 2, 20);
-    if (aliveCount < maxEnemies) {
-      np = [...np, spawnRegEnemy(nw)];
-    }
-
-    if (drugs.filter(d => !d.collected).length < 6) {
-      nd = [...nd, spawnMushroom()];
-    }
-
-    set({ drugs: nd, poisons: np, wave: nw });
+      return { poisons, spawnedThisStage, wave, drugs, centerMessage: center };
+    });
   },
 
   addScore: (n) => set(s => ({ score: s.score + n })),
 
-  setPlayerPos: (pos, angle) => set({ playerPos: pos, playerAngle: angle }),
+  setPlayerSnapshot: (pos, angle, aim) => set({ playerPos: pos, playerAngle: angle, aimWorld: aim }),
 
-  fireProjectile: (ox, oz, dx, dz, count = 1) => {
+  fireWeapon: (ox, oz, dx, dz) => {
+    const s = get();
+    if (s.phase !== "playing") return;
+    const weapon = WEAPON_CONFIG[s.currentWeapon];
     const len = Math.sqrt(dx * dx + dz * dz);
     if (len < 0.001) return;
-    const base: [number, number] = [dx / len, dz / len];
-    const spreads = count === 1
-      ? [0]
-      : count === 3 ? [-0.28, 0, 0.28] : [0];
-    const newProjs: Projectile[] = spreads.map(offset => {
-      const angle = Math.atan2(base[0], base[1]) + offset;
-      return {
-        id: nid(),
-        position: [ox, 1.2, oz] as [number, number, number],
-        direction: [Math.sin(angle), Math.cos(angle)] as [number, number],
-        speed: 28, age: 0,
-      };
-    });
-    set(s => ({ projectiles: [...s.projectiles.slice(-40), ...newProjs] }));
+
+    const now = Date.now();
+    const hasTriple = s.activeEffects.some(e => e.type === "triple_shot" && e.expiresAt > now);
+    const hasStrength = s.activeEffects.some(e => e.type === "strength" && e.expiresAt > now);
+    const baseAngle = Math.atan2(dx / len, dz / len);
+    const perkMultishot = perkLevel(s.perks, "multishot");
+    const perkFrontArrow = perkLevel(s.perks, "front_arrow");
+    const perkSideArrows = perkLevel(s.perks, "side_arrows");
+    const perkPiercing = perkLevel(s.perks, "piercing");
+    const perkRicochet = perkLevel(s.perks, "ricochet");
+    const perkFire = perkLevel(s.perks, "fire_arrows");
+    const pellets = (hasTriple && weapon.pellets === 1 ? 3 : weapon.pellets + (hasTriple ? 2 : 0)) + perkMultishot;
+    const spread = weapon.spread || (pellets > 1 ? 0.12 : 0);
+    const damageScale = (1 + s.stats.strength * 0.12 + perkFrontArrow * 0.12 + perkFire * 0.1) * (1 + s.stats.superpower * (weapon.id === "blaster" ? 0.035 : 0.062));
+    const luckScale = weapon.id === "arcane" ? 1 + s.stats.luck * 0.026 : 1;
+    const strengthBurst = hasStrength ? 1.45 : 1;
+    const projectiles: Projectile[] = [];
+
+    const pushProjectile = (angle: number, damageMultiplier = 1, radiusMultiplier = 1) => {
+      projectiles.push({
+        id: nid("proj"),
+        position: [ox + Math.sin(angle) * 0.9, 1.28, oz + Math.cos(angle) * 0.9],
+        direction: [Math.sin(angle), Math.cos(angle)],
+        speed: weapon.projectileSpeed,
+        damage: weapon.damage * damageScale * luckScale * strengthBurst * damageMultiplier,
+        radius: weapon.radius * radiusMultiplier,
+        range: weapon.range,
+        distance: 0,
+        age: 0,
+        pierce: (weapon.id === "laser" ? 1 + Math.floor(s.stats.superpower / 4) : 0) + perkPiercing,
+        bounces: perkRicochet,
+        color: perkFire > 0 ? "#ff743d" : weapon.color,
+        weaponId: weapon.id,
+      });
+    };
+
+    for (let i = 0; i < pellets; i++) {
+      const offset = pellets === 1 ? 0 : (i - (pellets - 1) / 2) * spread;
+      pushProjectile(baseAngle + offset);
+    }
+
+    if (perkSideArrows > 0) {
+      const sideDamage = 0.46 + perkSideArrows * 0.12;
+      pushProjectile(baseAngle + Math.PI / 2, sideDamage, 0.86);
+      pushProjectile(baseAngle - Math.PI / 2, sideDamage, 0.86);
+    }
+
+    const cap = s.quality === "low" ? 40 : s.quality === "medium" ? 60 : 84;
+    set(state => ({ projectiles: [...state.projectiles.slice(-cap), ...projectiles] }));
   },
 
   tickProjectiles: (delta) => {
-    const { projectiles, poisons, score } = get();
-    const B = 25;
-    let ns = score;
-    let np = [...poisons];
+    set(s => {
+      if (s.projectiles.length === 0) return {};
 
-    const alive = projectiles
-      .map(p => ({
-        ...p,
-        position: [
-          p.position[0] + p.direction[0] * p.speed * delta,
-          p.position[1],
-          p.position[2] + p.direction[1] * p.speed * delta,
-        ] as [number, number, number],
-        age: p.age + delta,
-      }))
-      .filter(p => {
-        if (p.age > 2.5) return false;
-        if (Math.abs(p.position[0]) > B || Math.abs(p.position[2]) > B) return false;
-        let hit = false;
-        np = np.map(enemy => {
-          if (enemy.collected || hit) return enemy;
-          const live = poisonCurrentPos[enemy.id];
-          const ex = live ? live[0] : enemy.position[0];
-          const ez = live ? live[1] : enemy.position[2];
-          const dd = (p.position[0] - ex) ** 2 + (p.position[2] - ez) ** 2;
-          const r = enemy.scale * 1.4;
-          if (dd < r * r) {
-            hit = true;
-            const newHp = enemy.hp - 1;
-            if (newHp <= 0) {
-              ns += (enemy.type === "boss10" || enemy.type === "boss20") ? 500 : 30;
-              return { ...enemy, collected: true };
+      const killed: PoisonItem[] = [];
+      const poisons = s.poisons.map(enemy => ({ ...enemy }));
+      const aliveProjectiles: Projectile[] = [];
+
+      for (const projectile of s.projectiles) {
+        const step = projectile.speed * delta;
+        const next: Projectile = {
+          ...projectile,
+          position: [
+            projectile.position[0] + projectile.direction[0] * step,
+            projectile.position[1],
+            projectile.position[2] + projectile.direction[1] * step,
+          ],
+          distance: projectile.distance + step,
+          age: projectile.age + delta,
+        };
+
+        if (
+          next.age > 3.2 ||
+          next.distance > next.range ||
+          Math.abs(next.position[0]) > ARENA_BOUND + 5 ||
+          Math.abs(next.position[2]) > ARENA_BOUND + 5
+        ) {
+          continue;
+        }
+
+        let consumed = false;
+        let pierceLeft = next.pierce;
+
+        for (let i = 0; i < poisons.length; i++) {
+          const enemy = poisons[i];
+          const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
+          const dx = next.position[0] - live[0];
+          const dz = next.position[2] - live[1];
+          const radius = enemy.scale * 0.8 + next.radius;
+
+          if (dx * dx + dz * dz > radius * radius) continue;
+
+          enemy.hp -= next.damage;
+          if (next.weaponId === "nova") {
+            for (const nearby of poisons) {
+              if (nearby.id === enemy.id) continue;
+              const pos = poisonCurrentPos[nearby.id] ?? [nearby.position[0], nearby.position[2]];
+              const ndx = pos[0] - live[0];
+              const ndz = pos[1] - live[1];
+              if (ndx * ndx + ndz * ndz < 2.9 * 2.9) nearby.hp -= next.damage * 0.58;
             }
-            return { ...enemy, hp: newHp };
           }
-          return enemy;
-        });
-        return !hit;
-      });
 
-    set({ projectiles: alive, poisons: np, score: ns });
+          if (enemy.hp <= 0) killed.push(enemy);
+
+          if (next.bounces > 0) {
+            let target: PoisonItem | null = null;
+            let best = Number.POSITIVE_INFINITY;
+            for (const candidate of poisons) {
+              if (candidate.id === enemy.id || candidate.hp <= 0) continue;
+              const pos = poisonCurrentPos[candidate.id] ?? [candidate.position[0], candidate.position[2]];
+              const cdx = pos[0] - live[0];
+              const cdz = pos[1] - live[1];
+              const dd = cdx * cdx + cdz * cdz;
+              if (dd < best && dd < 13 * 13) {
+                best = dd;
+                target = candidate;
+              }
+            }
+
+            if (target) {
+              const targetPos = poisonCurrentPos[target.id] ?? [target.position[0], target.position[2]];
+              const ndx = targetPos[0] - next.position[0];
+              const ndz = targetPos[1] - next.position[2];
+              const nLen = Math.max(0.001, Math.sqrt(ndx * ndx + ndz * ndz));
+              next.direction = [ndx / nLen, ndz / nLen];
+              next.bounces -= 1;
+              next.damage *= 0.72;
+              consumed = false;
+              break;
+            }
+          }
+
+          if (pierceLeft <= 0) {
+            consumed = true;
+            break;
+          }
+          pierceLeft -= 1;
+        }
+
+        if (!consumed) aliveProjectiles.push({ ...next, pierce: pierceLeft });
+      }
+
+      const killedIds = new Set(killed.map(enemy => enemy.id));
+      const nextPoisons = poisons.filter(enemy => enemy.hp > 0 && !killedIds.has(enemy.id));
+      const killUpdate = applyKills(s, nextPoisons, killed);
+      const completedStage = "stage" in killUpdate && killUpdate.stage !== s.stage;
+      return {
+        ...killUpdate,
+        projectiles: completedStage ? [] : aliveProjectiles,
+      };
+    });
   },
 
   fireEnemyProjectile: (ex, ez, px, pz, damage) => {
-    const dx = px - ex, dz = pz - ez;
+    const dx = px - ex;
+    const dz = pz - ez;
     const len = Math.sqrt(dx * dx + dz * dz);
     if (len < 0.1) return;
+
     const proj: EnemyProjectile = {
-      id: nid(),
+      id: nid("eproj"),
       position: [ex, 1.5, ez],
       direction: [dx / len, dz / len],
-      speed: 8, age: 0, damage,
+      speed: 8.4,
+      age: 0,
+      damage,
     };
-    set(s => ({ enemyProjectiles: [...s.enemyProjectiles.slice(-30), proj] }));
+    set(s => ({ enemyProjectiles: [...s.enemyProjectiles.slice(-34), proj] }));
   },
 
   tickEnemyProjectiles: (delta, px, pz) => {
     const { enemyProjectiles } = get();
-    let tookDamage = false;
-    let totalDmg = 0;
+    if (enemyProjectiles.length === 0) return;
 
+    let totalDmg = 0;
     const alive = enemyProjectiles
       .map(p => ({
         ...p,
@@ -279,56 +782,59 @@ export const useGameStore = create<GameStore>((set, get) => ({
         age: p.age + delta,
       }))
       .filter(p => {
-        if (p.age > 5) return false;
+        if (p.age > 5 || Math.abs(p.position[0]) > ARENA_BOUND + 5 || Math.abs(p.position[2]) > ARENA_BOUND + 5) return false;
         const dd = (p.position[0] - px) ** 2 + (p.position[2] - pz) ** 2;
-        if (dd < 1.2 * 1.2) {
-          tookDamage = true;
+        if (dd < 1.05 * 1.05) {
           totalDmg += p.damage;
           return false;
         }
         return true;
       });
 
-    if (tookDamage) {
-      set({ enemyProjectiles: alive });
-      get().damagePlayer(totalDmg);
-    } else if (alive.length !== enemyProjectiles.length) {
-      set({ enemyProjectiles: alive });
-    }
+    set({ enemyProjectiles: alive });
+    if (totalDmg > 0) get().damagePlayer(totalDmg);
   },
 
   addMeleeSwing: (playerPos, angle, is360) => {
-    const swing: MeleeSwing = { id: nid(), startedAt: Date.now(), playerPos, angle, is360 };
-    set(s => ({ meleeSwings: [...s.meleeSwings, swing] }));
+    set(s => {
+      const swing: MeleeSwing = {
+        id: nid("melee"),
+        startedAt: Date.now(),
+        playerPos,
+        angle,
+        is360,
+        color: is360 ? "#ff9d2f" : WEAPON_CONFIG[s.currentWeapon].color,
+      };
+      const range = is360 ? 4.1 : 3.25;
+      const arc = is360 ? Math.PI * 2 : Math.PI * 0.78;
+      const killed: PoisonItem[] = [];
+      const damage = (2.2 + s.stats.strength * 0.32) * (is360 ? 1.1 : 1);
+      const poisons = s.poisons.flatMap(enemy => {
+        const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
+        const dx = live[0] - playerPos[0];
+        const dz = live[1] - playerPos[1];
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > range + enemy.scale * 0.4) return [enemy];
+        if (!is360) {
+          const ea = Math.atan2(dx, dz);
+          let diff = ea - angle;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          if (Math.abs(diff) > arc / 2) return [enemy];
+        }
+        const hp = enemy.hp - damage;
+        if (hp <= 0) {
+          killed.push(enemy);
+          return [];
+        }
+        return [{ ...enemy, hp }];
+      });
 
-    const { poisons } = get();
-    const RANGE = is360 ? 3.8 : 3.2;
-    const ARC = is360 ? Math.PI * 2 : Math.PI * 0.85;
-    let ns = get().score;
-    const np = poisons.map(p => {
-      if (p.collected) return p;
-      const live = poisonCurrentPos[p.id];
-      const ex = live ? live[0] : p.position[0];
-      const ez = live ? live[1] : p.position[2];
-      const dx = ex - playerPos[0];
-      const dz = ez - playerPos[1];
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist > RANGE) return p;
-      if (!is360) {
-        const ea = Math.atan2(dx, dz);
-        let diff = ea - angle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        if (Math.abs(diff) > ARC / 2) return p;
-      }
-      const newHp = p.hp - 2;
-      if (newHp <= 0) {
-        ns += (p.type === "boss10" || p.type === "boss20") ? 500 : 30;
-        return { ...p, collected: true };
-      }
-      return { ...p, hp: newHp };
+      return {
+        ...applyKills(s, poisons, killed),
+        meleeSwings: [...s.meleeSwings.slice(-5), swing],
+      };
     });
-    set({ poisons: np, score: ns });
   },
 
   clearOldMelee: (now) => {
@@ -337,10 +843,76 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   explodeAt: (ex, ez, radius, damage) => {
-    const { playerPos } = get();
-    const dd = (ex - playerPos[0]) ** 2 + (ez - playerPos[1]) ** 2;
-    if (dd < radius * radius) {
-      get().damagePlayer(damage);
+    const dx = ex - playerRuntime.x;
+    const dz = ez - playerRuntime.z;
+    if (dx * dx + dz * dz < radius * radius) {
+      get().damagePlayer(damage, ex, ez);
     }
+    set(s => ({
+      floatingTexts: [...s.floatingTexts.slice(-18), floater("BOOM", ex, ez, "#ff8b3d", 2.6, 700)],
+    }));
   },
+
+  upgradeStat: (stat) => {
+    set(s => {
+      if (s.statPoints <= 0) return {};
+      const stats = { ...s.stats, [stat]: s.stats[stat] + 1 };
+      const vitalityGain = stat === "vitality" ? 18 : 0;
+      return {
+        stats,
+        statPoints: s.statPoints - 1,
+        maxHealth: s.maxHealth + vitalityGain,
+        health: Math.min(s.maxHealth + vitalityGain, s.health + vitalityGain),
+        centerMessage: centerMessage("STAT UPGRADED", `${stat.toUpperCase()} +1`, "level", 1200),
+      };
+    });
+  },
+
+  buyWeapon: (id) => {
+    set(s => {
+      if (s.ownedWeapons.includes(id)) return { currentWeapon: id };
+      const weapon = WEAPON_CONFIG[id];
+      if (!weapon || s.coins < weapon.price) {
+        return { centerMessage: centerMessage("NOT ENOUGH COINS", weapon ? `${weapon.price} coins required` : "Unknown weapon", "danger", 1200) };
+      }
+      return {
+        coins: s.coins - weapon.price,
+        ownedWeapons: [...s.ownedWeapons, id],
+        currentWeapon: id,
+        centerMessage: centerMessage("WEAPON BOUGHT", weapon.name, "reward", 1500),
+      };
+    });
+  },
+
+  equipWeapon: (id) => {
+    if (get().ownedWeapons.includes(id)) set({ currentWeapon: id });
+  },
+
+  choosePerk: (id) => {
+    set(s => {
+      if (s.phase !== "upgrade" || !s.perkChoices.includes(id)) return {};
+
+      const perks = { ...s.perks, [id]: perkLevel(s.perks, id) + 1 };
+      const pendingLevelUps = Math.max(0, s.pendingLevelUps - 1);
+      const nextChoices = pendingLevelUps > 0 ? rollPerkChoices(perks) : [];
+      const heartGain = id === "strong_heart" ? 24 : 0;
+      const phase: GamePhase = pendingLevelUps > 0 ? "upgrade" : "playing";
+
+      return {
+        perks,
+        phase,
+        pendingLevelUps,
+        perkChoices: nextChoices,
+        maxHealth: s.maxHealth + heartGain,
+        health: Math.min(s.maxHealth + heartGain, s.health + heartGain),
+        centerMessage: centerMessage("ABILITY READY", id.replaceAll("_", " ").toUpperCase(), "reward", 1450),
+      };
+    });
+  },
+
+  setQuality: (quality) => set({ quality }),
+
+  refreshRecords: () => set({ records: loadRecords() }),
 }));
+
+export { getSpawnInterval };
