@@ -26,6 +26,7 @@ const BASE_SPEED = 8.65;
 const SNAPSHOT_RATE = 0.055;
 const MOUSE_SENSITIVITY = 0.0031;
 const MOBILE_LOOK_SPEED = 2.9;
+const RUN_START_SPAWN_DELAY_MS = 950;
 
 function getCameraYawVectors() {
   const forward2 = new THREE.Vector2(Math.sin(cameraRuntime.yaw), Math.cos(cameraRuntime.yaw)).normalize();
@@ -200,6 +201,9 @@ export default function Player() {
       dashTime.current = 0;
       meleeCooldown.current = 0;
       powerCooldown.current = 0;
+      spawnTimer.current = -RUN_START_SPAWN_DELAY_MS;
+      cleanupTimer.current = 0;
+      clockTimer.current = 0;
     }
   }, [phase]);
 

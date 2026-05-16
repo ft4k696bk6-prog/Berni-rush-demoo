@@ -72,6 +72,8 @@ const DRUG_TYPES: DrugType[] = [
 let idc = 0;
 const nid = (prefix = "g") => `${prefix}${++idc}`;
 const MELEE_DUR = 620;
+const START_GRACE_MS = 2600;
+const RESUME_GRACE_MS = 1500;
 const isBossType = (type: EnemySubType) => type === "boss10" || type === "boss20" || type === "boss_dragon";
 
 const baseStats = (): PlayerStats => ({
@@ -137,7 +139,7 @@ function spawnMushroom(): DrugItem {
   };
 }
 
-function spawnPositionAwayFromPlayer(): [number, number, number] {
+function spawnPositionAwayFromPlayer(minDistance = SAFE_SPAWN_RADIUS): [number, number, number] {
   for (let i = 0; i < 12; i++) {
     const side = Math.floor(Math.random() * 4);
     const spread = (Math.random() * 2 - 1) * ARENA_BOUND * 0.86;
@@ -146,16 +148,16 @@ function spawnPositionAwayFromPlayer(): [number, number, number] {
     const z = side === 2 ? -edge : side === 3 ? edge : spread;
     const dx = x - playerRuntime.x;
     const dz = z - playerRuntime.z;
-    if (dx * dx + dz * dz > SAFE_SPAWN_RADIUS * SAFE_SPAWN_RADIUS) {
+    if (dx * dx + dz * dz > minDistance * minDistance) {
       return [x, 1.2, z];
     }
   }
 
   const a = Math.random() * Math.PI * 2;
   return [
-    clampToArena(playerRuntime.x + Math.cos(a) * SAFE_SPAWN_RADIUS * 1.5, 2),
+    clampToArena(playerRuntime.x + Math.cos(a) * minDistance * 1.35, 2),
     1.2,
-    clampToArena(playerRuntime.z + Math.sin(a) * SAFE_SPAWN_RADIUS * 1.5, 2),
+    clampToArena(playerRuntime.z + Math.sin(a) * minDistance * 1.35, 2),
   ];
 }
 
@@ -185,10 +187,12 @@ function createEnemy(stage: number, type: EnemySubType, position = spawnPosition
 }
 
 function initialEnemies(stage: number, quality: QualityLevel) {
-  const count = Math.min(quality === "low" ? 3 : 4, getStageKillTarget(stage));
+  const stageOneCount = quality === "low" ? 2 : 3;
+  const count = Math.min(stage === 1 ? stageOneCount : quality === "low" ? 3 : 4, getStageKillTarget(stage));
+  const spawnDistance = stage === 1 ? SAFE_SPAWN_RADIUS + 9 : SAFE_SPAWN_RADIUS;
   return Array.from({ length: count }, (_, index) => {
     const type = pickEnemyType(stage, 1, stage % 5 === 0 && index === count - 1);
-    return createEnemy(stage, type);
+    return createEnemy(stage, type, spawnPositionAwayFromPlayer(spawnDistance));
   });
 }
 
@@ -433,6 +437,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startGame: () => {
     const quality = get().quality;
+    const now = Date.now();
     resetPlayerRuntime();
     clearAllEnemyRuntime();
     const poisons = initialEnemies(1, quality);
@@ -442,7 +447,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
       poisons,
       spawnedThisStage: poisons.length,
-      centerMessage: centerMessage("LEVEL 1 START", "Aim turns camera. Move with stick or WASD.", "level", 2600),
+      activeEffects: [{ type: "invincibility", expiresAt: now + START_GRACE_MS }],
+      centerMessage: centerMessage("LEVEL 1 START", "Brief shield. Get space, then fight.", "level", 2600),
     });
   },
 
@@ -468,6 +474,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     resetPlayerRuntime();
     clearAllEnemyRuntime();
+    const now = Date.now();
     const stage = Math.max(1, saved.stage);
     const killsRequired = getStageKillTarget(stage);
     const killsThisStage = Math.min(killsRequired - 1, saved.killsThisStage ?? 0);
@@ -512,7 +519,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       unlockedSkinIds: profile.unlockedSkinIds,
       poisons,
       drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
-      centerMessage: centerMessage("SAVE LOADED", `LEVEL ${stage} - ${saved.coins} coins`, "save", 2200),
+      activeEffects: [{ type: "invincibility", expiresAt: now + RESUME_GRACE_MS }],
+      centerMessage: centerMessage("SAVE LOADED", `LEVEL ${stage} - brief shield`, "save", 2200),
     });
   },
 
