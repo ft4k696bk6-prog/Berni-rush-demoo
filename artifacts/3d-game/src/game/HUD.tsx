@@ -46,7 +46,6 @@ export default function HUD() {
   const [hudMode, setHudMode] = useState<"minimal" | "full">(() => (
     typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 780) ? "minimal" : "full"
   ));
-  const [cursor, setCursor] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2, visible: false });
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
@@ -62,17 +61,6 @@ export default function HUD() {
     };
     window.addEventListener("keydown", handleHudToggle);
     return () => window.removeEventListener("keydown", handleHudToggle);
-  }, []);
-
-  useEffect(() => {
-    const move = (event: PointerEvent) => setCursor({ x: event.clientX, y: event.clientY, visible: true });
-    const leave = () => setCursor(c => ({ ...c, visible: false }));
-    window.addEventListener("pointermove", move);
-    window.addEventListener("blur", leave);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("blur", leave);
-    };
   }, []);
 
   const hpPct = Math.max(0, Math.min(100, (health / maxHealth) * 100));
@@ -121,7 +109,7 @@ export default function HUD() {
             <span>LEFT</span>
           </div>
           <div className="wave-strip">WAVE {wave}/{wavesTotal} - {killsThisStage}/{killsRequired}</div>
-          <div className="archero-hint">HOLD CLICK / RIGHT PAD TO SHOOT - MOVE TO DODGE</div>
+          <div className="archero-hint">MOUSE TURNS CAMERA - CLICK / RIGHT PAD TO SHOOT</div>
         </section>
 
         <section className="hud-panel hud-score-panel">
@@ -210,8 +198,8 @@ export default function HUD() {
         </div>
       )}
 
-      {phase === "playing" && cursor.visible && (
-        <div className="cursor-reticle" style={{ transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)` }}>
+      {phase === "playing" && (
+        <div className="cursor-reticle">
           <Crosshair size={26} />
           <Zap size={12} />
         </div>

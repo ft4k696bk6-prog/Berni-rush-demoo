@@ -29,7 +29,7 @@ import {
 } from "./loadout";
 import { useGameStore } from "./useGameStore";
 import { hasSavedGame } from "./saveSystem";
-import { QualityLevel, SkinId } from "./types";
+import { CameraViewMode, QualityLevel, SkinId } from "./types";
 
 type MenuView = "home" | "class" | "skins" | "upgrades" | "settings";
 type SkinFilter = "available" | "locked";
@@ -74,6 +74,7 @@ export default function MenuScreen() {
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const unlockedSkinIds = useGameStore(s => s.unlockedSkinIds);
   const quality = useGameStore(s => s.quality);
+  const cameraViewMode = useGameStore(s => s.cameraViewMode);
   const startGame = useGameStore(s => s.startGame);
   const restartGame = useGameStore(s => s.restartGame);
   const loadGame = useGameStore(s => s.loadGame);
@@ -81,6 +82,7 @@ export default function MenuScreen() {
   const selectSkin = useGameStore(s => s.selectSkin);
   const buySkin = useGameStore(s => s.buySkin);
   const setQuality = useGameStore(s => s.setQuality);
+  const setCameraViewMode = useGameStore(s => s.setCameraViewMode);
   const [view, setView] = useState<MenuView>("home");
   const [skinFilter, setSkinFilter] = useState<SkinFilter>("available");
   const [hasSave, setHasSave] = useState(false);
@@ -109,6 +111,10 @@ export default function MenuScreen() {
     : compatibleAvailableSkinIds[0] ?? compatibleLockedSkinIds[0] ?? selectedSkinId;
   const previewSkin = SKIN_DEFINITIONS[fallbackPreviewSkinId] ?? selectedSkin;
   const qualityOptions: QualityLevel[] = ["low", "medium", "high"];
+  const cameraOptions: { id: CameraViewMode; label: string }[] = [
+    { id: "third_person", label: "THIRD PERSON" },
+    { id: "first_person", label: "FIRST PERSON" },
+  ];
   const newRecord = isGameOver && score > 0 && score >= records.bestScore;
 
   return (
@@ -116,8 +122,7 @@ export default function MenuScreen() {
       <div className="menu-stage loadout-menu">
         <header className="menu-header">
           <div className="title-block">
-            <span>MOBILE ROGUELITE</span>
-            <h1>BERNI RUSH</h1>
+            <h1 className="brand-title"><span>Berni</span><em>Rush</em></h1>
           </div>
           <div className="profile-balance">
             <Coins size={18} />
@@ -283,6 +288,16 @@ export default function MenuScreen() {
 
         {view === "settings" && (
           <main className="settings-view">
+            <section>
+              <span>Camera view</span>
+              <div className="quality-pills">
+                {cameraOptions.map(option => (
+                  <button key={option.id} type="button" className={cameraViewMode === option.id ? "active" : ""} onClick={() => setCameraViewMode(option.id)}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </section>
             <section>
               <span>Effects quality</span>
               <div className="quality-pills">

@@ -1,5 +1,5 @@
 import { DEFAULT_CLASS_ID, DEFAULT_SKIN_ID, getStarterUnlockedSkins, normalizeLoadout } from "./loadout";
-import type { ClassId, GameRecords, GameState, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, SkinId, WeaponId } from "./types";
+import type { CameraViewMode, ClassId, GameRecords, GameState, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, SkinId, WeaponId } from "./types";
 
 const SAVE_KEY = "berni-rush-save-v1";
 const RECORD_KEY = "berni-rush-records-v1";
@@ -18,6 +18,7 @@ export interface ProfileData {
   bossesDefeated: number;
   settings: {
     quality: QualityLevel;
+    cameraViewMode: CameraViewMode;
   };
 }
 
@@ -68,6 +69,7 @@ export const defaultProfile = (): ProfileData => ({
   bossesDefeated: 0,
   settings: {
     quality: "medium",
+    cameraViewMode: "third_person",
   },
 });
 
@@ -119,6 +121,7 @@ export function loadProfile(): ProfileData {
     settings: {
       ...base.settings,
       ...(saved.settings ?? {}),
+      cameraViewMode: saved.settings?.cameraViewMode === "first_person" ? "first_person" : "third_person",
     },
   };
 }
@@ -141,6 +144,7 @@ export function updateProfile(patch: Partial<ProfileData> | ((profile: ProfileDa
     bossesDefeated: Math.max(0, next.bossesDefeated),
     settings: {
       quality: next.settings?.quality ?? "medium",
+      cameraViewMode: next.settings?.cameraViewMode === "first_person" ? "first_person" : "third_person",
     },
   };
   saveProfile(profile);
@@ -203,7 +207,7 @@ export function saveGameState(state: GameState) {
     selectedSkinId: state.selectedSkinId,
     bestScore: Math.max(profile.bestScore, state.score),
     highestWave: Math.max(profile.highestWave, state.stage),
-    settings: { quality: state.quality },
+    settings: { quality: state.quality, cameraViewMode: state.cameraViewMode },
   }));
 }
 

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   ActiveEffect,
+  CameraViewMode,
   CenterMessage,
   CoinItem,
   ClassId,
@@ -249,6 +250,7 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
     pendingLevelUps: 0,
     records,
     quality,
+    cameraViewMode: profile.settings.cameraViewMode,
   };
 }
 
@@ -424,6 +426,7 @@ interface GameStore extends GameState {
   buySkin: (id: SkinId) => void;
   setSkillStatus: (id: SkillId, readyAt: number, cooldownMs: number, active?: boolean) => void;
   setQuality: (quality: QualityLevel) => void;
+  setCameraViewMode: (mode: CameraViewMode) => void;
   refreshRecords: () => void;
 }
 
@@ -441,7 +444,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
       poisons,
       spawnedThisStage: poisons.length,
-      centerMessage: centerMessage("LEVEL 1 START", "Kill 10 monsters. Aim with mouse, move with WASD.", "level", 2600),
+      centerMessage: centerMessage("LEVEL 1 START", "Aim turns camera. Move with stick or WASD.", "level", 2600),
     });
   },
 
@@ -1238,8 +1241,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   setQuality: (quality) => {
-    updateProfile(profile => ({ ...profile, settings: { quality } }));
+    updateProfile(profile => ({ ...profile, settings: { ...profile.settings, quality } }));
     set({ quality });
+  },
+
+  setCameraViewMode: (cameraViewMode) => {
+    updateProfile(profile => ({ ...profile, settings: { ...profile.settings, cameraViewMode } }));
+    set({
+      cameraViewMode,
+      centerMessage: centerMessage(cameraViewMode === "first_person" ? "FIRST PERSON" : "THIRD PERSON", "Camera mode saved.", "save", 1200),
+    });
   },
 
   refreshRecords: () => set({ records: loadRecords() }),

@@ -1,9 +1,9 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
 import { clampToArena, getSpawnInterval } from "./balance";
-import { playerRuntime, touchRuntime } from "./gameRuntime";
+import { cameraRuntime, playerRuntime, touchRuntime } from "./gameRuntime";
 import { CharacterAssetModel } from "./AssetModels";
 import { getClassDefinition, getLoadoutModifiers } from "./loadout";
 import { perkLevel } from "./perks";
@@ -24,15 +24,22 @@ enum Controls {
 
 const BASE_SPEED = 7.9;
 const SNAPSHOT_RATE = 0.055;
+const MOUSE_SENSITIVITY = 0.00245;
 
-function getCameraPlaneVectors(camera: THREE.Camera) {
-  const forward = new THREE.Vector3();
-  camera.getWorldDirection(forward);
-  const forward2 = new THREE.Vector2(forward.x, forward.z);
-  if (forward2.lengthSq() < 0.0001) forward2.set(0, -1);
-  forward2.normalize();
-  const right2 = new THREE.Vector2(-forward2.y, forward2.x).normalize();
+function getCameraYawVectors() {
+  const forward2 = new THREE.Vector2(Math.sin(cameraRuntime.yaw), Math.cos(cameraRuntime.yaw)).normalize();
+  const right2 = new THREE.Vector2(-Math.cos(cameraRuntime.yaw), Math.sin(cameraRuntime.yaw)).normalize();
   return { forward2, right2 };
+}
+
+function rotateCameraFromMouse(deltaX: number, deltaY: number) {
+  cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw - deltaX * MOUSE_SENSITIVITY, Math.PI * 2);
+  cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + deltaY * MOUSE_SENSITIVITY * 0.72, -0.18, 0.62);
+}
+
+function dampAngle(current: number, target: number, lambda: number, delta: number) {
+  const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + diff * (1 - Math.exp(-lambda * delta));
 }
 
 export default function Player() {
@@ -44,13 +51,9 @@ export default function Player() {
   const phase = useGameStore(s => s.phase);
   const selectedClassId = useGameStore(s => s.selectedClassId);
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
+  const cameraViewMode = useGameStore(s => s.cameraViewMode);
   const [, getKeys] = useKeyboardControls<Controls>();
-  const { gl, camera } = useThree();
-
-  const groundPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
-  const raycaster = useMemo(() => new THREE.Raycaster(), []);
-  const mouseNdc = useMemo(() => new THREE.Vector2(), []);
-  const aimHit = useMemo(() => new THREE.Vector3(), []);
+  const { gl } = useThree();
 
   const velocity = useRef(new THREE.Vector2());
   const moveDir = useRef(new THREE.Vector2(0, -1));
@@ -72,37 +75,24 @@ export default function Player() {
   const cleanupTimer = useRef(0);
   const facingAngle = useRef(Math.PI);
 
-  const updateAimFromPointer = useCallback((clientX: number, clientY: number) => {
-    const rect = gl.domElement.getBoundingClientRect();
-    const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
-    const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
-    mouseNdc.set(nx, ny);
-    raycaster.setFromCamera(mouseNdc, camera);
-    raycaster.ray.intersectPlane(groundPlane, aimHit);
-
-    playerRuntime.screenX = clientX;
-    playerRuntime.screenY = clientY;
-
-    const dx = aimHit.x - playerRuntime.x;
-    const dz = aimHit.z - playerRuntime.z;
-    const len = Math.sqrt(dx * dx + dz * dz);
-    if (len > 0.05) {
-      playerRuntime.aimX = dx / len;
-      playerRuntime.aimZ = dz / len;
-      playerRuntime.aimWorldX = aimHit.x;
-      playerRuntime.aimWorldZ = aimHit.z;
-      facingAngle.current = Math.atan2(playerRuntime.aimX, playerRuntime.aimZ);
-    }
-  }, [aimHit, camera, gl.domElement, groundPlane, mouseNdc, raycaster]);
-
   useEffect(() => {
     const canvas = gl.domElement;
 
-    const handleMove = (event: PointerEvent) => updateAimFromPointer(event.clientX, event.clientY);
+    const handleMove = (event: PointerEvent) => {
+      if (useGameStore.getState().phase !== "playing") return;
+      if (event.pointerType && event.pointerType !== "mouse") return;
+      if (event.movementX === 0 && event.movementY === 0) return;
+      rotateCameraFromMouse(event.movementX, event.movementY);
+      playerRuntime.screenX = window.innerWidth / 2;
+      playerRuntime.screenY = window.innerHeight / 2;
+    };
     const handleDown = (event: PointerEvent) => {
-      if (event.button !== 0) return;
-      updateAimFromPointer(event.clientX, event.clientY);
-      shooting.current = true;
+      if (useGameStore.getState().phase !== "playing") return;
+      if (event.pointerType === "mouse" && document.pointerLockElement !== canvas) {
+        const lock = canvas.requestPointerLock?.();
+        if (lock && "catch" in lock) lock.catch(() => undefined);
+      }
+      if (event.button === 0) shooting.current = true;
     };
     const handleUp = () => { shooting.current = false; };
     const handleLeave = () => { shooting.current = false; };
@@ -121,7 +111,7 @@ export default function Player() {
       window.removeEventListener("blur", handleLeave);
       canvas.removeEventListener("contextmenu", handleContext);
     };
-  }, [gl.domElement, updateAimFromPointer]);
+  }, [gl.domElement]);
 
   useEffect(() => {
     if (phase === "playing" && groupRef.current) {
@@ -135,6 +125,8 @@ export default function Player() {
       playerRuntime.aimZ = -1;
       playerRuntime.aimWorldX = 0;
       playerRuntime.aimWorldZ = -8;
+      cameraRuntime.yaw = Math.PI;
+      cameraRuntime.pitch = 0.18;
       velocity.current.set(0, 0);
       moveDir.current.set(0, -1);
       dashDir.current.set(0, -1);
@@ -191,7 +183,7 @@ export default function Player() {
     const has360 = activeEffects.some(e => e.type === "melee_360" && e.expiresAt > now);
 
     const controls = getKeys();
-    const { forward2, right2 } = getCameraPlaneVectors(camera);
+    const { forward2, right2 } = getCameraYawVectors();
     const screenRight = (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX;
     const screenForward = (controls.forward ? 1 : 0) - (controls.back ? 1 : 0) - touchRuntime.moveZ;
     const input = new THREE.Vector2(
@@ -212,13 +204,20 @@ export default function Player() {
       );
       if (aim.lengthSq() > 0.01) {
         aim.normalize();
-        playerRuntime.aimX = aim.x;
-        playerRuntime.aimZ = aim.y;
-        playerRuntime.aimWorldX = playerRuntime.x + aim.x * 10;
-        playerRuntime.aimWorldZ = playerRuntime.z + aim.y * 10;
-        facingAngle.current = Math.atan2(aim.x, aim.y);
+        const targetYaw = Math.atan2(aim.x, aim.y);
+        cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(dampAngle(cameraRuntime.yaw, targetYaw, 18, delta), Math.PI * 2);
       }
     }
+
+    const aimX = Math.sin(cameraRuntime.yaw);
+    const aimZ = Math.cos(cameraRuntime.yaw);
+    playerRuntime.aimX = aimX;
+    playerRuntime.aimZ = aimZ;
+    playerRuntime.aimWorldX = playerRuntime.x + aimX * 14;
+    playerRuntime.aimWorldZ = playerRuntime.z + aimZ * 14;
+    playerRuntime.screenX = typeof window !== "undefined" ? window.innerWidth / 2 : playerRuntime.screenX;
+    playerRuntime.screenY = typeof window !== "undefined" ? window.innerHeight / 2 : playerRuntime.screenY;
+    facingAngle.current = cameraRuntime.yaw;
 
     const swiftBoots = perkLevel(store.perks, "swift_boots");
     const moveUpgrade = shopUpgradeLevel(store.shopUpgrades, "move_speed");
@@ -309,7 +308,7 @@ export default function Player() {
     }
 
     groupRef.current.position.set(playerRuntime.x, playerRuntime.y, playerRuntime.z);
-    groupRef.current.rotation.y = THREE.MathUtils.damp(groupRef.current.rotation.y, facingAngle.current, 15, delta);
+    groupRef.current.rotation.y = dampAngle(groupRef.current.rotation.y, facingAngle.current, 15, delta);
 
     if (bodyRef.current) {
       const moving = velocity.current.lengthSq() > 0.25;
@@ -364,7 +363,7 @@ export default function Player() {
   const classColor = getClassDefinition(selectedClassId).color;
 
   return (
-    <group ref={groupRef} position={[0, 1.2, 0]}>
+    <group ref={groupRef} position={[0, 1.2, 0]} visible={cameraViewMode !== "first_person"}>
       <pointLight ref={glowRef} intensity={0.8} distance={6} color={classColor} />
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.58, 0]}>

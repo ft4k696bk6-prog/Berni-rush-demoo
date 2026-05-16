@@ -123,7 +123,7 @@ export default function Scene() {
         performance={{ min: 0.65 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         style={{ width: "100vw", height: "100vh" }}
-        camera={{ fov: 58, near: 0.1, far: 150, position: [0, 14, 12] }}
+        camera={{ fov: 64, near: 0.1, far: 150, position: [0, 6, 10] }}
         onCreated={({ gl }) => {
           if (!gl.getContext()) setWebglFailed(true);
           gl.outputColorSpace = THREE.SRGBColorSpace;

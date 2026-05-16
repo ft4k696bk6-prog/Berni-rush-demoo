@@ -16,6 +16,11 @@ export const playerRuntime = {
   attackAnimType: "shoot" as "shoot" | "slash",
 };
 
+export const cameraRuntime = {
+  yaw: Math.PI,
+  pitch: 0.18,
+};
+
 export const touchRuntime = {
   moveX: 0,
   moveZ: 0,
@@ -44,6 +49,8 @@ export function resetPlayerRuntime() {
   playerRuntime.dashUntil = 0;
   playerRuntime.attackAnimUntil = 0;
   playerRuntime.attackAnimType = "shoot";
+  cameraRuntime.yaw = Math.PI;
+  cameraRuntime.pitch = 0.18;
   touchRuntime.moveX = 0;
   touchRuntime.moveZ = 0;
   touchRuntime.aimX = 0;
