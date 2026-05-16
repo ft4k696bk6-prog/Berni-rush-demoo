@@ -53,10 +53,10 @@ function SceneContent() {
 
   return (
     <>
-      <ambientLight intensity={quality === "low" ? 0.48 : 0.42} color="#d9d1bd" />
+      <ambientLight intensity={quality === "low" ? 0.58 : 0.5} color="#f0ead8" />
       <directionalLight
-        position={[16, 24, 18]}
-        intensity={quality === "low" ? 1.55 : 2.35}
+        position={[14, 26, 16]}
+        intensity={quality === "low" ? 1.75 : 2.65}
         castShadow={quality !== "low"}
         shadow-mapSize={quality === "high" ? [4096, 4096] : [2048, 2048]}
         shadow-camera-far={100}
@@ -66,7 +66,7 @@ function SceneContent() {
         shadow-camera-bottom={-48}
         color="#ffe1a8"
       />
-      {quality !== "low" && <hemisphereLight args={["#c9e3f2", theme.hemiGround, 0.42]} />}
+      {quality !== "low" && <hemisphereLight args={["#d8f4ff", theme.hemiGround, 0.52]} />}
 
       <fog attach="fog" args={[theme.fog, 48, 116]} />
       <color attach="background" args={[theme.sky]} />
@@ -123,12 +123,12 @@ export default function Scene() {
         performance={{ min: 0.65 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         style={{ width: "100vw", height: "100vh" }}
-        camera={{ fov: 66, near: 0.1, far: 150, position: [0, 6, 10] }}
+        camera={{ fov: 52, near: 0.1, far: 150, position: [0, 17, 15] }}
         onCreated={({ gl }) => {
           if (!gl.getContext()) setWebglFailed(true);
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = quality === "high" ? 0.94 : 0.9;
+          gl.toneMappingExposure = quality === "high" ? 1.02 : 0.98;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
           gl.setClearColor("#143027");
         }}

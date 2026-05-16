@@ -2,6 +2,11 @@ export type GamePhase = "menu" | "playing" | "paused" | "upgrade" | "gameover";
 export type QualityLevel = "low" | "medium" | "high";
 export type CameraViewMode = "first_person";
 
+export interface MobileControlSettings {
+  lookSensitivity: number;
+  lookDeadzone: number;
+}
+
 export type ClassId = "knight" | "ranger" | "mage" | "assassin" | "tank" | "miner";
 export type ClassAttackType = "melee_arc" | "rapid_projectile" | "magic_orb" | "dash_strike" | "heavy_cone" | "pickaxe_throw";
 export type VfxTheme = "knight" | "ranger" | "mage" | "assassin" | "tank" | "miner";
@@ -249,6 +254,7 @@ export interface GameRecords {
 }
 
 export interface GameState {
+  runId: number;
   phase: GamePhase;
   score: number;
   walletCoins: number;
@@ -297,6 +303,8 @@ export interface GameState {
   records: GameRecords;
   quality: QualityLevel;
   cameraViewMode: CameraViewMode;
+  mobileLookSensitivity: number;
+  mobileLookDeadzone: number;
 }
 
 export const STAT_LABELS: Record<StatKey, { label: string; description: string }> = {

@@ -22,10 +22,9 @@ enum Controls {
   power = "power",
 }
 
-const BASE_SPEED = 8.65;
+const BASE_SPEED = 10.35;
 const SNAPSHOT_RATE = 0.055;
 const MOUSE_SENSITIVITY = 0.0031;
-const MOBILE_LOOK_SPEED = 3.12;
 const RUN_START_SPAWN_DELAY_MS = 950;
 
 function getCameraYawVectors() {
@@ -118,12 +117,18 @@ export default function Player() {
   const phase = useGameStore(s => s.phase);
   const selectedClassId = useGameStore(s => s.selectedClassId);
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
+  const runId = useGameStore(s => s.runId);
   const [, getKeys] = useKeyboardControls<Controls>();
-  const { gl } = useThree();
+  const { gl, camera } = useThree();
 
   const velocity = useRef(new THREE.Vector2());
   const moveDir = useRef(new THREE.Vector2(0, -1));
   const dashDir = useRef(new THREE.Vector2(0, -1));
+  const raycaster = useRef(new THREE.Raycaster());
+  const aimPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.2));
+  const aimTarget = useRef(new THREE.Vector3());
+  const aimNdc = useRef(new THREE.Vector2());
+  const mouseAimActive = useRef(false);
   const shooting = useRef(false);
   const fireCooldown = useRef(0);
   const dashCooldown = useRef(0);
@@ -147,16 +152,16 @@ export default function Player() {
     const handleMove = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
       if (event.pointerType && event.pointerType !== "mouse") return;
-      if (event.movementX === 0 && event.movementY === 0) return;
-      rotateCameraFromMouse(event.movementX, event.movementY);
-      playerRuntime.screenX = window.innerWidth / 2;
-      playerRuntime.screenY = window.innerHeight / 2;
+      mouseAimActive.current = true;
+      playerRuntime.screenX = event.clientX;
+      playerRuntime.screenY = event.clientY;
     };
     const handleDown = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
-      if (event.pointerType === "mouse" && document.pointerLockElement !== canvas) {
-        const lock = canvas.requestPointerLock?.();
-        if (lock && "catch" in lock) lock.catch(() => undefined);
+      if (event.pointerType === "mouse") {
+        mouseAimActive.current = true;
+        playerRuntime.screenX = event.clientX;
+        playerRuntime.screenY = event.clientY;
       }
       if (event.button === 0) shooting.current = true;
     };
@@ -180,22 +185,32 @@ export default function Player() {
   }, [gl.domElement]);
 
   useEffect(() => {
-    if (phase === "playing" && groupRef.current) {
-      groupRef.current.position.set(0, 1.2, 0);
-      groupRef.current.rotation.y = Math.PI;
-      playerRuntime.x = 0;
-      playerRuntime.z = 0;
+    if (groupRef.current) {
+      const state = useGameStore.getState();
+      const [startX, startZ] = state.playerPos;
+      const [aimWorldX, aimWorldZ] = state.aimWorld;
+      const aimDx = aimWorldX - startX;
+      const aimDz = aimWorldZ - startZ;
+      const aimLen = Math.hypot(aimDx, aimDz);
+      const startAngle = aimLen > 0.05 ? Math.atan2(aimDx, aimDz) : state.playerAngle;
+
+      groupRef.current.position.set(startX, 1.2, startZ);
+      groupRef.current.rotation.y = startAngle;
+      playerRuntime.x = startX;
+      playerRuntime.z = startZ;
       playerRuntime.y = 1.2;
-      playerRuntime.angle = Math.PI;
-      playerRuntime.aimX = 0;
-      playerRuntime.aimZ = -1;
-      playerRuntime.aimWorldX = 0;
-      playerRuntime.aimWorldZ = -8;
-      cameraRuntime.yaw = Math.PI;
+      playerRuntime.angle = startAngle;
+      playerRuntime.aimX = aimLen > 0.05 ? aimDx / aimLen : Math.sin(startAngle);
+      playerRuntime.aimZ = aimLen > 0.05 ? aimDz / aimLen : Math.cos(startAngle);
+      playerRuntime.aimWorldX = aimWorldX;
+      playerRuntime.aimWorldZ = aimWorldZ;
+      cameraRuntime.yaw = startAngle;
       cameraRuntime.pitch = defaultCameraPitch();
       velocity.current.set(0, 0);
-      moveDir.current.set(0, -1);
-      dashDir.current.set(0, -1);
+      moveDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
+      dashDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
+      facingAngle.current = startAngle;
+      mouseAimActive.current = false;
       fireCooldown.current = 0;
       dashCooldown.current = 0;
       dashTime.current = 0;
@@ -205,7 +220,7 @@ export default function Player() {
       cleanupTimer.current = 0;
       clockTimer.current = 0;
     }
-  }, [phase]);
+  }, [runId]);
 
   useFrame((_, rawDelta) => {
     if (phase !== "playing" || !groupRef.current) return;
@@ -252,12 +267,9 @@ export default function Player() {
     const has360 = activeEffects.some(e => e.type === "melee_360" && e.expiresAt > now);
 
     const controls = getKeys();
-    const { forward2, right2 } = getCameraYawVectors();
-    const screenRight = (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX;
-    const screenForward = (controls.forward ? 1 : 0) - (controls.back ? 1 : 0) - touchRuntime.moveZ;
     const input = new THREE.Vector2(
-      right2.x * screenRight + forward2.x * screenForward,
-      right2.y * screenRight + forward2.y * screenForward,
+      (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX,
+      (controls.back ? 1 : 0) - (controls.forward ? 1 : 0) + touchRuntime.moveZ,
     );
     const inputActive = input.lengthSq() > 0;
 
@@ -266,20 +278,41 @@ export default function Player() {
       moveDir.current.copy(input);
     }
 
+    let aimX = playerRuntime.aimX;
+    let aimZ = playerRuntime.aimZ;
+
     if (touchRuntime.aimActive) {
-      cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw - touchRuntime.aimX * MOBILE_LOOK_SPEED * delta, Math.PI * 2);
-      cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + touchRuntime.aimY * MOBILE_LOOK_SPEED * 0.62 * delta, -0.2, 0.66);
+      const aimLen = Math.hypot(touchRuntime.aimX, touchRuntime.aimY);
+      if (aimLen > 0.04) {
+        aimX = touchRuntime.aimX / aimLen;
+        aimZ = touchRuntime.aimY / aimLen;
+      }
+    } else if (mouseAimActive.current && typeof window !== "undefined") {
+      aimNdc.current.set(
+        (playerRuntime.screenX / Math.max(1, window.innerWidth)) * 2 - 1,
+        -(playerRuntime.screenY / Math.max(1, window.innerHeight)) * 2 + 1,
+      );
+      raycaster.current.setFromCamera(aimNdc.current, camera);
+      if (raycaster.current.ray.intersectPlane(aimPlane.current, aimTarget.current)) {
+        const dx = aimTarget.current.x - playerRuntime.x;
+        const dz = aimTarget.current.z - playerRuntime.z;
+        const len = Math.hypot(dx, dz);
+        if (len > 0.1) {
+          aimX = dx / len;
+          aimZ = dz / len;
+        }
+      }
+    } else if (inputActive) {
+      aimX = input.x;
+      aimZ = input.y;
     }
 
-    const aimX = Math.sin(cameraRuntime.yaw);
-    const aimZ = Math.cos(cameraRuntime.yaw);
     playerRuntime.aimX = aimX;
     playerRuntime.aimZ = aimZ;
     playerRuntime.aimWorldX = playerRuntime.x + aimX * 14;
     playerRuntime.aimWorldZ = playerRuntime.z + aimZ * 14;
-    playerRuntime.screenX = typeof window !== "undefined" ? window.innerWidth / 2 : playerRuntime.screenX;
-    playerRuntime.screenY = typeof window !== "undefined" ? window.innerHeight / 2 : playerRuntime.screenY;
-    facingAngle.current = cameraRuntime.yaw;
+    facingAngle.current = Math.atan2(aimX, aimZ);
+    cameraRuntime.yaw = facingAngle.current;
 
     const swiftBoots = perkLevel(store.perks, "swift_boots");
     const moveUpgrade = shopUpgradeLevel(store.shopUpgrades, "move_speed");
@@ -291,7 +324,7 @@ export default function Player() {
     const klass = getClassDefinition(store.selectedClassId);
     const speed = BASE_SPEED * loadoutMods.moveSpeedMultiplier * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055 + moveUpgrade * 0.045) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
     const targetVelocity = input.multiplyScalar(speed);
-    const accel = 1 - Math.exp(-17 * delta);
+    const accel = 1 - Math.exp(-24 * delta);
     velocity.current.lerp(targetVelocity, accel);
 
     const dashRequested = (controls.dash && !dashHeld.current) || touchRuntime.dashPressed;
@@ -426,14 +459,24 @@ export default function Player() {
 
   return (
     <group ref={groupRef} position={[0, 1.2, 0]}>
-      <FirstPersonCaster color={classColor} />
+      {false && <FirstPersonCaster color={classColor} />}
 
-      <group visible={false}>
+      <group visible>
         <pointLight ref={glowRef} intensity={0.8} distance={6} color={classColor} />
 
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.58, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.12, 0]}>
           <ringGeometry args={[0.95, 1.24, 36]} />
           <meshBasicMaterial color={classColor} transparent opacity={0.44} />
+        </mesh>
+
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.105, 1.95]}>
+          <planeGeometry args={[0.16, 3.4]} />
+          <meshBasicMaterial color={classColor} transparent opacity={0.24} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </mesh>
+
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.1, 3.72]}>
+          <ringGeometry args={[0.18, 0.28, 24]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.54} depthWrite={false} blending={THREE.AdditiveBlending} />
         </mesh>
 
         <group ref={bodyRef}>

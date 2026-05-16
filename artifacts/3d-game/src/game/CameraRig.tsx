@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { cameraRuntime, playerRuntime } from "./gameRuntime";
+import { playerRuntime } from "./gameRuntime";
 import { useGameStore } from "./useGameStore";
 
 const MENU_POS = new THREE.Vector3(0, 9.5, 12.5);
@@ -20,30 +20,31 @@ export default function CameraRig() {
       return;
     }
 
-    const compact = typeof window !== "undefined" && window.innerWidth <= 780;
+    const compact = typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 780);
     const perspective = camera as THREE.PerspectiveCamera;
     if (perspective.isPerspectiveCamera) {
-      const targetFov = compact ? 72 : 66;
+      const targetFov = compact ? 55 : 49;
       perspective.fov = THREE.MathUtils.damp(perspective.fov, targetFov, 8, delta);
       perspective.updateProjectionMatrix();
     }
 
-    const forwardX = Math.sin(cameraRuntime.yaw);
-    const forwardZ = Math.cos(cameraRuntime.yaw);
+    const leadX = playerRuntime.aimX * (compact ? 1.7 : 2.5);
+    const leadZ = playerRuntime.aimZ * (compact ? 1.7 : 2.5);
+    const movingLeadX = playerRuntime.velocityX * (compact ? 0.1 : 0.14);
+    const movingLeadZ = playerRuntime.velocityZ * (compact ? 0.1 : 0.14);
 
-    const eyeY = playerRuntime.y + (compact ? 0.82 : 0.9);
     targetPos.current.set(
-      playerRuntime.x + forwardX * 0.38,
-      eyeY,
-      playerRuntime.z + forwardZ * 0.38,
+      playerRuntime.x + leadX * 0.26 + movingLeadX,
+      compact ? 16.4 : 17.8,
+      playerRuntime.z + (compact ? 13.2 : 15.2) + leadZ * 0.18 + movingLeadZ,
     );
     lookTarget.current.set(
-      playerRuntime.x + forwardX * 18,
-      eyeY - Math.sin(cameraRuntime.pitch) * 13,
-      playerRuntime.z + forwardZ * 18,
+      playerRuntime.x + leadX,
+      1.05,
+      playerRuntime.z + leadZ,
     );
 
-    camera.position.copy(targetPos.current);
+    camera.position.lerp(targetPos.current, 1 - Math.exp(-9 * delta));
     camera.lookAt(lookTarget.current);
   });
 

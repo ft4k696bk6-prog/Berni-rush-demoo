@@ -1,5 +1,5 @@
 import { DEFAULT_CLASS_ID, DEFAULT_SKIN_ID, getStarterUnlockedSkins, normalizeLoadout } from "./loadout";
-import type { CameraViewMode, ClassId, GameRecords, GameState, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, SkinId, WeaponId } from "./types";
+import type { CameraViewMode, ClassId, GameRecords, GameState, MobileControlSettings, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, SkinId, WeaponId } from "./types";
 
 const SAVE_KEY = "berni-rush-save-v1";
 const RECORD_KEY = "berni-rush-records-v1";
@@ -19,6 +19,7 @@ export interface ProfileData {
   settings: {
     quality: QualityLevel;
     cameraViewMode: CameraViewMode;
+    mobileControls: MobileControlSettings;
   };
 }
 
@@ -43,6 +44,9 @@ export interface SaveData {
   shopUpgrades?: Partial<Record<ShopUpgradeId, number>>;
   ownedWeapons: WeaponId[];
   currentWeapon: WeaponId;
+  playerPos?: [number, number];
+  playerAngle?: number;
+  aimWorld?: [number, number];
   selectedClassId?: ClassId;
   selectedSkinId?: SkinId;
   bossesDefeated?: number;
@@ -70,8 +74,19 @@ export const defaultProfile = (): ProfileData => ({
   settings: {
     quality: "medium",
     cameraViewMode: "first_person",
+    mobileControls: {
+      lookSensitivity: 0.72,
+      lookDeadzone: 0.1,
+    },
   },
 });
+
+function clampMobileControls(input?: Partial<MobileControlSettings>): MobileControlSettings {
+  return {
+    lookSensitivity: Math.max(0.35, Math.min(1.35, input?.lookSensitivity ?? 0.72)),
+    lookDeadzone: Math.max(0.05, Math.min(0.28, input?.lookDeadzone ?? 0.1)),
+  };
+}
 
 function safeParse<T>(value: string | null): T | null {
   if (!value) return null;
@@ -122,6 +137,7 @@ export function loadProfile(): ProfileData {
       ...base.settings,
       ...(saved.settings ?? {}),
       cameraViewMode: "first_person",
+      mobileControls: clampMobileControls(saved.settings?.mobileControls),
     },
   };
 }
@@ -145,6 +161,7 @@ export function updateProfile(patch: Partial<ProfileData> | ((profile: ProfileDa
     settings: {
       quality: next.settings?.quality ?? "medium",
       cameraViewMode: "first_person",
+      mobileControls: clampMobileControls(next.settings?.mobileControls),
     },
   };
   saveProfile(profile);
@@ -190,6 +207,9 @@ export function toSaveData(state: GameState): SaveData {
     shopUpgrades: state.shopUpgrades,
     ownedWeapons: state.ownedWeapons,
     currentWeapon: state.currentWeapon,
+    playerPos: state.playerPos,
+    playerAngle: state.playerAngle,
+    aimWorld: state.aimWorld,
     selectedClassId: state.selectedClassId,
     selectedSkinId: state.selectedSkinId,
     bossesDefeated: state.bossesDefeated,
@@ -207,7 +227,14 @@ export function saveGameState(state: GameState) {
     selectedSkinId: state.selectedSkinId,
     bestScore: Math.max(profile.bestScore, state.score),
     highestWave: Math.max(profile.highestWave, state.stage),
-    settings: { quality: state.quality, cameraViewMode: state.cameraViewMode },
+    settings: {
+      quality: state.quality,
+      cameraViewMode: state.cameraViewMode,
+      mobileControls: {
+        lookSensitivity: state.mobileLookSensitivity,
+        lookDeadzone: state.mobileLookDeadzone,
+      },
+    },
   }));
 }
 

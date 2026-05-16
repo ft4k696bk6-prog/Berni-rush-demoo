@@ -76,6 +76,14 @@ const START_GRACE_MS = 2600;
 const RESUME_GRACE_MS = 1500;
 const isBossType = (type: EnemySubType) => type === "boss10" || type === "boss20" || type === "boss_dragon";
 
+function clampMobileSensitivity(value: number) {
+  return Math.max(0.35, Math.min(1.35, value));
+}
+
+function clampMobileDeadzone(value: number) {
+  return Math.max(0.05, Math.min(0.28, value));
+}
+
 const baseStats = (): PlayerStats => ({
   strength: 0,
   superpower: 0,
@@ -206,6 +214,7 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
   const maxHealth = Math.round(120 * modifiers.hpMultiplier);
 
   return {
+    runId: 0,
     phase: "menu",
     score: 0,
     walletCoins: profile.totalCoins,
@@ -254,6 +263,8 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
     records,
     quality,
     cameraViewMode: "first_person",
+    mobileLookSensitivity: clampMobileSensitivity(profile.settings.mobileControls.lookSensitivity),
+    mobileLookDeadzone: clampMobileDeadzone(profile.settings.mobileControls.lookDeadzone),
   };
 }
 
@@ -429,6 +440,8 @@ interface GameStore extends GameState {
   buySkin: (id: SkinId) => void;
   setSkillStatus: (id: SkillId, readyAt: number, cooldownMs: number, active?: boolean) => void;
   setQuality: (quality: QualityLevel) => void;
+  setMobileLookSensitivity: (value: number) => void;
+  setMobileLookDeadzone: (value: number) => void;
   refreshRecords: () => void;
 }
 
@@ -437,12 +450,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startGame: () => {
     const quality = get().quality;
+    const runId = get().runId + 1;
     const now = Date.now();
     resetPlayerRuntime();
     clearAllEnemyRuntime();
     const poisons = initialEnemies(1, quality);
     set({
       ...fresh(quality, loadRecords()),
+      runId,
       phase: "playing",
       drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
       poisons,
@@ -479,6 +494,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const killsRequired = getStageKillTarget(stage);
     const killsThisStage = Math.min(killsRequired - 1, saved.killsThisStage ?? 0);
     const quality = saved.quality ?? "medium";
+    const runId = get().runId + 1;
+    const savedPlayerPos: [number, number] = saved.playerPos ?? [0, 0];
+    const savedPlayerAngle = saved.playerAngle ?? Math.PI;
+    const savedAimWorld: [number, number] = saved.aimWorld ?? [savedPlayerPos[0], savedPlayerPos[1] - 8];
+    playerRuntime.x = savedPlayerPos[0];
+    playerRuntime.z = savedPlayerPos[1];
+    playerRuntime.angle = savedPlayerAngle;
+    playerRuntime.aimWorldX = savedAimWorld[0];
+    playerRuntime.aimWorldZ = savedAimWorld[1];
     const poisons = initialEnemies(stage, quality);
     const profile = loadProfile();
     const loadout = normalizeLoadout({
@@ -488,6 +512,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       ...fresh(quality, loadRecords()),
+      runId,
       phase: "playing",
       score: saved.score,
       health: Math.max(1, saved.health),
@@ -513,6 +538,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       shopUpgrades: saved.shopUpgrades ?? {},
       ownedWeapons: saved.ownedWeapons.length ? saved.ownedWeapons : ["blaster"],
       currentWeapon: saved.currentWeapon,
+      playerPos: savedPlayerPos,
+      playerAngle: savedPlayerAngle,
+      aimWorld: savedAimWorld,
       walletCoins: profile.totalCoins,
       selectedClassId: loadout.selectedClassId,
       selectedSkinId: loadout.selectedSkinId,
@@ -1249,6 +1277,36 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setQuality: (quality) => {
     updateProfile(profile => ({ ...profile, settings: { ...profile.settings, quality } }));
     set({ quality });
+  },
+
+  setMobileLookSensitivity: (value) => {
+    const clamped = clampMobileSensitivity(value);
+    updateProfile(profile => ({
+      ...profile,
+      settings: {
+        ...profile.settings,
+        mobileControls: {
+          ...profile.settings.mobileControls,
+          lookSensitivity: clamped,
+        },
+      },
+    }));
+    set({ mobileLookSensitivity: clamped });
+  },
+
+  setMobileLookDeadzone: (value) => {
+    const clamped = clampMobileDeadzone(value);
+    updateProfile(profile => ({
+      ...profile,
+      settings: {
+        ...profile.settings,
+        mobileControls: {
+          ...profile.settings.mobileControls,
+          lookDeadzone: clamped,
+        },
+      },
+    }));
+    set({ mobileLookDeadzone: clamped });
   },
 
   refreshRecords: () => set({ records: loadRecords() }),

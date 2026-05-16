@@ -60,7 +60,7 @@ button {
 .hud-shell {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  z-index: 62;
   pointer-events: none;
 }
 
@@ -550,8 +550,8 @@ button {
 
 .cursor-reticle {
   position: fixed;
-  left: 50%;
-  top: 50%;
+  left: 0;
+  top: 0;
   width: 42px;
   height: 42px;
   margin: -21px 0 0 -21px;
@@ -573,23 +573,44 @@ button {
 .touch-controls {
   position: fixed;
   inset: 0;
-  z-index: 32;
+  z-index: 36;
   display: none;
   pointer-events: none;
   touch-action: none;
 }
 
+.touch-zone {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-move-zone {
+  left: 0;
+  width: 46vw;
+}
+
+.touch-aim-zone {
+  right: 0;
+  width: 56vw;
+}
+
 .touch-pad {
   position: fixed;
   bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 3;
   width: clamp(104px, 18vw, 128px);
   height: clamp(104px, 18vw, 128px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.12), rgba(3, 10, 18, 0.38));
   box-shadow: inset 0 0 28px rgba(125, 252, 255, 0.09), 0 18px 42px rgba(0, 0, 0, 0.26);
-  pointer-events: auto;
+  pointer-events: none;
   touch-action: none;
+  opacity: 0.66;
   transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
@@ -646,6 +667,7 @@ button {
 
 .touch-buttons {
   position: fixed;
+  z-index: 4;
   right: max(152px, calc(env(safe-area-inset-right) + 152px));
   bottom: max(34px, calc(env(safe-area-inset-bottom) + 34px));
   display: grid;
@@ -714,6 +736,11 @@ button {
     linear-gradient(180deg, rgba(3, 6, 10, 0.48), rgba(3, 6, 10, 0.9)),
     linear-gradient(135deg, rgba(125, 252, 255, 0.07), rgba(255, 216, 90, 0.045));
   backdrop-filter: blur(10px) saturate(1.08);
+}
+
+.menu-screen {
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .ability-overlay {
@@ -1138,6 +1165,8 @@ button {
 }
 
 .quality-row {
+  align-items: flex-start;
+  gap: 16px;
   justify-content: space-between;
   padding: 13px 22px 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -1145,14 +1174,69 @@ button {
   font-weight: 900;
 }
 
-.quality-row div {
+.quality-block {
+  display: grid;
+  gap: 8px;
+}
+
+.quality-block > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.quality-block > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .quality-row button {
   min-height: 34px;
   padding: 0 12px;
+}
+
+.mobile-controls-block {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px 10px;
+  border: 1px solid rgba(125, 252, 255, 0.2);
+  border-radius: 8px;
+  background: rgba(5, 14, 24, 0.56);
+}
+
+.mobile-controls-block strong,
+.mobile-controls-block label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobile-controls-block strong {
+  color: #7dfcff;
+  font-size: 12px;
+  letter-spacing: 0.8px;
+}
+
+.mobile-controls-block label span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d7edf5;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.mobile-controls-block label b {
+  color: #ffd85a;
+  font-size: 11px;
+}
+
+.mobile-controls-block input[type="range"] {
+  width: 100%;
+  accent-color: #7dfcff;
 }
 
 .menu-stage {
@@ -2250,42 +2334,7 @@ button {
   }
 
   .cursor-reticle {
-    display: grid;
-    width: 24px;
-    height: 24px;
-    margin: -12px 0 0 -12px;
-    opacity: 0.58;
-    color: transparent;
-    mix-blend-mode: normal;
-  }
-
-  .cursor-reticle svg {
     display: none;
-  }
-
-  .cursor-reticle::before,
-  .cursor-reticle::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 18px;
-    height: 18px;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    pointer-events: none;
-  }
-
-  .cursor-reticle::before {
-    border: 1px solid rgba(255, 255, 255, 0.82);
-    box-shadow: 0 0 10px rgba(125, 252, 255, 0.38);
-  }
-
-  .cursor-reticle::after {
-    width: 3px;
-    height: 3px;
-    background: rgba(255, 216, 90, 0.95);
-    box-shadow: 0 0 8px rgba(255, 216, 90, 0.7);
   }
 
   .threat-marker {
@@ -2586,9 +2635,107 @@ button {
   .skin-preview-panel span {
     display: none;
   }
+
+  .quality-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .mobile-controls-block {
+    width: 100%;
+  }
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
+  .menu-screen {
+    place-items: start center;
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .loadout-menu {
+    width: min(100%, 980px);
+    max-height: none;
+    min-height: 0;
+    grid-template-columns: minmax(132px, 168px) minmax(0, 1fr);
+    gap: 8px 10px;
+    overflow: visible;
+    padding: 10px;
+  }
+
+  .menu-header {
+    gap: 8px;
+  }
+
+  .menu-header .title-block h1 {
+    font-size: 25px;
+  }
+
+  .profile-balance {
+    min-height: 34px;
+  }
+
+  .menu-tabs {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .menu-tabs button {
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+
+  .menu-home,
+  .class-select-view,
+  .skin-select-view,
+  .progress-view,
+  .settings-view {
+    overflow: visible;
+  }
+
+  .loadout-current {
+    gap: 8px;
+  }
+
+  .loadout-current div {
+    min-height: 86px;
+    padding: 10px;
+  }
+
+  .loadout-current strong {
+    font-size: 18px;
+  }
+
+  .menu-actions {
+    margin: 10px 0 0;
+  }
+
+  .menu-actions button {
+    min-height: 42px;
+  }
+
+  .class-grid,
+  .skin-shop-grid,
+  .progress-view {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .class-card {
+    min-height: 112px;
+    padding: 11px;
+  }
+
+  .skin-preview-panel {
+    min-height: 230px;
+  }
+
+  .skin-preview,
+  .skin-preview canvas {
+    min-height: 175px;
+    height: 175px !important;
+  }
+
   .hud-top {
     grid-template-columns: 260px 1fr 230px;
     gap: 10px;
@@ -2604,7 +2751,7 @@ button {
   }
 
   .touch-pad {
-    bottom: max(12px, env(safe-area-inset-bottom));
+    bottom: max(28px, calc(env(safe-area-inset-bottom) + 28px));
     width: clamp(86px, 16vw, 106px);
     height: clamp(86px, 16vw, 106px);
     transform: scale(0.9);

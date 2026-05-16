@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { BadgePlus, Clock3, Coins, Crosshair, Eye, EyeOff, Gauge, HeartPulse, Pause, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
@@ -51,10 +51,25 @@ export default function HUD() {
   const [hudMode, setHudMode] = useState<"minimal" | "full">(() => (
     typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 780) ? "minimal" : "full"
   ));
+  const [cursor, setCursor] = useState({ x: 0, y: 0, visible: false });
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleMove = (event: PointerEvent) => {
+      if (event.pointerType && event.pointerType !== "mouse") return;
+      setCursor({ x: event.clientX, y: event.clientY, visible: true });
+    };
+    const handleLeave = () => setCursor(c => ({ ...c, visible: false }));
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("blur", handleLeave);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("blur", handleLeave);
+    };
   }, []);
 
   useEffect(() => {
@@ -79,6 +94,16 @@ export default function HUD() {
   const bossHpPct = boss ? Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) : 0;
 
   const messageClass = useMemo(() => centerMessage ? `center-message ${centerMessage.tone}` : "center-message", [centerMessage]);
+  const handlePausePress = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    pauseGame();
+  };
+  const handleHudTogglePress = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setHudMode(mode => mode === "full" ? "minimal" : "full");
+  };
   const recentHit = useMemo(() => {
     for (let i = impactBursts.length - 1; i >= 0; i--) {
       const burst = impactBursts[i];
@@ -161,7 +186,7 @@ export default function HUD() {
             <span>LEFT</span>
           </div>
           <div className="wave-strip">WAVE {wave}/{wavesTotal} - {killsThisStage}/{killsRequired}</div>
-          <div className="archero-hint">MOUSE TURNS CAMERA - CLICK / RIGHT PAD TO SHOOT</div>
+          <div className="archero-hint">AIM WITH CURSOR / RIGHT SIDE - HOLD TO SHOOT</div>
         </section>
 
         <section className="hud-panel hud-score-panel">
@@ -184,7 +209,7 @@ export default function HUD() {
       )}
 
       {phase === "playing" && (
-        <button className="mobile-pause-button" type="button" onClick={pauseGame} aria-label="Pause">
+        <button className="mobile-pause-button" type="button" onPointerDown={handlePausePress} aria-label="Pause">
           <Pause size={20} />
         </button>
       )}
@@ -193,7 +218,7 @@ export default function HUD() {
         <button
           className="mobile-hud-toggle"
           type="button"
-          onClick={() => setHudMode(mode => mode === "full" ? "minimal" : "full")}
+          onPointerDown={handleHudTogglePress}
           aria-label={hudMode === "full" ? "Minimal HUD" : "Full HUD"}
         >
           {hudMode === "full" ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -291,8 +316,8 @@ export default function HUD() {
         </div>
       )}
 
-      {phase === "playing" && (
-        <div className="cursor-reticle">
+      {phase === "playing" && cursor.visible && (
+        <div className="cursor-reticle" style={{ transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)` }}>
           <Crosshair size={26} />
           <Zap size={12} />
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Coins, Gauge, Play, Save, Settings, ShoppingBag, Swords, Trophy, X } from "lucide-react";
+import { BarChart3, Coins, Crosshair, Gauge, Play, Save, Settings, ShoppingBag, SlidersHorizontal, Smartphone, Swords, Trophy, X } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { QualityLevel, STAT_LABELS, StatKey } from "./types";
 import { SHOP_CATEGORIES, SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
@@ -41,6 +41,10 @@ export default function PauseMenu() {
   const shopUpgrades = useGameStore(s => s.shopUpgrades);
   const records = useGameStore(s => s.records);
   const quality = useGameStore(s => s.quality);
+  const mobileLookSensitivity = useGameStore(s => s.mobileLookSensitivity);
+  const mobileLookDeadzone = useGameStore(s => s.mobileLookDeadzone);
+  const setMobileLookSensitivity = useGameStore(s => s.setMobileLookSensitivity);
+  const setMobileLookDeadzone = useGameStore(s => s.setMobileLookDeadzone);
 
   useEffect(() => {
     if (phase === "paused") refreshRecords();
@@ -173,13 +177,45 @@ export default function PauseMenu() {
         </main>
 
         <footer className="quality-row">
-          <span><Settings size={16} /> Quality</span>
-          <div>
-            {qualityOptions.map(option => (
-              <button key={option} type="button" className={quality === option ? "active" : ""} onClick={() => setQuality(option)}>
-                {option.toUpperCase()}
-              </button>
-            ))}
+          <div className="quality-block">
+            <span><Settings size={16} /> Quality</span>
+            <div>
+              {qualityOptions.map(option => (
+                <button key={option} type="button" className={quality === option ? "active" : ""} onClick={() => setQuality(option)}>
+                  {option.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mobile-controls-block">
+            <strong><Smartphone size={15} /> Mobile Aim</strong>
+            <label>
+              <span><Crosshair size={14} /> Look speed</span>
+              <b>{mobileLookSensitivity.toFixed(2)}x</b>
+            </label>
+            <input
+              type="range"
+              min={0.35}
+              max={1.35}
+              step={0.05}
+              value={mobileLookSensitivity}
+              onChange={event => setMobileLookSensitivity(Number(event.currentTarget.value))}
+              aria-label="Mobile look speed"
+            />
+            <label>
+              <span><SlidersHorizontal size={14} /> Deadzone</span>
+              <b>{Math.round(mobileLookDeadzone * 100)}%</b>
+            </label>
+            <input
+              type="range"
+              min={0.05}
+              max={0.28}
+              step={0.01}
+              value={mobileLookDeadzone}
+              onChange={event => setMobileLookDeadzone(Number(event.currentTarget.value))}
+              aria-label="Mobile aim deadzone"
+            />
           </div>
         </footer>
       </div>
