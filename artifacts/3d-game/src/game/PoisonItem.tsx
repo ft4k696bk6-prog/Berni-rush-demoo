@@ -54,7 +54,7 @@ function PoisonItem({ poison }: Props) {
     const delta = Math.min(rawDelta, 1 / 30);
     const now = Date.now();
     const store = useGameStore.getState();
-    t.current += delta * (poison.type === "ghost" ? 2.2 : 1.45);
+    t.current += delta * (poison.type === "ghost" ? 2.35 : isBoss ? 1.28 : 2.15);
 
     const slow = store.activeEffects.some(e => e.type === "time_slow" && e.expiresAt > now);
     const dx = playerRuntime.x - posRef.current[0];
@@ -88,7 +88,7 @@ function PoisonItem({ poison }: Props) {
           setTelegraph(chargeTelegraphRef.current, true, 0.18 + Math.sin(elapsed * 0.018) * 0.08);
           if (elapsed > 520) chargeState.current = { ...state, phase: "dash", startedAt: now };
         } else if (state.phase === "dash") {
-          const speed = poison.speed * 4.6 * phaseScale;
+          const speed = poison.speed * 4.95 * phaseScale;
           posRef.current[0] += state.dirX * speed * delta;
           posRef.current[1] += state.dirZ * speed * delta;
           const pdx = playerRuntime.x - posRef.current[0];
@@ -136,10 +136,13 @@ function PoisonItem({ poison }: Props) {
     posRef.current[1] = clampToArena(posRef.current[1], 1.4);
     poisonCurrentPos[poison.id] = [posRef.current[0], posRef.current[1]];
 
-    const floatAmp = poison.type === "ghost" || poison.type === "ranged_enemy" ? 0.42 : poison.type === "elite" ? 0.16 : 0.08;
+    const moving = !lockedByAttack && dist > stopDistance;
+    const floatAmp = poison.type === "ghost" || poison.type === "ranged_enemy" ? 0.28 : poison.type === "elite" ? 0.1 : 0.045;
+    const strideBob = moving ? Math.abs(Math.sin(t.current * (isBoss ? 1.35 : 2.1))) * (isBoss ? 0.035 : 0.07) : Math.sin(t.current) * 0.018;
     const baseY = isBoss ? 2.0 : 1.18;
-    group.position.set(posRef.current[0], baseY + Math.sin(t.current) * floatAmp, posRef.current[1]);
-    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(dx, dz), 9, delta);
+    group.position.set(posRef.current[0], baseY + Math.sin(t.current) * floatAmp + strideBob, posRef.current[1]);
+    group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(dx, dz), 13, delta);
+    group.rotation.z = THREE.MathUtils.damp(group.rotation.z, moving ? Math.sin(t.current * 1.8) * (isBoss ? 0.025 : 0.055) : 0, 9, delta);
 
     if (poison.mechanics.includes("slam")) {
       const slamRange = isBoss ? 5.4 : 4.35;

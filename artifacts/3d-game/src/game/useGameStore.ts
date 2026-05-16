@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import {
   ActiveEffect,
-  CameraViewMode,
   CenterMessage,
   CoinItem,
   ClassId,
@@ -174,7 +173,7 @@ function createEnemy(stage: number, type: EnemySubType, position = spawnPosition
     hp: maxHp,
     maxHp,
     damage: Math.round(cfg.damage * scale.damage * bossScale),
-    speed: cfg.speed * scale.speed,
+    speed: cfg.speed * scale.speed * (isBossType(type) ? 1.06 : 1.12),
     xp: Math.round(cfg.xp * scale.reward),
     coinValue: Math.round(cfg.coinValue * scale.reward),
     mechanics: cfg.mechanics,
@@ -250,7 +249,7 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
     pendingLevelUps: 0,
     records,
     quality,
-    cameraViewMode: profile.settings.cameraViewMode,
+    cameraViewMode: "first_person",
   };
 }
 
@@ -426,7 +425,6 @@ interface GameStore extends GameState {
   buySkin: (id: SkinId) => void;
   setSkillStatus: (id: SkillId, readyAt: number, cooldownMs: number, active?: boolean) => void;
   setQuality: (quality: QualityLevel) => void;
-  setCameraViewMode: (mode: CameraViewMode) => void;
   refreshRecords: () => void;
 }
 
@@ -750,7 +748,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         id: nid("proj"),
         position: [ox + Math.sin(angle) * 0.9, 1.28, oz + Math.cos(angle) * 0.9],
         direction: [Math.sin(angle), Math.cos(angle)],
-        speed: weapon.projectileSpeed * styleSpeed,
+        speed: weapon.projectileSpeed * styleSpeed * 1.16,
         damage: weapon.damage * damageScale * luckScale * strengthBurst * damageMultiplier * (critical ? 1.85 : 1),
         radius: weapon.radius * radiusMultiplier * styleRadius,
         range: weapon.range * styleRange,
@@ -1243,14 +1241,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setQuality: (quality) => {
     updateProfile(profile => ({ ...profile, settings: { ...profile.settings, quality } }));
     set({ quality });
-  },
-
-  setCameraViewMode: (cameraViewMode) => {
-    updateProfile(profile => ({ ...profile, settings: { ...profile.settings, cameraViewMode } }));
-    set({
-      cameraViewMode,
-      centerMessage: centerMessage(cameraViewMode === "first_person" ? "FIRST PERSON" : "THIRD PERSON", "Camera mode saved.", "save", 1200),
-    });
   },
 
   refreshRecords: () => set({ records: loadRecords() }),

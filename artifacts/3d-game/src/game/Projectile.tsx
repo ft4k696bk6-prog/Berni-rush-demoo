@@ -148,13 +148,13 @@ function Projectile({ projectile }: Props) {
   const trailRef = useRef<THREE.Group>(null);
   const style = projectile.attackStyle ?? "melee_arc";
   const angle = Math.atan2(projectile.direction[0], projectile.direction[1]);
-  const radius = Math.max(0.16, projectile.radius);
-  const length = style === "rapid_projectile" ? 1.32
-    : style === "magic_orb" ? 0.95
-    : style === "dash_strike" ? 0.92
-    : style === "heavy_cone" ? 0.88
-    : style === "pickaxe_throw" ? 0.86
-    : 0.98;
+  const radius = Math.max(0.095, projectile.radius * 0.62);
+  const length = (style === "rapid_projectile" ? 1.18
+    : style === "magic_orb" ? 0.82
+    : style === "dash_strike" ? 0.78
+    : style === "heavy_cone" ? 0.76
+    : style === "pickaxe_throw" ? 0.72
+    : 0.82);
 
   useFrame((_, delta) => {
     if (meshRef.current) {

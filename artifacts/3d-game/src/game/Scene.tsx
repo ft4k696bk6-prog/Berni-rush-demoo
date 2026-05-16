@@ -53,10 +53,10 @@ function SceneContent() {
 
   return (
     <>
-      <ambientLight intensity={quality === "low" ? 0.78 : 0.72} color="#f5eddd" />
+      <ambientLight intensity={quality === "low" ? 0.48 : 0.42} color="#d9d1bd" />
       <directionalLight
-        position={[18, 28, 22]}
-        intensity={quality === "low" ? 1.34 : 1.95}
+        position={[16, 24, 18]}
+        intensity={quality === "low" ? 1.55 : 2.35}
         castShadow={quality !== "low"}
         shadow-mapSize={quality === "high" ? [4096, 4096] : [2048, 2048]}
         shadow-camera-far={100}
@@ -64,15 +64,15 @@ function SceneContent() {
         shadow-camera-right={48}
         shadow-camera-top={48}
         shadow-camera-bottom={-48}
-        color="#fff1c8"
+        color="#ffe1a8"
       />
-      {quality !== "low" && <hemisphereLight args={["#d9f3ff", theme.hemiGround, 0.68]} />}
+      {quality !== "low" && <hemisphereLight args={["#c9e3f2", theme.hemiGround, 0.42]} />}
 
-      <fog attach="fog" args={[theme.fog, 62, 128]} />
+      <fog attach="fog" args={[theme.fog, 48, 116]} />
       <color attach="background" args={[theme.sky]} />
 
       <Arena />
-      {quality !== "low" && <ContactShadows position={[0, 0.045, 0]} opacity={0.32} scale={94} blur={2.6} far={14} resolution={quality === "high" ? 1024 : 512} color={theme.baseDark} />}
+      {quality !== "low" && <ContactShadows position={[0, 0.045, 0]} opacity={0.5} scale={94} blur={2.25} far={18} resolution={quality === "high" ? 1024 : 512} color={theme.baseDark} />}
 
       {inRun && (
         <>
@@ -123,12 +123,12 @@ export default function Scene() {
         performance={{ min: 0.65 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         style={{ width: "100vw", height: "100vh" }}
-        camera={{ fov: 64, near: 0.1, far: 150, position: [0, 6, 10] }}
+        camera={{ fov: 66, near: 0.1, far: 150, position: [0, 6, 10] }}
         onCreated={({ gl }) => {
           if (!gl.getContext()) setWebglFailed(true);
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = quality === "high" ? 1.08 : 1.02;
+          gl.toneMappingExposure = quality === "high" ? 0.94 : 0.9;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
           gl.setClearColor("#143027");
         }}

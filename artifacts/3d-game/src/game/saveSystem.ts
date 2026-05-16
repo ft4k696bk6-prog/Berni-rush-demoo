@@ -69,7 +69,7 @@ export const defaultProfile = (): ProfileData => ({
   bossesDefeated: 0,
   settings: {
     quality: "medium",
-    cameraViewMode: "third_person",
+    cameraViewMode: "first_person",
   },
 });
 
@@ -121,7 +121,7 @@ export function loadProfile(): ProfileData {
     settings: {
       ...base.settings,
       ...(saved.settings ?? {}),
-      cameraViewMode: saved.settings?.cameraViewMode === "first_person" ? "first_person" : "third_person",
+      cameraViewMode: "first_person",
     },
   };
 }
@@ -144,7 +144,7 @@ export function updateProfile(patch: Partial<ProfileData> | ((profile: ProfileDa
     bossesDefeated: Math.max(0, next.bossesDefeated),
     settings: {
       quality: next.settings?.quality ?? "medium",
-      cameraViewMode: next.settings?.cameraViewMode === "first_person" ? "first_person" : "third_person",
+      cameraViewMode: "first_person",
     },
   };
   saveProfile(profile);

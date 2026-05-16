@@ -25,8 +25,8 @@ export function getEnemyBudget(stage: number, quality: QualityLevel) {
 }
 
 export function getSpawnInterval(stage: number, quality: QualityLevel) {
-  const qualitySlowdown = quality === "low" ? 130 : quality === "medium" ? 50 : 0;
-  return Math.max(460 + qualitySlowdown, 1280 - stage * 52);
+  const qualitySlowdown = quality === "low" ? 95 : quality === "medium" ? 35 : 0;
+  return Math.max(360 + qualitySlowdown, 1060 - stage * 62);
 }
 
 export function getXpRequirement(level: number) {
@@ -46,7 +46,7 @@ export function getEnemyLevelScale(stage: number) {
   return {
     hp: 1 + (stage - 1) * 0.16,
     damage: 1 + (stage - 1) * 0.075,
-    speed: Math.min(1.45, 1 + (stage - 1) * 0.018),
+    speed: Math.min(1.62, 1 + (stage - 1) * 0.024),
     reward: 1 + (stage - 1) * 0.08,
   };
 }

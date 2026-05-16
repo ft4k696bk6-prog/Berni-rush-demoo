@@ -1,6 +1,6 @@
 export type GamePhase = "menu" | "playing" | "paused" | "upgrade" | "gameover";
 export type QualityLevel = "low" | "medium" | "high";
-export type CameraViewMode = "third_person" | "first_person";
+export type CameraViewMode = "first_person";
 
 export type ClassId = "knight" | "ranger" | "mage" | "assassin" | "tank" | "miner";
 export type ClassAttackType = "melee_arc" | "rapid_projectile" | "magic_orb" | "dash_strike" | "heavy_cone" | "pickaxe_throw";

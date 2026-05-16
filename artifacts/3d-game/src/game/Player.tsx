@@ -22,9 +22,9 @@ enum Controls {
   power = "power",
 }
 
-const BASE_SPEED = 7.9;
+const BASE_SPEED = 8.65;
 const SNAPSHOT_RATE = 0.055;
-const MOUSE_SENSITIVITY = 0.00245;
+const MOUSE_SENSITIVITY = 0.0031;
 
 function getCameraYawVectors() {
   const forward2 = new THREE.Vector2(Math.sin(cameraRuntime.yaw), Math.cos(cameraRuntime.yaw)).normalize();
@@ -34,12 +34,74 @@ function getCameraYawVectors() {
 
 function rotateCameraFromMouse(deltaX: number, deltaY: number) {
   cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw - deltaX * MOUSE_SENSITIVITY, Math.PI * 2);
-  cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + deltaY * MOUSE_SENSITIVITY * 0.72, -0.18, 0.62);
+  cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + deltaY * MOUSE_SENSITIVITY * 0.82, -0.2, 0.66);
 }
 
 function dampAngle(current: number, target: number, lambda: number, delta: number) {
   const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
   return current + diff * (1 - Math.exp(-lambda * delta));
+}
+
+function FirstPersonCaster({ color }: { color: string }) {
+  const coreRef = useRef<THREE.Mesh>(null);
+  const flashRef = useRef<THREE.Group>(null);
+  const chargeRef = useRef<THREE.Mesh>(null);
+
+  useFrame((_, delta) => {
+    const active = Date.now() < playerRuntime.attackAnimUntil && playerRuntime.attackAnimType === "shoot";
+    const remaining = Math.max(0, playerRuntime.attackAnimUntil - Date.now()) / 260;
+
+    if (coreRef.current) {
+      coreRef.current.rotation.z += delta * 4.2;
+      coreRef.current.position.z = active ? 0.16 - remaining * 0.1 : 0.12;
+      const material = coreRef.current.material as THREE.MeshStandardMaterial;
+      material.emissive.set(color);
+      material.emissiveIntensity = active ? 2.4 : 0.85;
+    }
+
+    if (chargeRef.current) {
+      chargeRef.current.rotation.z -= delta * 9;
+      const material = chargeRef.current.material as THREE.MeshStandardMaterial;
+      material.emissive.set(color);
+      material.emissiveIntensity = active ? 2.2 : 1.0;
+    }
+
+    if (flashRef.current) {
+      flashRef.current.visible = active;
+      const pulse = active ? 0.72 + (1 - remaining) * 0.5 : 0.4;
+      flashRef.current.scale.setScalar(pulse);
+    }
+  });
+
+  return (
+    <group position={[-0.28, 0.22, 1.22]} rotation={[0.08, 0.04, 0]} scale={0.54}>
+      <mesh ref={coreRef} castShadow rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.055, 0.085, 0.62, 12]} />
+        <meshStandardMaterial color="#201812" emissive={color} emissiveIntensity={0.9} roughness={0.34} metalness={0.58} />
+      </mesh>
+      <mesh ref={chargeRef} position={[0, 0, 0.42]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.12, 0.012, 6, 32]} />
+        <meshStandardMaterial color="#f9fff0" emissive={color} emissiveIntensity={1.1} transparent opacity={0.82} roughness={0.18} metalness={0.3} />
+      </mesh>
+      <group ref={flashRef} visible={false} position={[0, 0, 0.78]}>
+        <pointLight intensity={2.2} distance={4.2} color={color} />
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.12, 0.42, 14]} />
+          <meshBasicMaterial color={color} transparent opacity={0.58} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </mesh>
+        <mesh position={[0, 0, 0.12]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.18, 0.014, 6, 32]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.62} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </mesh>
+        {[-1, 0, 1].map(index => (
+          <mesh key={index} position={[index * 0.08, 0.01, -0.06 + Math.abs(index) * 0.04]} rotation={[0.3, index * 0.5, index * 0.24]}>
+            <boxGeometry args={[0.015, 0.015, 0.18]} />
+            <meshBasicMaterial color="#fff1b8" transparent opacity={0.72} depthWrite={false} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
 }
 
 export default function Player() {
@@ -51,7 +113,6 @@ export default function Player() {
   const phase = useGameStore(s => s.phase);
   const selectedClassId = useGameStore(s => s.selectedClassId);
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
-  const cameraViewMode = useGameStore(s => s.cameraViewMode);
   const [, getKeys] = useKeyboardControls<Controls>();
   const { gl } = useThree();
 
@@ -229,7 +290,7 @@ export default function Player() {
     const klass = getClassDefinition(store.selectedClassId);
     const speed = BASE_SPEED * loadoutMods.moveSpeedMultiplier * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055 + moveUpgrade * 0.045) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
     const targetVelocity = input.multiplyScalar(speed);
-    const accel = 1 - Math.exp(-12 * delta);
+    const accel = 1 - Math.exp(-17 * delta);
     velocity.current.lerp(targetVelocity, accel);
 
     const dashRequested = (controls.dash && !dashHeld.current) || touchRuntime.dashPressed;
@@ -261,7 +322,7 @@ export default function Player() {
 
     const weapon = WEAPON_CONFIG[store.currentWeapon];
     const rapid = perkLevel(store.perks, "rapid_fire");
-    const fireRate = weapon.fireRate * loadoutMods.attackSpeedMultiplier * (1 + store.stats.superpower * 0.012 + rapid * 0.085) * (hasSpeed ? 1.05 : 1);
+    const fireRate = weapon.fireRate * 1.12 * loadoutMods.attackSpeedMultiplier * (1 + store.stats.superpower * 0.012 + rapid * 0.085) * (hasSpeed ? 1.05 : 1);
     if ((shooting.current || touchRuntime.shooting) && fireCooldown.current <= 0) {
       store.fireWeapon(playerRuntime.x, playerRuntime.z, playerRuntime.aimX, playerRuntime.aimZ);
       playerRuntime.attackAnimUntil = now + 260;
@@ -363,40 +424,44 @@ export default function Player() {
   const classColor = getClassDefinition(selectedClassId).color;
 
   return (
-    <group ref={groupRef} position={[0, 1.2, 0]} visible={cameraViewMode !== "first_person"}>
-      <pointLight ref={glowRef} intensity={0.8} distance={6} color={classColor} />
+    <group ref={groupRef} position={[0, 1.2, 0]}>
+      <FirstPersonCaster color={classColor} />
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.58, 0]}>
-        <ringGeometry args={[0.95, 1.24, 36]} />
-        <meshBasicMaterial color={classColor} transparent opacity={0.44} />
-      </mesh>
+      <group visible={false}>
+        <pointLight ref={glowRef} intensity={0.8} distance={6} color={classColor} />
 
-      <group ref={bodyRef}>
-        <Suspense fallback={
-          <group>
-            <mesh castShadow position={[0, 0, 0]}>
-              <capsuleGeometry args={[0.46, 0.92, 6, 14]} />
-              <meshStandardMaterial color={classColor} roughness={0.5} metalness={0.08} />
-            </mesh>
-            <mesh castShadow position={[0, 0.74, 0.02]}>
-              <sphereGeometry args={[0.42, 16, 12]} />
-              <meshStandardMaterial color="#f1bb8b" roughness={0.42} />
-            </mesh>
-          </group>
-        }>
-          <CharacterAssetModel skinId={selectedSkinId} />
-        </Suspense>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.58, 0]}>
+          <ringGeometry args={[0.95, 1.24, 36]} />
+          <meshBasicMaterial color={classColor} transparent opacity={0.44} />
+        </mesh>
+
+        <group ref={bodyRef}>
+          <Suspense fallback={
+            <group>
+              <mesh castShadow position={[0, 0, 0]}>
+                <capsuleGeometry args={[0.46, 0.92, 6, 14]} />
+                <meshStandardMaterial color={classColor} roughness={0.5} metalness={0.08} />
+              </mesh>
+              <mesh castShadow position={[0, 0.74, 0.02]}>
+                <sphereGeometry args={[0.42, 16, 12]} />
+                <meshStandardMaterial color="#f1bb8b" roughness={0.42} />
+              </mesh>
+            </group>
+          }>
+            <CharacterAssetModel skinId={selectedSkinId} />
+          </Suspense>
+        </group>
+
+        <mesh ref={barrelRef} castShadow position={[0, 0.18, 0.74]}>
+          <boxGeometry args={[0.09, 0.09, 0.78]} />
+          <meshStandardMaterial color="#fff3c0" emissive={classColor} emissiveIntensity={0.82} roughness={0.28} metalness={0.4} />
+        </mesh>
+
+        <mesh position={[0, 1.38, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.55, 0.026, 6, 32]} />
+          <meshStandardMaterial color={classColor} emissive={classColor} emissiveIntensity={1.25} transparent opacity={0.72} />
+        </mesh>
       </group>
-
-      <mesh ref={barrelRef} castShadow position={[0, 0.18, 0.74]}>
-        <boxGeometry args={[0.09, 0.09, 0.78]} />
-        <meshStandardMaterial color="#fff3c0" emissive={classColor} emissiveIntensity={0.82} roughness={0.28} metalness={0.4} />
-      </mesh>
-
-      <mesh position={[0, 1.38, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.55, 0.026, 6, 32]} />
-        <meshStandardMaterial color={classColor} emissive={classColor} emissiveIntensity={1.25} transparent opacity={0.72} />
-      </mesh>
     </group>
   );
 }
