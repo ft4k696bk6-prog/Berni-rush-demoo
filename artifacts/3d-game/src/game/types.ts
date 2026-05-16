@@ -193,6 +193,19 @@ export interface MeleeSwing {
   theme?: VfxTheme;
 }
 
+export type ImpactKind = "hit" | "crit" | "magic" | "heavy" | "death" | "coin";
+
+export interface ImpactBurst {
+  id: string;
+  position: [number, number, number];
+  color: string;
+  theme: VfxTheme;
+  kind: ImpactKind;
+  createdAt: number;
+  duration: number;
+  power: number;
+}
+
 export interface SkillStatus {
   id: SkillId;
   label: string;
@@ -263,6 +276,7 @@ export interface GameState {
   projectiles: Projectile[];
   enemyProjectiles: EnemyProjectile[];
   meleeSwings: MeleeSwing[];
+  impactBursts: ImpactBurst[];
   coinItems: CoinItem[];
   floatingTexts: FloatingText[];
   centerMessage: CenterMessage | null;
@@ -293,14 +307,14 @@ export const STAT_LABELS: Record<StatKey, { label: string; description: string }
 };
 
 export const DRUG_CONFIG: Record<DrugType, { color: string; label: string; description: string; duration: number }> = {
-  speed:        { color: "#00eeff", label: "SPEED SHROOM",   description: "Movement burst",          duration: 8  },
-  heal:         { color: "#ff88aa", label: "1-UP SHROOM",    description: "Restores 40 health",      duration: 0  },
-  invincibility:{ color: "#ffdd00", label: "STAR SHROOM",    description: "Short invulnerability",   duration: 6  },
-  strength:     { color: "#ff6600", label: "POWER SHROOM",   description: "Heavy damage on touch",   duration: 10 },
-  flight:       { color: "#dd88ff", label: "CLOUD SHROOM",   description: "Light movement lift",     duration: 7  },
-  time_slow:    { color: "#44ff88", label: "TIME SHROOM",    description: "Slows all enemies",       duration: 9  },
-  triple_shot:  { color: "#ff4488", label: "TRIPLE SHROOM",  description: "More projectiles",        duration: 12 },
-  melee_360:    { color: "#ff8800", label: "BERSERK SHROOM", description: "Wide melee attack",       duration: 8  },
+  speed:        { color: "#00eeff", label: "SPEED CORE",     description: "Movement burst",          duration: 8  },
+  heal:         { color: "#ff88aa", label: "HEAL CORE",      description: "Restores 40 health",      duration: 0  },
+  invincibility:{ color: "#ffdd00", label: "AURORA CORE",    description: "Short invulnerability",   duration: 6  },
+  strength:     { color: "#ff6600", label: "POWER CORE",     description: "Heavy damage on touch",   duration: 10 },
+  flight:       { color: "#dd88ff", label: "WIND CORE",      description: "Light movement lift",     duration: 7  },
+  time_slow:    { color: "#44ff88", label: "TIME CORE",      description: "Slows all enemies",       duration: 9  },
+  triple_shot:  { color: "#ff4488", label: "TRIPLE CORE",    description: "More projectiles",        duration: 12 },
+  melee_360:    { color: "#ff8800", label: "BERSERK CORE",   description: "Wide melee attack",       duration: 8  },
 };
 
 export const ENEMY_CONFIG: Record<EnemySubType, {

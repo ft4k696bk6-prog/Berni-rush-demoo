@@ -24,6 +24,34 @@ function prepModel(root: THREE.Object3D) {
   });
 }
 
+function prepEnvironmentModel(root: THREE.Object3D, tint?: string) {
+  const tintColor = tint ? new THREE.Color(tint) : null;
+  root.traverse(child => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    if (mesh.geometry) {
+      mesh.geometry.computeVertexNormals();
+      mesh.geometry.computeBoundingSphere();
+    }
+
+    const sourceMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const materials = sourceMaterials.map(source => {
+      const base = source as THREE.MeshStandardMaterial;
+      const material = base?.isMeshStandardMaterial
+        ? base.clone()
+        : new THREE.MeshStandardMaterial({ color: base?.color ?? "#7f826f" });
+      material.roughness = Math.max(material.roughness ?? 0.74, 0.78);
+      material.metalness = Math.min(material.metalness ?? 0.02, 0.08);
+      if (tintColor && material.color) material.color.lerp(tintColor, 0.16);
+      material.needsUpdate = true;
+      return material;
+    });
+    mesh.material = Array.isArray(mesh.material) ? materials : materials[0];
+  });
+}
+
 function findActionName(names: string[], candidates: string[]) {
   const lower = names.map(name => [name, name.toLowerCase()] as const);
   for (const candidate of candidates) {
@@ -122,6 +150,29 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
       scale={cfg.modelScale ?? 0.01}
       rotation={[0, Math.PI, 0]}
     >
+      <primitive object={scene} />
+    </group>
+  );
+}
+
+interface EnvironmentAssetModelProps {
+  path: string;
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: number | [number, number, number];
+  tint?: string;
+}
+
+export function EnvironmentAssetModel({ path, position, rotation = [0, 0, 0], scale = 1, tint }: EnvironmentAssetModelProps) {
+  const fbx = useFBX(path);
+  const scene = useMemo(() => cloneScene(fbx), [fbx, path]);
+
+  useEffect(() => {
+    prepEnvironmentModel(scene, tint);
+  }, [scene, tint]);
+
+  return (
+    <group position={position} rotation={rotation} scale={scale}>
       <primitive object={scene} />
     </group>
   );

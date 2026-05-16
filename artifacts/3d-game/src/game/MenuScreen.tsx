@@ -32,6 +32,7 @@ import { hasSavedGame } from "./saveSystem";
 import { QualityLevel, SkinId } from "./types";
 
 type MenuView = "home" | "class" | "skins" | "upgrades" | "settings";
+type SkinFilter = "available" | "locked";
 
 function ClassIcon({ icon, size = 20 }: { icon: string; size?: number }) {
   if (icon === "crosshair") return <Crosshair size={size} />;
@@ -81,6 +82,7 @@ export default function MenuScreen() {
   const buySkin = useGameStore(s => s.buySkin);
   const setQuality = useGameStore(s => s.setQuality);
   const [view, setView] = useState<MenuView>("home");
+  const [skinFilter, setSkinFilter] = useState<SkinFilter>("available");
   const [hasSave, setHasSave] = useState(false);
   const [previewSkinId, setPreviewSkinId] = useState(selectedSkinId);
 
@@ -98,7 +100,14 @@ export default function MenuScreen() {
   const isGameOver = phase === "gameover";
   const selectedClass = CLASS_DEFINITIONS[selectedClassId];
   const selectedSkin = SKIN_DEFINITIONS[selectedSkinId];
-  const previewSkin = SKIN_DEFINITIONS[previewSkinId] ?? selectedSkin;
+  const compatibleSkinIds = SKIN_ORDER.filter(id => skinFitsClass(id, selectedClassId));
+  const compatibleAvailableSkinIds = compatibleSkinIds.filter(id => unlockedSkinIds.includes(id));
+  const compatibleLockedSkinIds = compatibleSkinIds.filter(id => !unlockedSkinIds.includes(id));
+  const visibleSkinIds = skinFilter === "available" ? compatibleAvailableSkinIds : compatibleLockedSkinIds;
+  const fallbackPreviewSkinId = compatibleSkinIds.includes(previewSkinId)
+    ? previewSkinId
+    : compatibleAvailableSkinIds[0] ?? compatibleLockedSkinIds[0] ?? selectedSkinId;
+  const previewSkin = SKIN_DEFINITIONS[fallbackPreviewSkinId] ?? selectedSkin;
   const qualityOptions: QualityLevel[] = ["low", "medium", "high"];
   const newRecord = isGameOver && score > 0 && score >= records.bestScore;
 
@@ -201,16 +210,31 @@ export default function MenuScreen() {
 
         {view === "skins" && (
           <main className="skin-select-view">
-            <section className="skin-shop-grid">
-              {SKIN_ORDER.map(id => {
+            <section className="skin-shop-section">
+              <header className="skin-shop-header">
+                <div>
+                  <span>Compatible with</span>
+                  <strong style={{ color: selectedClass.color }}>{selectedClass.displayName}</strong>
+                </div>
+                <nav className="skin-filter-tabs">
+                  <button type="button" className={skinFilter === "available" ? "active" : ""} onClick={() => setSkinFilter("available")}>
+                    Available <b>{compatibleAvailableSkinIds.length}</b>
+                  </button>
+                  <button type="button" className={skinFilter === "locked" ? "active" : ""} onClick={() => setSkinFilter("locked")}>
+                    Locked <b>{compatibleLockedSkinIds.length}</b>
+                  </button>
+                </nav>
+              </header>
+
+              <div className="skin-shop-grid">
+              {visibleSkinIds.map(id => {
                 const skin = SKIN_DEFINITIONS[id];
                 const unlocked = unlockedSkinIds.includes(id);
                 const equipped = selectedSkinId === id;
-                const compatible = skinFitsClass(id, selectedClassId);
                 return (
                   <article
                     key={id}
-                    className={`skin-card ${equipped ? "equipped" : ""} ${!compatible ? "disabled" : ""}`}
+                    className={`skin-card ${equipped ? "equipped" : ""} ${!unlocked ? "locked" : ""}`}
                     onPointerEnter={() => setPreviewSkinId(id)}
                     onClick={() => setPreviewSkinId(id)}
                   >
@@ -219,10 +243,10 @@ export default function MenuScreen() {
                       <strong>{skin.displayName}</strong>
                     </div>
                     <span>{skin.rarity} - {formatSkinBonus(skin)}</span>
-                    <small>{compatible ? skin.compatibleClasses.join(" / ") : "Not for current class"}</small>
+                    <small>{unlocked ? "Ready for this class" : "Unlock for this class"}</small>
                     <button
                       type="button"
-                      disabled={!compatible || (!unlocked && walletCoins < skin.unlockCost)}
+                      disabled={!unlocked && walletCoins < skin.unlockCost}
                       onClick={() => unlocked ? selectSkin(id) : buySkin(id)}
                     >
                       {equipped ? "Equipped" : unlocked ? "Equip" : `${skin.unlockCost} coins`}
@@ -230,6 +254,13 @@ export default function MenuScreen() {
                   </article>
                 );
               })}
+              </div>
+              {visibleSkinIds.length === 0 && (
+                <div className="skin-empty-state">
+                  <strong>{skinFilter === "available" ? "No available skins yet" : "Everything compatible is unlocked"}</strong>
+                  <span>{skinFilter === "available" ? "Switch to Locked to buy a new look for this class." : "Pick from Available and jump into the run."}</span>
+                </div>
+              )}
             </section>
             <aside className="skin-preview-panel">
               <SkinPreview skinId={previewSkin.id} />

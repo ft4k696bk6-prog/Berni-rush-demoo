@@ -23,10 +23,10 @@ export default function CameraRig() {
     }
 
     const compact = typeof window !== "undefined" && window.innerWidth <= 780;
-    const velocityLeadX = THREE.MathUtils.clamp(playerRuntime.velocityX * (compact ? 0.08 : 0.12), -1.3, 1.3);
-    const velocityLeadZ = THREE.MathUtils.clamp(playerRuntime.velocityZ * (compact ? 0.08 : 0.12), -1.3, 1.3);
-    const aimLeadX = playerRuntime.aimX * (compact ? 1.45 : 2.15);
-    const aimLeadZ = playerRuntime.aimZ * (compact ? 1.45 : 2.15);
+    const velocityLeadX = THREE.MathUtils.clamp(playerRuntime.velocityX * (compact ? 0.05 : 0.08), -0.9, 0.9);
+    const velocityLeadZ = THREE.MathUtils.clamp(playerRuntime.velocityZ * (compact ? 0.05 : 0.08), -0.9, 0.9);
+    const aimLeadX = playerRuntime.aimX * (compact ? 1.1 : 1.7);
+    const aimLeadZ = playerRuntime.aimZ * (compact ? 1.1 : 1.7);
     const rawX = playerRuntime.x + aimLeadX + velocityLeadX;
     const rawZ = playerRuntime.z + aimLeadZ + velocityLeadZ;
     const dx = rawX - follow.current.x;
@@ -38,17 +38,21 @@ export default function CameraRig() {
       follow.current.z = THREE.MathUtils.lerp(follow.current.z, rawZ, damp);
     }
 
-    const targetX = THREE.MathUtils.clamp(follow.current.x, -ARENA_BOUND + 8, ARENA_BOUND - 8);
-    const targetZ = THREE.MathUtils.clamp(follow.current.z, -ARENA_BOUND + 8, ARENA_BOUND - 8);
+    const focusX = THREE.MathUtils.clamp(follow.current.x, -ARENA_BOUND + 6, ARENA_BOUND - 6);
+    const focusZ = THREE.MathUtils.clamp(follow.current.z, -ARENA_BOUND + 6, ARENA_BOUND - 6);
+    const backDistance = compact ? 15.0 : 13.2;
+    const height = compact ? 18.2 : 11.6;
+    const cameraX = THREE.MathUtils.clamp(focusX - playerRuntime.aimX * backDistance, -ARENA_BOUND + 4, ARENA_BOUND - 4);
+    const cameraZ = THREE.MathUtils.clamp(focusZ - playerRuntime.aimZ * backDistance, -ARENA_BOUND + 4, ARENA_BOUND - 4);
 
-    targetPos.current.set(targetX, compact ? 25 : 23, targetZ + (compact ? 21 : 18.5));
+    targetPos.current.set(cameraX, height, cameraZ);
     lookTarget.current.set(
-      THREE.MathUtils.lerp(playerRuntime.x, targetX, compact ? 0.24 : 0.34),
-      0.6,
-      THREE.MathUtils.lerp(playerRuntime.z, targetZ, compact ? 0.24 : 0.34),
+      playerRuntime.x + playerRuntime.aimX * (compact ? 4.0 : 5.2),
+      compact ? 1.05 : 1.25,
+      playerRuntime.z + playerRuntime.aimZ * (compact ? 4.0 : 5.2),
     );
 
-    camera.position.lerp(targetPos.current, 1 - Math.exp((compact ? -3.1 : -4.2) * delta));
+    camera.position.lerp(targetPos.current, 1 - Math.exp((compact ? -3.4 : -4.0) * delta));
     camera.lookAt(lookTarget.current);
   });
 

@@ -43,11 +43,25 @@ export default function HUD() {
   const pauseGame = useGameStore(s => s.pauseGame);
 
   const [now, setNow] = useState(() => Date.now());
+  const [hudMode, setHudMode] = useState<"minimal" | "full">(() => (
+    typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 780) ? "minimal" : "full"
+  ));
   const [cursor, setCursor] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2, visible: false });
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleHudToggle = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" && event.code !== "ControlLeft") return;
+      if (useGameStore.getState().phase !== "playing") return;
+      event.preventDefault();
+      setHudMode(mode => mode === "full" ? "minimal" : "full");
+    };
+    window.addEventListener("keydown", handleHudToggle);
+    return () => window.removeEventListener("keydown", handleHudToggle);
   }, []);
 
   useEffect(() => {
@@ -76,7 +90,7 @@ export default function HUD() {
   if (!runVisible) return null;
 
   return (
-    <div className="hud-shell">
+    <div className={`hud-shell ${hudMode}`}>
       <div className="hud-top">
         <section className="hud-panel hud-health-panel">
           <div className="hud-panel-title"><HeartPulse size={18} /> ZYCIE</div>
@@ -159,7 +173,7 @@ export default function HUD() {
           const progress = ready ? 100 : Math.max(0, 100 - (remaining / Math.max(1, skill.cooldownMs)) * 100);
           const Icon = skill.id === "dash" ? Zap : skill.id === "power_slash" ? Swords : Crosshair;
           return (
-            <div key={skill.id} className={`skill-chip ${ready ? "ready" : ""} ${skill.active ? "active" : ""}`}>
+            <div key={skill.id} className={`skill-chip skill-${skill.id} ${ready ? "ready" : ""} ${skill.active ? "active" : ""}`}>
               <Icon size={16} />
               <span>{skill.label}</span>
               <b>{ready ? "READY" : `${Math.ceil(remaining / 1000)}s`}</b>
@@ -168,6 +182,12 @@ export default function HUD() {
           );
         })}
       </div>
+
+      {phase === "playing" && (
+        <div className="hud-mode-hint">
+          {hudMode === "full" ? "TAB: minimal HUD" : "TAB: full HUD"}
+        </div>
+      )}
 
       {statPoints > 0 && (
         <aside className="upgrade-panel">

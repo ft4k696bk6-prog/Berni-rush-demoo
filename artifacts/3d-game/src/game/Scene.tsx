@@ -1,6 +1,7 @@
 import { Canvas } from "@react-three/fiber";
-import { KeyboardControls } from "@react-three/drei";
+import { ContactShadows, KeyboardControls } from "@react-three/drei";
 import { Suspense, useMemo, useState } from "react";
+import * as THREE from "three";
 import Arena from "./Arena";
 import Player from "./Player";
 import DrugItem from "./DrugItem";
@@ -8,10 +9,12 @@ import PoisonItem from "./PoisonItem";
 import Projectile from "./Projectile";
 import EnemyProjectile from "./EnemyProjectile";
 import MeleeEffect from "./MeleeEffect";
+import ImpactEffect from "./ImpactEffect";
 import CameraRig from "./CameraRig";
 import CoinItem from "./CoinItem";
 import FloatingText from "./FloatingText";
 import { useGameStore } from "./useGameStore";
+import { BIOME_THEMES, getBiomeForStage } from "./worldTheme";
 
 enum Controls {
   forward = "forward",
@@ -39,33 +42,37 @@ function SceneContent() {
   const projectiles = useGameStore(s => s.projectiles);
   const enemyProjectiles = useGameStore(s => s.enemyProjectiles);
   const meleeSwings = useGameStore(s => s.meleeSwings);
+  const impactBursts = useGameStore(s => s.impactBursts);
   const coins = useGameStore(s => s.coinItems);
   const floatingTexts = useGameStore(s => s.floatingTexts);
   const phase = useGameStore(s => s.phase);
   const quality = useGameStore(s => s.quality);
+  const stage = useGameStore(s => s.stage);
+  const theme = BIOME_THEMES[getBiomeForStage(stage)];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
 
   return (
     <>
-      <ambientLight intensity={quality === "low" ? 0.75 : 0.62} color="#eaf7ff" />
+      <ambientLight intensity={quality === "low" ? 0.78 : 0.72} color="#f5eddd" />
       <directionalLight
-        position={[18, 32, 18]}
-        intensity={quality === "low" ? 1.15 : 1.55}
+        position={[18, 28, 22]}
+        intensity={quality === "low" ? 1.34 : 1.95}
         castShadow={quality !== "low"}
-        shadow-mapSize={quality === "high" ? [2048, 2048] : [1024, 1024]}
+        shadow-mapSize={quality === "high" ? [4096, 4096] : [2048, 2048]}
         shadow-camera-far={100}
         shadow-camera-left={-48}
         shadow-camera-right={48}
         shadow-camera-top={48}
         shadow-camera-bottom={-48}
-        color="#fff7df"
+        color="#fff1c8"
       />
-      {quality !== "low" && <hemisphereLight args={["#84d8ff", "#122d38", 0.52]} />}
+      {quality !== "low" && <hemisphereLight args={["#d9f3ff", theme.hemiGround, 0.68]} />}
 
-      <fog attach="fog" args={["#123848", 48, 104]} />
-      <color attach="background" args={["#0b2432"]} />
+      <fog attach="fog" args={[theme.fog, 62, 128]} />
+      <color attach="background" args={[theme.sky]} />
 
       <Arena />
+      {quality !== "low" && <ContactShadows position={[0, 0.045, 0]} opacity={0.32} scale={94} blur={2.6} far={14} resolution={quality === "high" ? 1024 : 512} color={theme.baseDark} />}
 
       {inRun && (
         <>
@@ -76,6 +83,7 @@ function SceneContent() {
           {projectiles.map(p => <Projectile key={p.id} projectile={p} />)}
           {enemyProjectiles.map(p => <EnemyProjectile key={p.id} projectile={p} />)}
           {meleeSwings.map(m => <MeleeEffect key={m.id} swing={m} />)}
+          {impactBursts.map(b => <ImpactEffect key={b.id} burst={b} />)}
           {floatingTexts.map(t => <FloatingText key={t.id} item={t} />)}
         </>
       )}
@@ -90,8 +98,8 @@ export default function Scene() {
   const quality = useGameStore(s => s.quality);
   const dpr = useMemo<[number, number] | number>(() => {
     if (quality === "low") return 1;
-    if (quality === "medium") return [1, 1.35];
-    return [1, 1.75];
+    if (quality === "medium") return [1, 1.7];
+    return [1.15, 2.25];
   }, [quality]);
 
   if (webglFailed) {
@@ -113,12 +121,16 @@ export default function Scene() {
         dpr={dpr}
         frameloop="always"
         performance={{ min: 0.65 }}
-        gl={{ antialias: quality !== "low", powerPreference: "high-performance" }}
+        gl={{ antialias: true, powerPreference: "high-performance" }}
         style={{ width: "100vw", height: "100vh" }}
-        camera={{ fov: 54, near: 0.1, far: 150, position: [0, 22, 18] }}
+        camera={{ fov: 58, near: 0.1, far: 150, position: [0, 14, 12] }}
         onCreated={({ gl }) => {
           if (!gl.getContext()) setWebglFailed(true);
-          gl.setClearColor("#0b2432");
+          gl.outputColorSpace = THREE.SRGBColorSpace;
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = quality === "high" ? 1.08 : 1.02;
+          gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          gl.setClearColor("#143027");
         }}
       >
         <Suspense fallback={null}>

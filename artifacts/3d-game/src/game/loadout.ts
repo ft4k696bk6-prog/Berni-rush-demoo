@@ -185,7 +185,7 @@ export const SKIN_DEFINITIONS: Record<SkinId, SkinDefinition> = {
     defaultUnlocked: true,
     miniBonusType: "move_speed",
     miniBonusValue: 0.02,
-    compatibleClasses: ["ranger", "assassin", "miner"],
+    compatibleClasses: ["ranger", "assassin", "miner", "mage"],
     previewOffset: [0, -1.08, 0],
     previewScale: 1.35,
     animationProfile: "humanoid",
