@@ -3,7 +3,7 @@ import { Crosshair, Gauge, Sparkles, Swords, Zap } from "lucide-react";
 import { playerRuntime, touchRuntime } from "./gameRuntime";
 import { useGameStore } from "./useGameStore";
 
-const FIRE_DEADZONE = 0.1;
+const LOOK_DEADZONE = 0.04;
 
 function clampStick(dx: number, dy: number, limit: number) {
   const len = Math.hypot(dx, dy);
@@ -72,10 +72,10 @@ export default function TouchControls() {
     const stick = clampStick(dx, dy, stickLimit(pad));
     const len = Math.hypot(stick.nx, stick.ny);
 
-    touchRuntime.shooting = len > FIRE_DEADZONE;
+    touchRuntime.shooting = true;
     touchRuntime.aimActive = true;
-    touchRuntime.aimX = len > 0.04 ? stick.nx : 0;
-    touchRuntime.aimY = len > 0.04 ? stick.ny : 0;
+    touchRuntime.aimX = len > LOOK_DEADZONE ? stick.nx : 0;
+    touchRuntime.aimY = len > LOOK_DEADZONE ? stick.ny : 0;
     playerRuntime.screenX = event.clientX;
     playerRuntime.screenY = event.clientY;
     knob.style.transform = `translate3d(${stick.x}px, ${stick.y}px, 0)`;
@@ -131,7 +131,7 @@ export default function TouchControls() {
 
       <div
         ref={rightPadRef}
-        className={`touch-pad touch-pad-right ${rightActive ? "active" : ""}`}
+        className={`touch-pad touch-pad-right touch-pad-fire ${rightActive ? "active" : ""}`}
         onPointerDown={event => {
           rightPointer.current = event.pointerId;
           setRightActive(true);
