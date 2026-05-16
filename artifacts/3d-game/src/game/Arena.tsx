@@ -6,7 +6,10 @@ import { useGameStore } from "./useGameStore";
 import { BIOME_THEMES, BiomeId, getBiomeForStage, getTextureSize } from "./worldTheme";
 
 const SIZE = ARENA_BOUND * 2;
-const ENV = "/assets/environment/";
+const KENNEY = "/assets/kenney/";
+const natureAsset = (name: string) => `${KENNEY}nature/${name}`;
+const townAsset = (name: string) => `${KENNEY}fantasy-town/${name}`;
+const dungeonAsset = (name: string) => `${KENNEY}dungeon/${name}`;
 
 function lcg(seed: number) {
   let value = seed;
@@ -41,11 +44,69 @@ const DECOR = (() => {
 
   const colors = ["#e8c96a", "#d8e0b8", "#d39d79", "#f0e3bc"];
   const grassColors = ["#426f47", "#4b7d50", "#51744a", "#3f6545"];
-  const bushAssets = ["Bush_1.fbx", "Bush_2.fbx", "Bush_3.fbx"];
-  const rockAssets = ["Rock_1.fbx", "Rock_2.fbx", "Rock_3.fbx", "Rock_4.fbx", "Rock_5.fbx", "Rock_6.fbx"];
-  const plantAssets = ["Grass_1.fbx", "Grass_2.fbx", "Plant_1.fbx", "Plant_2.fbx", "Plant_3.fbx", "Plant_4.fbx", "Plant_5.fbx", "Plant_6.fbx", "Plant_7.fbx"];
-  const logAssets = ["Log_1.fbx", "Log_2.fbx", "Log_3.fbx"];
-  const ruinAssets = ["Mounting_1.fbx", "Mounting_2.fbx", "Mounting_3.fbx", "Stone_1.fbx"];
+  const treeAssets = [
+    natureAsset("tree_detailed.glb"),
+    natureAsset("tree_oak.glb"),
+    natureAsset("tree_pineRoundA.glb"),
+    natureAsset("tree_pineRoundB.glb"),
+    natureAsset("tree_pineRoundC.glb"),
+    natureAsset("tree_pineRoundD.glb"),
+    natureAsset("tree_pineTallA_detailed.glb"),
+    natureAsset("tree_pineTallB_detailed.glb"),
+  ];
+  const bushAssets = [
+    natureAsset("plant_bush.glb"),
+    natureAsset("plant_bushDetailed.glb"),
+    natureAsset("plant_bushLarge.glb"),
+    natureAsset("plant_bushSmall.glb"),
+    townAsset("hedge.glb"),
+    townAsset("hedge-large.glb"),
+  ];
+  const rockAssets = [
+    natureAsset("rock_largeA.glb"),
+    natureAsset("rock_largeB.glb"),
+    natureAsset("rock_largeC.glb"),
+    natureAsset("rock_largeD.glb"),
+    natureAsset("rock_smallA.glb"),
+    natureAsset("rock_smallB.glb"),
+    natureAsset("stone_largeA.glb"),
+    natureAsset("stone_largeB.glb"),
+    townAsset("rock-large.glb"),
+    townAsset("rock-small.glb"),
+  ];
+  const plantAssets = [
+    natureAsset("grass_leafs.glb"),
+    natureAsset("grass_leafsLarge.glb"),
+    natureAsset("flower_yellowA.glb"),
+    natureAsset("flower_yellowB.glb"),
+    natureAsset("flower_yellowC.glb"),
+  ];
+  const ruinAssets = [
+    townAsset("wall-broken.glb"),
+    townAsset("wall-wood-broken.glb"),
+    townAsset("wall-arch.glb"),
+    townAsset("wall-arch-top.glb"),
+    townAsset("wall-corner.glb"),
+    townAsset("wall-corner-detail.glb"),
+    townAsset("pillar-stone.glb"),
+    townAsset("stairs-stone.glb"),
+    townAsset("fountain-round.glb"),
+    natureAsset("statue_block.glb"),
+    natureAsset("statue_column.glb"),
+    natureAsset("statue_columnDamaged.glb"),
+    natureAsset("statue_head.glb"),
+    natureAsset("statue_ring.glb"),
+  ];
+  const mineAssets = [
+    dungeonAsset("template-wall.glb"),
+    dungeonAsset("template-wall-corner.glb"),
+    dungeonAsset("template-wall-detail-a.glb"),
+    dungeonAsset("template-floor-detail.glb"),
+    dungeonAsset("gate.glb"),
+    dungeonAsset("gate-metal-bars.glb"),
+    natureAsset("log_large.glb"),
+    natureAsset("log_stack.glb"),
+  ];
 
   for (let i = 0; i < 42; i++) {
     const x = (rand() * 2 - 1) * (ARENA_BOUND - 4);
@@ -162,46 +223,51 @@ const DECOR = (() => {
     });
   }
 
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 64; i++) {
     const angle = rand() * Math.PI * 2;
-    const radius = 20 + rand() * (ARENA_BOUND - 24);
-    const x = Math.cos(angle) * radius + (rand() - 0.5) * 4;
-    const z = Math.sin(angle) * radius + (rand() - 0.5) * 4;
+    const radius = 13 + rand() * (ARENA_BOUND - 17);
+    const x = Math.cos(angle) * radius + (rand() - 0.5) * 3.5;
+    const z = Math.sin(angle) * radius + (rand() - 0.5) * 3.5;
     const groupRoll = rand();
-    const path = groupRoll > 0.62
-      ? bushAssets[Math.floor(rand() * bushAssets.length)]
-      : groupRoll > 0.28
+    const path = groupRoll > 0.76
+      ? treeAssets[Math.floor(rand() * treeAssets.length)]
+      : groupRoll > 0.5
+        ? bushAssets[Math.floor(rand() * bushAssets.length)]
+        : groupRoll > 0.2
           ? rockAssets[Math.floor(rand() * rockAssets.length)]
           : plantAssets[Math.floor(rand() * plantAssets.length)];
     assets.push({
-      path: `${ENV}${path}`,
+      path,
       x,
       z,
-      scale: path.startsWith("Rock") ? 0.009 + rand() * 0.004 : 0.007 + rand() * 0.003,
+      scale: path.includes("tree_") ? 1.2 + rand() * 0.55 : path.includes("rock") || path.includes("stone") ? 0.8 + rand() * 0.55 : 0.75 + rand() * 0.42,
       rot: rand() * Math.PI * 2,
-      biomes: path.startsWith("Rock") ? ["ruins", "boss_arena", "marsh", "crystal_arena", "mine"] : ["ruins", "marsh"],
+      biomes: path.includes("tree_") || path.includes("plant_") || path.includes("grass_") || path.includes("flower_") || path.includes("hedge")
+        ? ["ruins", "marsh"]
+        : ["ruins", "boss_arena", "marsh", "crystal_arena", "mine"],
+      tint: path.includes("tree_") ? "#4a8756" : path.includes("plant_") || path.includes("grass_") || path.includes("flower_") || path.includes("hedge") ? "#58a66a" : path.includes("rock") || path.includes("stone") ? "#858b7d" : undefined,
     });
   }
 
-  for (let i = 0; i < 20; i++) {
-    const path = i % 3 === 0
-      ? logAssets[Math.floor(rand() * logAssets.length)]
-      : ruinAssets[Math.floor(rand() * ruinAssets.length)];
+  for (let i = 0; i < 34; i++) {
+    const bossArena = i % 5 === 0;
+    const mine = i % 4 === 0;
+    const path = mine ? mineAssets[Math.floor(rand() * mineAssets.length)] : ruinAssets[Math.floor(rand() * ruinAssets.length)];
     let x = 0;
     let z = 0;
     for (let tries = 0; tries < 8; tries++) {
       x = (rand() * 2 - 1) * (ARENA_BOUND - 12);
       z = (rand() * 2 - 1) * (ARENA_BOUND - 12);
-      if (Math.hypot(x, z) > 15) break;
+      if (Math.hypot(x, z) > (bossArena ? 8 : 13)) break;
     }
     assets.push({
-      path: `${ENV}${path}`,
+      path,
       x,
       z,
-      scale: path.startsWith("Log") ? 0.011 + rand() * 0.006 : 0.007 + rand() * 0.004,
+      scale: path.includes("dungeon") ? 1.45 + rand() * 0.35 : path.includes("fountain") ? 1.05 + rand() * 0.28 : 0.9 + rand() * 0.4,
       rot: rand() * Math.PI * 2,
-      biomes: path.startsWith("Log") ? ["ruins", "marsh", "mine"] : ["ruins", "boss_arena", "crystal_arena", "mine"],
-      tint: path.startsWith("Log") ? "#6b523b" : "#77786f",
+      biomes: mine ? ["mine"] : bossArena ? ["boss_arena", "crystal_arena"] : ["ruins", "boss_arena", "crystal_arena", "mine"],
+      tint: mine ? "#796f63" : path.includes("wood") || path.includes("planks") ? "#9a6b46" : "#868479",
     });
   }
 
@@ -451,13 +517,13 @@ export default function Arena() {
   const theme = BIOME_THEMES[biome];
   const groundGeom = useMemo(() => new THREE.PlaneGeometry(SIZE + 20, SIZE + 20, 32, 32), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
-  const treeCount = quality === "low" ? 8 : quality === "medium" ? 22 : DECOR.trees.length;
-  const rockCount = quality === "low" ? 10 : quality === "medium" ? 24 : DECOR.rocks.length;
-  const flowerCount = quality === "low" ? 0 : quality === "medium" ? 26 : DECOR.flowers.length;
-  const grassCount = quality === "low" ? 28 : quality === "medium" ? 92 : DECOR.grass.length;
-  const bushCount = quality === "low" ? 5 : quality === "medium" ? 15 : DECOR.bushes.length;
-  const ruinCount = quality === "low" ? 5 : quality === "medium" ? 11 : DECOR.ruins.length;
-  const assetCount = 0;
+  const treeCount = 0;
+  const rockCount = 0;
+  const flowerCount = 0;
+  const grassCount = 0;
+  const bushCount = 0;
+  const ruinCount = 0;
+  const assetCount = quality === "low" ? 30 : quality === "medium" ? 62 : DECOR.assets.length;
   const pondCount = quality === "low" ? 2 : quality === "medium" ? 5 : DECOR.ponds.length;
   const crystalCount = quality === "low" ? 5 : quality === "medium" ? 10 : DECOR.crystals.length;
 

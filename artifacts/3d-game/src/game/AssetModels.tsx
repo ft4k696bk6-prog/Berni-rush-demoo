@@ -44,7 +44,11 @@ function prepEnvironmentModel(root: THREE.Object3D, tint?: string) {
         : new THREE.MeshStandardMaterial({ color: base?.color ?? "#7f826f" });
       material.roughness = Math.max(material.roughness ?? 0.74, 0.78);
       material.metalness = Math.min(material.metalness ?? 0.02, 0.08);
-      if (tintColor && material.color) material.color.lerp(tintColor, 0.16);
+      if (tintColor && material.color) {
+        const luminance = material.color.r * 0.2126 + material.color.g * 0.7152 + material.color.b * 0.0722;
+        if (luminance < 0.08) material.color.copy(tintColor);
+        else material.color.lerp(tintColor, 0.34);
+      }
       material.needsUpdate = true;
       return material;
     });
@@ -163,7 +167,7 @@ interface EnvironmentAssetModelProps {
   tint?: string;
 }
 
-export function EnvironmentAssetModel({ path, position, rotation = [0, 0, 0], scale = 1, tint }: EnvironmentAssetModelProps) {
+function EnvironmentFBXModel({ path, position, rotation = [0, 0, 0], scale = 1, tint }: EnvironmentAssetModelProps) {
   const fbx = useFBX(path);
   const scene = useMemo(() => cloneScene(fbx), [fbx, path]);
 
@@ -176,4 +180,24 @@ export function EnvironmentAssetModel({ path, position, rotation = [0, 0, 0], sc
       <primitive object={scene} />
     </group>
   );
+}
+
+function EnvironmentGLBModel({ path, position, rotation = [0, 0, 0], scale = 1, tint }: EnvironmentAssetModelProps) {
+  const gltf = useGLTF(path);
+  const scene = useMemo(() => cloneScene(gltf.scene), [gltf.scene, path]);
+
+  useEffect(() => {
+    prepEnvironmentModel(scene, tint);
+  }, [scene, tint]);
+
+  return (
+    <group position={position} rotation={rotation} scale={scale}>
+      <primitive object={scene} />
+    </group>
+  );
+}
+
+export function EnvironmentAssetModel(props: EnvironmentAssetModelProps) {
+  if (props.path.endsWith(".glb") || props.path.endsWith(".gltf")) return <EnvironmentGLBModel {...props} />;
+  return <EnvironmentFBXModel {...props} />;
 }
