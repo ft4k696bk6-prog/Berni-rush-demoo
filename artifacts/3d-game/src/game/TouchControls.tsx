@@ -57,15 +57,13 @@ export default function TouchControls() {
     const dy = event.clientY - (rect.top + rect.height / 2);
     const stick = clampStick(dx, dy);
     const len = Math.hypot(stick.nx, stick.ny);
-    const aimX = len > 0.12 ? stick.nx : playerRuntime.aimX;
-    const aimZ = len > 0.12 ? stick.ny : playerRuntime.aimZ;
 
     touchRuntime.shooting = true;
     touchRuntime.aimActive = true;
-    playerRuntime.aimX = aimX;
-    playerRuntime.aimZ = aimZ;
-    playerRuntime.aimWorldX = playerRuntime.x + aimX * 10;
-    playerRuntime.aimWorldZ = playerRuntime.z + aimZ * 10;
+    if (len > 0.12) {
+      touchRuntime.aimX = stick.nx;
+      touchRuntime.aimY = -stick.ny;
+    }
     playerRuntime.screenX = event.clientX;
     playerRuntime.screenY = event.clientY;
     knob.style.transform = `translate3d(${stick.x}px, ${stick.y}px, 0)`;

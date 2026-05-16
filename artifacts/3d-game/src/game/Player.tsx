@@ -22,8 +22,18 @@ enum Controls {
   power = "power",
 }
 
-const BASE_SPEED = 8.7;
+const BASE_SPEED = 7.9;
 const SNAPSHOT_RATE = 0.055;
+
+function getCameraPlaneVectors(camera: THREE.Camera) {
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  const forward2 = new THREE.Vector2(forward.x, forward.z);
+  if (forward2.lengthSq() < 0.0001) forward2.set(0, -1);
+  forward2.normalize();
+  const right2 = new THREE.Vector2(-forward2.y, forward2.x).normalize();
+  return { forward2, right2 };
+}
 
 export default function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -181,17 +191,33 @@ export default function Player() {
     const has360 = activeEffects.some(e => e.type === "melee_360" && e.expiresAt > now);
 
     const controls = getKeys();
+    const { forward2, right2 } = getCameraPlaneVectors(camera);
+    const screenRight = (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX;
+    const screenForward = (controls.forward ? 1 : 0) - (controls.back ? 1 : 0) - touchRuntime.moveZ;
     const input = new THREE.Vector2(
-      (controls.right ? 1 : 0) - (controls.left ? 1 : 0),
-      (controls.back ? 1 : 0) - (controls.forward ? 1 : 0),
+      right2.x * screenRight + forward2.x * screenForward,
+      right2.y * screenRight + forward2.y * screenForward,
     );
-    input.x += touchRuntime.moveX;
-    input.y += touchRuntime.moveZ;
     const inputActive = input.lengthSq() > 0;
 
     if (inputActive) {
       input.normalize();
       moveDir.current.copy(input);
+    }
+
+    if (touchRuntime.aimActive) {
+      const aim = new THREE.Vector2(
+        right2.x * touchRuntime.aimX + forward2.x * touchRuntime.aimY,
+        right2.y * touchRuntime.aimX + forward2.y * touchRuntime.aimY,
+      );
+      if (aim.lengthSq() > 0.01) {
+        aim.normalize();
+        playerRuntime.aimX = aim.x;
+        playerRuntime.aimZ = aim.y;
+        playerRuntime.aimWorldX = playerRuntime.x + aim.x * 10;
+        playerRuntime.aimWorldZ = playerRuntime.z + aim.y * 10;
+        facingAngle.current = Math.atan2(aim.x, aim.y);
+      }
     }
 
     const swiftBoots = perkLevel(store.perks, "swift_boots");
@@ -204,7 +230,7 @@ export default function Player() {
     const klass = getClassDefinition(store.selectedClassId);
     const speed = BASE_SPEED * loadoutMods.moveSpeedMultiplier * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055 + moveUpgrade * 0.045) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
     const targetVelocity = input.multiplyScalar(speed);
-    const accel = 1 - Math.exp(-18 * delta);
+    const accel = 1 - Math.exp(-12 * delta);
     velocity.current.lerp(targetVelocity, accel);
 
     const dashRequested = (controls.dash && !dashHeld.current) || touchRuntime.dashPressed;
@@ -233,10 +259,6 @@ export default function Player() {
     playerRuntime.velocityZ = velocity.current.y;
     playerRuntime.angle = facingAngle.current;
     playerRuntime.y = hasFlight ? THREE.MathUtils.lerp(playerRuntime.y, 1.75, 0.08) : THREE.MathUtils.lerp(playerRuntime.y, 1.2, 0.14);
-
-    if (touchRuntime.aimActive) {
-      facingAngle.current = Math.atan2(playerRuntime.aimX, playerRuntime.aimZ);
-    }
 
     const weapon = WEAPON_CONFIG[store.currentWeapon];
     const rapid = perkLevel(store.perks, "rapid_fire");
