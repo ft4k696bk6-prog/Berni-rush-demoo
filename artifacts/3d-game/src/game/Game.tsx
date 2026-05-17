@@ -6,6 +6,7 @@ import PauseMenu from "./PauseMenu";
 import AbilityDraft from "./AbilityDraft";
 import TouchControls from "./TouchControls";
 import { useGameStore } from "./useGameStore";
+import { toggleGameFullscreen } from "./fullscreen";
 import "./game.css";
 
 export default function Game() {
@@ -16,6 +17,12 @@ export default function Game() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.altKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        void toggleGameFullscreen();
+        return;
+      }
+
       if (event.key !== "Escape") return;
       const currentPhase = useGameStore.getState().phase;
       if (currentPhase === "playing") pauseGame();

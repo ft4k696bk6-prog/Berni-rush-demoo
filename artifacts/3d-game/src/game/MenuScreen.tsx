@@ -5,6 +5,8 @@ import {
   Crosshair,
   Gauge,
   Hand,
+  Maximize,
+  Minimize,
   Pickaxe,
   Play,
   RotateCcw,
@@ -32,6 +34,7 @@ import {
 } from "./loadout";
 import { useGameStore } from "./useGameStore";
 import { hasSavedGame } from "./saveSystem";
+import { useFullscreenStatus } from "./fullscreen";
 import { QualityLevel, SkinId } from "./types";
 
 type MenuView = "home" | "class" | "skins" | "upgrades" | "settings";
@@ -94,6 +97,7 @@ export default function MenuScreen() {
   const [skinFilter, setSkinFilter] = useState<SkinFilter>("available");
   const [hasSave, setHasSave] = useState(false);
   const [previewSkinId, setPreviewSkinId] = useState(selectedSkinId);
+  const { isFullscreen, toggleFullscreen } = useFullscreenStatus();
 
   useEffect(() => {
     setHasSave(hasSavedGame());
@@ -180,6 +184,10 @@ export default function MenuScreen() {
               <button type="button" onClick={isGameOver ? restartGame : startGame}>
                 {isGameOver ? <RotateCcw size={20} /> : <Play size={20} />}
                 {isGameOver ? "PLAY AGAIN" : "PLAY"}
+              </button>
+              <button type="button" onClick={toggleFullscreen}>
+                {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                {isFullscreen ? "WINDOW" : "FULL SCREEN"}
               </button>
               {hasSave && !isGameOver && (
                 <button type="button" onClick={loadGame}>
@@ -300,6 +308,13 @@ export default function MenuScreen() {
                   </button>
                 ))}
               </div>
+            </section>
+            <section>
+              <span>Desktop display</span>
+              <button className="settings-fullscreen-button" type="button" onClick={toggleFullscreen}>
+                {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                {isFullscreen ? "Exit full screen" : "Full screen"}
+              </button>
             </section>
             <section className="mobile-controls-block mobile-settings-card">
               <strong><Smartphone size={15} /> Camera controls</strong>

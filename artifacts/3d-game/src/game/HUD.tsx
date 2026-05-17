@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { BadgePlus, Clock3, Coins, Eye, EyeOff, Gauge, HeartPulse, Pause, RotateCw, Skull, Swords, Trophy, Zap } from "lucide-react";
+import { BadgePlus, Clock3, Coins, Eye, EyeOff, Gauge, HeartPulse, Maximize, Minimize, Pause, RotateCw, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
 import { getClassDefinition, getSkinDefinition } from "./loadout";
 import { WEAPON_CONFIG } from "./weapons";
 import { poisonCurrentPos } from "./poisonPositions";
 import { playerRuntime } from "./gameRuntime";
+import { useFullscreenStatus } from "./fullscreen";
 
 const STAT_ORDER: StatKey[] = ["strength", "superpower", "vitality", "luck", "dodge", "speed"];
 
@@ -58,6 +59,7 @@ export default function HUD() {
   const [mobilePortrait, setMobilePortrait] = useState(() => (
     typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches && window.innerHeight > window.innerWidth
   ));
+  const { isFullscreen, toggleFullscreen } = useFullscreenStatus();
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), phase === "playing" ? 120 : 240);
@@ -245,6 +247,21 @@ export default function HUD() {
           aria-label={hudMode === "full" ? "Minimal HUD" : "Full HUD"}
         >
           {hudMode === "full" ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      )}
+
+      {phase === "playing" && (
+        <button
+          className="desktop-fullscreen-button"
+          type="button"
+          onPointerDown={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleFullscreen();
+          }}
+          aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+        >
+          {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
         </button>
       )}
 

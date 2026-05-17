@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { ARENA_BOUND, clampToArena } from "./balance";
 import { playerRuntime } from "./gameRuntime";
 import { EnemyAssetModel } from "./AssetModels";
-import { PoisonItem as EnemyType } from "./types";
+import { PoisonItem as EnemyType, QualityLevel } from "./types";
 import { useGameStore } from "./useGameStore";
 import {
   creeperCountdownStart,
@@ -16,9 +16,11 @@ import {
 interface Props {
   poison: EnemyType;
   compactViewport: boolean;
+  renderQuality: QualityLevel;
+  assetModelAllowed: boolean;
 }
 
-function PoisonItem({ poison, compactViewport }: Props) {
+function PoisonItem({ poison, compactViewport, renderQuality, assetModelAllowed }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const flashRef = useRef<THREE.MeshStandardMaterial>(null);
   const hitFlashRef = useRef<THREE.Mesh>(null);
@@ -40,10 +42,10 @@ function PoisonItem({ poison, compactViewport }: Props) {
   const hitPulse = useRef(0);
 
   const phase = useGameStore(s => s.phase);
-  const quality = useGameStore(s => s.quality);
+  const quality = renderQuality;
   const hpRatio = Math.max(0, poison.hp / poison.maxHp);
   const isBoss = poison.type === "boss10" || poison.type === "boss20" || poison.type === "boss_dragon";
-  const useAssetModel = Boolean(poison.assetPath) && (isBoss || (!compactViewport && quality !== "low"));
+  const useAssetModel = Boolean(poison.assetPath) && assetModelAllowed && (isBoss || (!compactViewport && quality !== "low"));
 
   useEffect(() => {
     if (poison.hp < previousHp.current) hitPulse.current = 1;

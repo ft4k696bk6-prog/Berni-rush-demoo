@@ -838,6 +838,7 @@ button {
 .weapon-card button,
 .quality-row button,
 .menu-actions button,
+.settings-fullscreen-button,
 .mobile-controls-block button {
   display: inline-flex;
   align-items: center;
@@ -859,6 +860,7 @@ button {
 .quality-row button:hover,
 .quality-row button.active,
 .menu-actions button:hover,
+.settings-fullscreen-button:hover,
 .mobile-controls-block button:hover,
 .mobile-controls-block button.active,
 .icon-button:hover {
@@ -1432,6 +1434,31 @@ button {
   color: #dffaff;
   background: rgba(7, 21, 32, 0.72);
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+}
+
+.desktop-fullscreen-button {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 40;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #dffaff;
+  background: rgba(7, 21, 32, 0.72);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+.desktop-fullscreen-button:hover {
+  border-color: rgba(125, 252, 255, 0.58);
+  background: rgba(125, 252, 255, 0.14);
+  transform: translateY(-1px);
 }
 
 .mobile-orientation-hint {
@@ -2322,6 +2349,10 @@ button {
   padding: 0 12px;
 }
 
+.settings-fullscreen-button {
+  min-height: 38px;
+}
+
 .quality-pills {
   gap: 8px;
 }
@@ -2598,6 +2629,10 @@ button {
 
   .mobile-hud-toggle {
     display: grid;
+  }
+
+  .desktop-fullscreen-button {
+    display: none;
   }
 
   .mobile-orientation-hint {

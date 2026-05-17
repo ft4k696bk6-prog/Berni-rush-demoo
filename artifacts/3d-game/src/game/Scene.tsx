@@ -62,55 +62,64 @@ function lowerQuality(quality: QualityLevel): QualityLevel {
   return "low";
 }
 
-function getSceneProfile(quality: QualityLevel, mobileLike: boolean, mobileTier: number): SceneProfile {
-  const mobileWorldQuality = mobileLike && mobileTier > 0 ? lowerQuality(quality) : mobileLike && quality === "high" ? "medium" : quality;
-  const mobileDprScale = mobileTier === 0 ? 1 : mobileTier === 1 ? 0.86 : 0.74;
+function qualityAfterTier(quality: QualityLevel, renderTier: number) {
+  let next = quality;
+  for (let i = 0; i < renderTier; i++) next = lowerQuality(next);
+  return next;
+}
 
-  if (quality === "low") {
+function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
+  const effectiveQuality = qualityAfterTier(
+    mobileLike && quality === "high" ? "medium" : quality,
+    Math.min(2, renderTier),
+  );
+  const mobileDprScale = mobileLike ? (renderTier === 0 ? 1 : renderTier === 1 ? 0.84 : 0.7) : 1;
+
+  if (effectiveQuality === "low") {
     return {
-      dpr: mobileLike ? Math.max(0.68, 0.9 * mobileDprScale) : 1,
+      dpr: mobileLike ? Math.max(0.64, 0.86 * mobileDprScale) : [0.82, 1],
       antialias: false,
       powerPreference: mobileLike ? "default" : "high-performance",
       shadows: false,
       contactShadows: false,
       shadowMapSize: mobileLike ? [512, 512] : [1024, 1024],
       contactShadowResolution: mobileLike ? 192 : 384,
-      performanceMin: mobileLike ? 0.38 : 0.62,
+      performanceMin: mobileLike ? 0.38 : 0.55,
       toneMappingExposure: 0.97,
-      worldQuality: mobileWorldQuality,
+      worldQuality: "low",
     };
   }
 
-  if (quality === "high") {
+  if (effectiveQuality === "high") {
     return {
-      dpr: mobileLike ? [Math.max(0.82, 1 * mobileDprScale), Math.max(1, 1.2 * mobileDprScale)] : [1.15, 2.25],
+      dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.55],
       antialias: !mobileLike,
       powerPreference: mobileLike ? "default" : "high-performance",
-      shadows: mobileLike ? mobileTier === 0 : true,
+      shadows: mobileLike ? renderTier === 0 : true,
       contactShadows: mobileLike ? false : true,
-      shadowMapSize: mobileLike ? [1024, 1024] : [4096, 4096],
-      contactShadowResolution: mobileLike ? 256 : 1024,
-      performanceMin: mobileLike ? 0.42 : 0.65,
+      shadowMapSize: mobileLike ? [1024, 1024] : [2048, 2048],
+      contactShadowResolution: mobileLike ? 256 : 512,
+      performanceMin: mobileLike ? 0.42 : 0.58,
       toneMappingExposure: mobileLike ? 1 : 1.02,
-      worldQuality: mobileWorldQuality,
+      worldQuality: "high",
     };
   }
 
   return {
-    dpr: mobileLike ? [Math.max(0.76, 0.92 * mobileDprScale), Math.max(0.94, 1.08 * mobileDprScale)] : [1, 1.7],
+    dpr: mobileLike ? [Math.max(0.72, 0.88 * mobileDprScale), Math.max(0.9, 1.02 * mobileDprScale)] : [0.9, 1.25],
     antialias: !mobileLike,
     powerPreference: mobileLike ? "default" : "high-performance",
-    shadows: mobileLike ? mobileTier === 0 : true,
-    contactShadows: mobileLike ? false : true,
-    shadowMapSize: mobileLike ? [1024, 1024] : [2048, 2048],
+    shadows: mobileLike ? renderTier === 0 : true,
+    contactShadows: false,
+    shadowMapSize: mobileLike ? [768, 768] : [1024, 1024],
     contactShadowResolution: mobileLike ? 224 : 512,
-    performanceMin: mobileLike ? 0.42 : 0.65,
+    performanceMin: mobileLike ? 0.42 : 0.56,
     toneMappingExposure: 0.98,
-    worldQuality: mobileWorldQuality,
+    worldQuality: "medium",
   };
 }
 
-function AdaptiveMobileBudget({ mobileLike, onTierChange }: { mobileLike: boolean; onTierChange: (tier: number) => void }) {
+function AdaptiveFrameBudget({ mobileLike, onTierChange }: { mobileLike: boolean; onTierChange: (tier: number) => void }) {
   const frameCount = useRef(0);
   const frameTotal = useRef(0);
   const tierRef = useRef(0);
@@ -124,20 +133,21 @@ function AdaptiveMobileBudget({ mobileLike, onTierChange }: { mobileLike: boolea
   }, [mobileLike, onTierChange]);
 
   useFrame((_, delta) => {
-    if (!mobileLike) return;
     frameCount.current += 1;
     frameTotal.current += Math.min(0.08, delta);
-    if (frameCount.current < 90) return;
+    if (frameCount.current < (mobileLike ? 90 : 120)) return;
 
     const fps = frameCount.current / Math.max(0.001, frameTotal.current);
     frameCount.current = 0;
     frameTotal.current = 0;
+    const lowFps = mobileLike ? 36 : 46;
+    const healthyFps = mobileLike ? 54 : 57;
 
-    if (fps < 36 && tierRef.current < 2) {
+    if (fps < lowFps && tierRef.current < 2) {
       tierRef.current += 1;
       performance.regress();
       onTierChange(tierRef.current);
-    } else if (fps > 54 && tierRef.current > 0) {
+    } else if (fps > healthyFps && tierRef.current > 0) {
       tierRef.current -= 1;
       onTierChange(tierRef.current);
     }
@@ -161,6 +171,8 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const compactViewport = useCompactViewport();
   const theme = BIOME_THEMES[getBiomeForStage(stage)];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
+  const enemyAssetBudget = profile.worldQuality === "high" ? 8 : profile.worldQuality === "medium" ? 4 : 0;
+  let enemyAssetCount = 0;
 
   return (
     <>
@@ -199,7 +211,20 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
         <>
           <Player />
           {drugs.map(d => <DrugItem key={d.id} drug={d} />)}
-          {poisons.map(p => <PoisonItem key={p.id} poison={p} compactViewport={compactViewport} />)}
+          {poisons.map(p => {
+            const isBoss = p.type === "boss_dragon" || p.type === "boss10" || p.type === "boss20";
+            const assetModelAllowed = isBoss || (!compactViewport && enemyAssetCount < enemyAssetBudget);
+            if (!isBoss && assetModelAllowed) enemyAssetCount += 1;
+            return (
+              <PoisonItem
+                key={p.id}
+                poison={p}
+                compactViewport={compactViewport}
+                renderQuality={profile.worldQuality}
+                assetModelAllowed={assetModelAllowed}
+              />
+            );
+          })}
           {coins.map(c => <CoinItem key={c.id} coin={c} />)}
           {projectiles.map(p => <Projectile key={p.id} projectile={p} />)}
           {enemyProjectiles.map(p => <EnemyProjectile key={p.id} projectile={p} />)}
@@ -217,9 +242,9 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
 export default function Scene() {
   const [webglFailed, setWebglFailed] = useState(false);
   const [mobileLike, setMobileLike] = useState(() => detectMobileLikeViewport());
-  const [mobileTier, setMobileTier] = useState(0);
+  const [renderTier, setRenderTier] = useState(0);
   const quality = useGameStore(s => s.quality);
-  const profile = useMemo(() => getSceneProfile(quality, mobileLike, mobileTier), [quality, mobileLike, mobileTier]);
+  const profile = useMemo(() => getSceneProfile(quality, mobileLike, renderTier), [quality, mobileLike, renderTier]);
 
   useEffect(() => {
     const media = window.matchMedia("(pointer: coarse)");
@@ -242,7 +267,7 @@ export default function Scene() {
   }, []);
 
   useEffect(() => {
-    setMobileTier(0);
+    setRenderTier(0);
   }, [quality, mobileLike]);
 
   if (webglFailed) {
@@ -277,7 +302,7 @@ export default function Scene() {
         }}
       >
         <Suspense fallback={null}>
-          <AdaptiveMobileBudget mobileLike={mobileLike} onTierChange={setMobileTier} />
+          <AdaptiveFrameBudget mobileLike={mobileLike} onTierChange={setRenderTier} />
           <SceneContent profile={profile} />
         </Suspense>
       </Canvas>

@@ -343,11 +343,12 @@ export const ENEMY_CONFIG: Record<EnemySubType, {
   assetPath?: string;
   modelScale?: number;
   modelYOffset?: number;
+  modelYawOffset?: number;
 }> = {
   basic_melee:   { label: "Bone Grunt",    baseHp: 3.4, speed: 3.35, damage: 14, mechanics: ["melee"],            xp: 15,  coinValue: 3,  scale: 1.02, color: "#e5e2cf", assetPath: "/assets/enemies/Skeleton.fbx", modelScale: 0.010, modelYOffset: -1.1 },
   fast_melee:    { label: "Tunnel Rat",    baseHp: 2.6, speed: 4.95, damage: 11, mechanics: ["melee"],            xp: 16,  coinValue: 3,  scale: 0.78, color: "#d6a06b", assetPath: "/assets/enemies/Rat.fbx", modelScale: 0.012, modelYOffset: -1.1 },
   tank_enemy:    { label: "Stone Slime",    baseHp: 9.8, speed: 2.05, damage: 24, mechanics: ["slam", "melee"],   xp: 36,  coinValue: 8,  scale: 1.52, color: "#7dc96e", assetPath: "/assets/enemies/Slime.fbx", modelScale: 0.013, modelYOffset: -1.1 },
-  ranged_enemy:  { label: "Venom Wasp",     baseHp: 3.2, speed: 3.05, damage: 13, mechanics: ["shoot"],            xp: 22,  coinValue: 5,  scale: 1.0,  color: "#ffd45d", assetPath: "/assets/enemies/Wasp.fbx", modelScale: 0.010, modelYOffset: -1.0 },
+  ranged_enemy:  { label: "Venom Wasp",     baseHp: 3.2, speed: 3.05, damage: 13, mechanics: ["shoot"],            xp: 22,  coinValue: 5,  scale: 1.0,  color: "#ffd45d", assetPath: "/assets/enemies/Wasp.fbx", modelScale: 0.010, modelYOffset: -1.0, modelYawOffset: -Math.PI / 2 },
   exploder_enemy:{ label: "Angry Serpent",  baseHp: 4.0, speed: 4.25, damage: 28, mechanics: ["charge", "explode"], xp: 24,  coinValue: 6,  scale: 1.05, color: "#ff6b4c", assetPath: "/assets/enemies/Snake_angry.fbx", modelScale: 0.012, modelYOffset: -1.1 },
   boss_dragon:   { label: "Harvest Dragon", baseHp: 84,  speed: 2.65, damage: 30, mechanics: ["shoot", "melee", "shockwave"], xp: 260, coinValue: 55, scale: 2.9, color: "#ff7048", assetPath: "/assets/enemies/Dragon.fbx", modelScale: 0.018, modelYOffset: -1.8 },
   grunt:  { label: "Basic Grunt", baseHp: 3.2,  speed: 3.45, damage: 14, mechanics: ["melee"],                 xp: 14,  coinValue: 3,  scale: 0.98, color: "#4bd46a" },

@@ -152,7 +152,7 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
       ref={groupRef}
       position={[0, cfg.modelYOffset ?? -1.1, 0]}
       scale={cfg.modelScale ?? 0.01}
-      rotation={[0, 0, 0]}
+      rotation={[0, cfg.modelYawOffset ?? 0, 0]}
     >
       <primitive object={scene} />
     </group>
