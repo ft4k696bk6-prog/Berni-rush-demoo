@@ -1,5 +1,6 @@
 {
   "name": "workspace",
+  "description": "Monorepo for Berni Rush, a browser-based 3D arena action game built with React, TypeScript, and Three.js.",
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {

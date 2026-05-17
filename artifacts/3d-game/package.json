@@ -1,5 +1,6 @@
 {
   "name": "@workspace/3d-game",
+  "description": "Playable Berni Rush 3D arena game for the browser.",
   "version": "0.0.0",
   "private": true,
   "type": "module",
