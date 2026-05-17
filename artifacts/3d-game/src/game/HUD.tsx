@@ -311,10 +311,15 @@ export default function HUD() {
       )}
 
       {phase === "playing" && recentSlash && (
-        <div className={`fpp-melee-slash ${recentSlash.is360 ? "power" : ""} ${recentSlash.theme ?? "knight"}`} key={recentSlash.id} aria-hidden="true">
+        <div className={`fpp-melee-slash ${recentSlash.is360 ? "power" : ""} combo-${recentSlash.comboStep ?? 1} ${recentSlash.theme ?? "knight"}`} key={recentSlash.id} aria-hidden="true">
           <i />
           <b />
+          {!recentSlash.is360 && (recentSlash.comboStep ?? 1) > 1 && <em>COMBO {recentSlash.comboStep}</em>}
         </div>
+      )}
+
+      {phase === "playing" && recentSlash && !recentSlash.is360 && (recentSlash.comboStep ?? 1) > 1 && (
+        <div className="combo-meter" aria-hidden="true">COMBO {recentSlash.comboStep}</div>
       )}
 
       {phase === "playing" && (

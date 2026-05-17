@@ -116,7 +116,7 @@ export function CharacterAssetModel({ skinId, preview = false, rotatePreview = f
       ref={groupRef}
       position={skin.previewOffset}
       scale={skin.previewScale * (preview ? 0.68 : 1)}
-      rotation={[0, preview ? Math.PI * 0.15 : Math.PI, 0]}
+      rotation={[0, preview ? Math.PI * 0.15 : 0, 0]}
     >
       <primitive object={scene} />
     </group>

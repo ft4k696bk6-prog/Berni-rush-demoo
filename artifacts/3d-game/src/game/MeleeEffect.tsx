@@ -225,8 +225,12 @@ function MeleeEffect({ swing }: Props) {
   const shockRef = useRef<THREE.Mesh>(null);
   const theme = swing.theme ?? "knight";
   const cfg = THEME[theme];
-  const startAngle = swing.angle - cfg.arc * 0.5;
-  const endAngle = swing.angle + cfg.arc * 0.5;
+  const comboStep = swing.is360 ? 1 : Math.max(1, Math.min(3, swing.comboStep ?? 1));
+  const comboPower = 1 + (comboStep - 1) * 0.13;
+  const comboDir = comboStep === 2 ? -1 : 1;
+  const visualArc = cfg.arc * (1 + (comboStep - 1) * 0.12);
+  const startAngle = comboDir > 0 ? swing.angle - visualArc * 0.5 : swing.angle + visualArc * 0.5;
+  const endAngle = comboDir > 0 ? swing.angle + visualArc * 0.5 : swing.angle - visualArc * 0.5;
 
   useFrame(() => {
     const elapsed = Date.now() - swing.startedAt;
@@ -263,19 +267,19 @@ function MeleeEffect({ swing }: Props) {
     if (weaponRef.current) {
       const recoil = Math.sin(hit * Math.PI) * 0.1;
       weaponRef.current.position.y = -0.04 + recoil;
-      weaponRef.current.scale.setScalar(0.86 + anticipation * 0.08 + Math.sin(hit * Math.PI) * 0.16);
+      weaponRef.current.scale.setScalar((0.86 + anticipation * 0.08 + Math.sin(hit * Math.PI) * 0.16) * comboPower);
     }
 
     if (arcRef.current) {
       const mat = arcRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = clamp01(Math.sin(hit * Math.PI)) * 0.54 * fade;
-      arcRef.current.scale.setScalar(0.72 + hit * 0.42);
+      mat.opacity = clamp01(Math.sin(hit * Math.PI)) * (0.5 + comboStep * 0.07) * fade;
+      arcRef.current.scale.setScalar((0.72 + hit * 0.42) * comboPower);
     }
 
     if (edgeRef.current) {
       const mat = edgeRef.current.material as THREE.MeshStandardMaterial;
       mat.opacity = clamp01(Math.sin(hit * Math.PI)) * 0.82 * fade;
-      mat.emissiveIntensity = (2.6 + (swing.hits ?? 0) * 0.18) * fade;
+      mat.emissiveIntensity = (2.6 + (swing.hits ?? 0) * 0.18 + (comboStep - 1) * 0.85) * fade;
     }
 
     if (groundRef.current) {
@@ -318,7 +322,7 @@ function MeleeEffect({ swing }: Props) {
   return (
     <group position={[swing.playerPos[0], worldY, swing.playerPos[1]]}>
       <mesh ref={groundRef} rotation={[-Math.PI / 2, 0, swing.angle]} position={[0, -1.03, 0]}>
-        <ringGeometry args={[0.82, cfg.reach + 0.55, 44, 1, Math.PI * 0.5 - cfg.arc * 0.5, cfg.arc]} />
+        <ringGeometry args={[0.82, cfg.reach + 0.55 + (comboStep - 1) * 0.24, 44, 1, Math.PI * 0.5 - visualArc * 0.5, visualArc]} />
         <meshBasicMaterial color={cfg.color} transparent opacity={0.1} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
@@ -328,16 +332,16 @@ function MeleeEffect({ swing }: Props) {
         </group>
 
         <mesh ref={arcRef} position={[0, 0.44, cfg.reach * 0.68]} rotation={[0, 0, 0]}>
-          <torusGeometry args={[cfg.reach * 0.48, cfg.tube * 2.2, 8, 44, Math.PI * 1.18]} />
+          <torusGeometry args={[cfg.reach * 0.48, cfg.tube * (2.2 + comboStep * 0.16), 8, 44, Math.PI * (1.12 + comboStep * 0.08)]} />
           <meshBasicMaterial color={cfg.color} transparent opacity={0.34} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
 
         <mesh ref={edgeRef} position={[0, 0.48, cfg.reach * 0.72]} rotation={[0, 0, 0]}>
-          <torusGeometry args={[cfg.reach * 0.54, cfg.tube, 6, 48, Math.PI * 1.05]} />
+          <torusGeometry args={[cfg.reach * 0.54, cfg.tube * (1 + comboStep * 0.12), 6, 48, Math.PI * (1.02 + comboStep * 0.08)]} />
           <meshStandardMaterial color={cfg.edge} emissive={cfg.color} emissiveIntensity={2.4} transparent opacity={0.8} side={THREE.DoubleSide} />
         </mesh>
 
-        {Array.from({ length: theme === "tank" ? 9 : theme === "assassin" ? 5 : 7 }).map((_, index) => {
+        {Array.from({ length: (theme === "tank" ? 9 : theme === "assassin" ? 5 : 7) + comboStep }).map((_, index) => {
           const offset = (index - 3) * 0.12;
           const z = cfg.reach * (0.54 + index * 0.035);
           return (

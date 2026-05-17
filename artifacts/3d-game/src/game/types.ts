@@ -195,6 +195,7 @@ export interface MeleeSwing {
   playerPos: [number, number];
   angle: number;
   is360: boolean;
+  comboStep?: number;
   color?: string;
   hits?: number;
   theme?: VfxTheme;

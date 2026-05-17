@@ -88,7 +88,7 @@ const RESUME_GRACE_MS = 1500;
 const isBossType = (type: EnemySubType) => type === "boss10" || type === "boss20" || type === "boss_dragon";
 
 function clampMobileSensitivity(value: number) {
-  return Math.max(0.35, Math.min(1.35, value));
+  return Math.max(0.35, Math.min(2.4, value));
 }
 
 function clampMobileDeadzone(value: number) {
@@ -448,7 +448,7 @@ interface GameStore extends GameState {
   tickProjectiles: (delta: number) => void;
   fireEnemyProjectile: (ex: number, ez: number, px: number, pz: number, damage: number) => void;
   tickEnemyProjectiles: (delta: number, px: number, pz: number) => void;
-  addMeleeSwing: (playerPos: [number, number], angle: number, is360: boolean) => void;
+  addMeleeSwing: (playerPos: [number, number], angle: number, is360: boolean, comboStep?: number) => void;
   clearOldMelee: (now: number) => void;
   explodeAt: (ex: number, ez: number, radius: number, damage: number) => void;
   upgradeStat: (stat: StatKey) => void;
@@ -1049,8 +1049,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (totalDmg > 0) get().damagePlayer(totalDmg);
   },
 
-  addMeleeSwing: (playerPos, angle, is360) => {
+  addMeleeSwing: (playerPos, angle, is360, comboStep = 1) => {
     set(s => {
+      const combo = is360 ? 1 : Math.max(1, Math.min(3, comboStep));
       const rangeLevel = shopUpgradeLevel(s.shopUpgrades, "attack_range");
       const damageLevel = shopUpgradeLevel(s.shopUpgrades, "melee_damage");
       const superLevel = shopUpgradeLevel(s.shopUpgrades, "super_charge");
@@ -1062,17 +1063,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
         playerPos,
         angle,
         is360,
+        comboStep: combo,
         color: is360 ? "#ff9d2f" : klass.color,
         theme: klass.vfxTheme,
       };
       const classRange = klass.attackType === "heavy_cone" ? 1.18 : klass.attackType === "dash_strike" ? 0.88 : klass.attackType === "melee_arc" ? 1.08 : 1;
-      const range = ((is360 ? 4.25 : 3.25) + rangeLevel * (is360 ? 0.18 : 0.22)) * classRange;
-      const arc = is360 ? Math.PI * 2 : Math.PI * ((klass.attackType === "heavy_cone" ? 0.96 : klass.attackType === "dash_strike" ? 0.62 : 0.78) + rangeLevel * 0.035);
+      const comboRangeBoost = is360 ? 1 : 1 + (combo - 1) * 0.06;
+      const range = ((is360 ? 4.25 : 3.25) + rangeLevel * (is360 ? 0.18 : 0.22)) * classRange * comboRangeBoost;
+      const arc = is360 ? Math.PI * 2 : Math.PI * ((klass.attackType === "heavy_cone" ? 0.96 : klass.attackType === "dash_strike" ? 0.62 : 0.78) + rangeLevel * 0.035 + (combo - 1) * 0.045);
       const killed: PoisonItem[] = [];
       const hitBursts: ImpactBurst[] = [];
       const classDamage = klass.attackType === "heavy_cone" ? 1.34 : klass.attackType === "dash_strike" ? 1.08 : klass.attackType === "pickaxe_throw" ? 0.94 : 1;
       const critical = Math.random() < Math.min(0.68, loadoutMods.critChanceBonus + s.stats.luck * 0.006);
-      const damage = (2.25 + s.stats.strength * 0.34 + damageLevel * 0.55) * loadoutMods.damageMultiplier * classDamage * (critical ? 1.85 : 1) * (is360 ? 1.75 + superLevel * 0.14 : 1);
+      const comboDamage = is360 ? 1 : 1 + (combo - 1) * 0.22;
+      const damage = (2.25 + s.stats.strength * 0.34 + damageLevel * 0.55) * loadoutMods.damageMultiplier * classDamage * comboDamage * (critical ? 1.85 : 1) * (is360 ? 1.75 + superLevel * 0.14 : 1);
       let hits = 0;
       const poisons = s.poisons.flatMap(enemy => {
         const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
@@ -1095,8 +1099,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
             live[1],
             is360 ? "#ffbd5a" : critical ? "#ffffff" : klass.color,
             klass.vfxTheme,
-            is360 || klass.attackType === "heavy_cone" ? "heavy" : critical ? "crit" : klass.attackType === "magic_orb" ? "magic" : "hit",
-            is360 ? 1.5 : critical ? 1.35 : 1,
+            is360 || klass.attackType === "heavy_cone" || combo >= 3 ? "heavy" : critical ? "crit" : klass.attackType === "magic_orb" ? "magic" : "hit",
+            is360 ? 1.5 : critical ? 1.35 : 1 + (combo - 1) * 0.14,
           ));
         }
         if (hp <= 0) {
@@ -1119,7 +1123,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         meleeSwings: [...s.meleeSwings.slice(-7), swing],
         impactBursts: [...s.impactBursts.slice(-42), ...hitBursts],
         floatingTexts: hits > 0
-          ? [...s.floatingTexts.slice(-16), floater(is360 ? `POWER x${hits}` : critical ? `CRIT x${hits}` : `SLASH x${hits}`, playerPos[0], playerPos[1], is360 ? "#ffbd5a" : critical ? "#ffffff" : klass.color, 2.55, 520)]
+          ? [...s.floatingTexts.slice(-16), floater(is360 ? `POWER x${hits}` : combo > 1 ? `COMBO ${combo} x${hits}` : critical ? `CRIT x${hits}` : `SLASH x${hits}`, playerPos[0], playerPos[1], is360 ? "#ffbd5a" : critical ? "#ffffff" : klass.color, 2.55, 560)]
           : s.floatingTexts,
       };
     });

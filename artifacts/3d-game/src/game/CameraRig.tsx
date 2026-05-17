@@ -10,8 +10,8 @@ const DESKTOP_BACK_DISTANCE = 10.6;
 const MOBILE_BACK_DISTANCE = 13.4;
 const DESKTOP_HEIGHT = 6.6;
 const MOBILE_HEIGHT = 8.4;
-const CAMERA_PITCH_MIN = -0.22;
-const CAMERA_PITCH_MAX = 0.52;
+const CAMERA_PITCH_MIN = -0.38;
+const CAMERA_PITCH_MAX = 0.72;
 
 export default function CameraRig() {
   const { camera } = useThree();
@@ -48,10 +48,10 @@ export default function CameraRig() {
     const forwardZ = playerRuntime.aimZ / forwardLen;
     const backDistance = compact ? MOBILE_BACK_DISTANCE : DESKTOP_BACK_DISTANCE;
     const pitch = THREE.MathUtils.clamp(cameraRuntime.pitch, CAMERA_PITCH_MIN, CAMERA_PITCH_MAX);
-    const normalizedPitch = (pitch - 0.18);
-    const height = (compact ? MOBILE_HEIGHT : DESKTOP_HEIGHT) + normalizedPitch * (compact ? 4.4 : 3.5);
-    const aimLead = (compact ? 2.4 : 3.1) + normalizedPitch * 1.2;
-    const lookHeight = THREE.MathUtils.clamp(1.35 + normalizedPitch * 4.7, 0.72, 3.65);
+    const normalizedPitch = pitch - 0.18;
+    const height = (compact ? MOBILE_HEIGHT : DESKTOP_HEIGHT) - normalizedPitch * (compact ? 2.35 : 2.05);
+    const aimLead = THREE.MathUtils.clamp((compact ? 2.4 : 3.1) + normalizedPitch * 2.2, 1.55, compact ? 4.25 : 5.2);
+    const lookHeight = THREE.MathUtils.clamp(1.35 + normalizedPitch * 6.4, 0.28, 5.2);
 
     targetPos.current.set(
       playerRuntime.x - forwardX * backDistance,

@@ -25,12 +25,15 @@ enum Controls {
 const BASE_SPEED = 10.35;
 const SNAPSHOT_RATE = 0.055;
 const RUN_START_SPAWN_DELAY_MS = 950;
-const MOUSE_LOOK_SENSITIVITY = 0.0027;
-const MOUSE_PITCH_SENSITIVITY = 0.0018;
-const MOBILE_TURN_SPEED = 5.15;
-const MOBILE_PITCH_SPEED = 1.85;
-const CAMERA_PITCH_MIN = -0.22;
-const CAMERA_PITCH_MAX = 0.52;
+const MOUSE_LOOK_SENSITIVITY = 0.0044;
+const MOUSE_PITCH_SENSITIVITY = 0.0033;
+const MOBILE_TURN_SPEED = 5.85;
+const MOBILE_PITCH_SPEED = 2.45;
+const CAMERA_PITCH_MIN = -0.38;
+const CAMERA_PITCH_MAX = 0.72;
+const STRAFE_MOVE_WEIGHT = 0.68;
+const MELEE_COMBO_WINDOW_MS = 1350;
+const MELEE_COMBO_MAX = 3;
 
 export default function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -66,6 +69,8 @@ export default function Player() {
   const facingAngle = useRef(Math.PI);
   const mouseLookDelta = useRef(0);
   const mousePitchDelta = useRef(0);
+  const meleeComboStep = useRef(0);
+  const lastMeleeAt = useRef(0);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -160,6 +165,8 @@ export default function Player() {
       dashTime.current = 0;
       meleeCooldown.current = 0;
       powerCooldown.current = 0;
+      meleeComboStep.current = 0;
+      lastMeleeAt.current = 0;
       spawnTimer.current = -RUN_START_SPAWN_DELAY_MS;
       cleanupTimer.current = 0;
       clockTimer.current = 0;
@@ -216,13 +223,17 @@ export default function Player() {
       (controls.forward ? 1 : 0) - (controls.back ? 1 : 0) - touchRuntime.moveZ,
     );
     const inputActive = moveInput.lengthSq() > 0.0001;
-    if (inputActive) moveInput.normalize();
+    if (inputActive) {
+      moveInput.normalize();
+      moveInput.x *= STRAFE_MOVE_WEIGHT;
+    }
 
-    let targetAngle = facingAngle.current - mouseLookDelta.current * MOUSE_LOOK_SENSITIVITY;
+    const lookSensitivity = Math.max(0.7, store.mobileLookSensitivity);
+    let targetAngle = facingAngle.current - mouseLookDelta.current * MOUSE_LOOK_SENSITIVITY * lookSensitivity;
     mouseLookDelta.current = 0;
     if (Math.abs(mousePitchDelta.current) > 0.01) {
       cameraRuntime.pitch = THREE.MathUtils.clamp(
-        cameraRuntime.pitch - mousePitchDelta.current * MOUSE_PITCH_SENSITIVITY,
+        cameraRuntime.pitch - mousePitchDelta.current * MOUSE_PITCH_SENSITIVITY * Math.max(0.78, lookSensitivity * 0.9),
         CAMERA_PITCH_MIN,
         CAMERA_PITCH_MAX,
       );
@@ -260,8 +271,7 @@ export default function Player() {
       )
       : new THREE.Vector2();
     if (inputActive && moveWorld.lengthSq() > 0.0001) {
-      moveWorld.normalize();
-      moveDir.current.copy(moveWorld);
+      moveDir.current.copy(moveWorld.clone().normalize());
     }
 
     const swiftBoots = perkLevel(store.perks, "swift_boots");
@@ -316,9 +326,13 @@ export default function Player() {
 
     const meleeRequested = (controls.melee && !meleeHeld.current) || touchRuntime.meleePressed;
     if (meleeRequested && meleeCooldown.current <= 0) {
-      meleeCooldown.current = has360 ? 0.5 : Math.max(0.36, (0.68 - attackCooldownUpgrade * 0.046) / loadoutMods.attackSpeedMultiplier);
-      store.addMeleeSwing([playerRuntime.x, playerRuntime.z], facingAngle.current, has360);
-      playerRuntime.attackAnimUntil = now + 430;
+      const withinCombo = !has360 && now - lastMeleeAt.current <= MELEE_COMBO_WINDOW_MS;
+      const comboStep = has360 ? 1 : withinCombo ? (meleeComboStep.current % MELEE_COMBO_MAX) + 1 : 1;
+      meleeComboStep.current = comboStep;
+      lastMeleeAt.current = now;
+      meleeCooldown.current = has360 ? 0.5 : Math.max(0.24, (0.52 - attackCooldownUpgrade * 0.046 - (comboStep - 1) * 0.045) / loadoutMods.attackSpeedMultiplier);
+      store.addMeleeSwing([playerRuntime.x, playerRuntime.z], facingAngle.current, has360, comboStep);
+      playerRuntime.attackAnimUntil = now + 360 + comboStep * 48;
       playerRuntime.attackAnimType = "slash";
     }
     touchRuntime.meleePressed = false;

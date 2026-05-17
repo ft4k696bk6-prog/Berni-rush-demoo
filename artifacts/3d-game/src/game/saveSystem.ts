@@ -84,7 +84,7 @@ export const defaultProfile = (): ProfileData => ({
 
 function clampMobileControls(input?: Partial<MobileControlSettings>): MobileControlSettings {
   return {
-    lookSensitivity: Math.max(0.35, Math.min(1.35, input?.lookSensitivity ?? 0.72)),
+    lookSensitivity: Math.max(0.35, Math.min(2.4, input?.lookSensitivity ?? 0.72)),
     lookDeadzone: Math.max(0.05, Math.min(0.28, input?.lookDeadzone ?? 0.1)),
     leftHanded: Boolean(input?.leftHanded),
   };
