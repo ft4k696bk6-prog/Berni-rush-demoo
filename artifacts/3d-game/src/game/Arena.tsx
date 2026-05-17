@@ -684,6 +684,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           opacity={quality === "low" ? 0.075 : quality === "medium" ? 0.1 : 0.12}
           depthWrite={false}
           blending={THREE.MultiplyBlending}
+          premultipliedAlpha
         />
       </mesh>
 

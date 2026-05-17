@@ -68,7 +68,21 @@ function qualityAfterTier(quality: QualityLevel, renderTier: number) {
   return next;
 }
 
+function getStableWorldQuality(quality: QualityLevel, mobileLike: boolean): QualityLevel {
+  return mobileLike && quality === "high" ? "medium" : quality;
+}
+
+function getEnemyAssetBudget(quality: QualityLevel, compactViewport: boolean) {
+  if (compactViewport) {
+    if (quality === "low") return 14;
+    return 24;
+  }
+
+  return 24;
+}
+
 function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
+  const stableWorldQuality = getStableWorldQuality(quality, mobileLike);
   const effectiveQuality = qualityAfterTier(
     mobileLike && quality === "high" ? "medium" : quality,
     Math.min(2, renderTier),
@@ -86,7 +100,7 @@ function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier:
       contactShadowResolution: mobileLike ? 192 : 384,
       performanceMin: mobileLike ? 0.38 : 0.55,
       toneMappingExposure: 0.97,
-      worldQuality: "low",
+      worldQuality: stableWorldQuality,
     };
   }
 
@@ -101,7 +115,7 @@ function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier:
       contactShadowResolution: mobileLike ? 256 : 512,
       performanceMin: mobileLike ? 0.42 : 0.58,
       toneMappingExposure: mobileLike ? 1 : 1.02,
-      worldQuality: "high",
+      worldQuality: stableWorldQuality,
     };
   }
 
@@ -115,7 +129,7 @@ function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier:
     contactShadowResolution: mobileLike ? 224 : 512,
     performanceMin: mobileLike ? 0.42 : 0.56,
     toneMappingExposure: 0.98,
-    worldQuality: "medium",
+    worldQuality: stableWorldQuality,
   };
 }
 
@@ -171,7 +185,7 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const compactViewport = useCompactViewport();
   const theme = BIOME_THEMES[getBiomeForStage(stage)];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
-  const enemyAssetBudget = 0;
+  const enemyAssetBudget = getEnemyAssetBudget(profile.worldQuality, compactViewport);
   let enemyAssetCount = 0;
 
   return (
@@ -213,7 +227,7 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
           {drugs.map(d => <DrugItem key={d.id} drug={d} />)}
           {poisons.map(p => {
             const isBoss = p.type === "boss_dragon" || p.type === "boss10" || p.type === "boss20";
-            const assetModelAllowed = isBoss || (!compactViewport && enemyAssetCount < enemyAssetBudget);
+            const assetModelAllowed = isBoss || (Boolean(p.assetPath) && enemyAssetCount < enemyAssetBudget);
             if (!isBoss && assetModelAllowed) enemyAssetCount += 1;
             return (
               <PoisonItem

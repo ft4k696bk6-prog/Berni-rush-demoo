@@ -201,3 +201,7 @@ export function EnvironmentAssetModel(props: EnvironmentAssetModelProps) {
   if (props.path.endsWith(".glb") || props.path.endsWith(".gltf")) return <EnvironmentGLBModel {...props} />;
   return <EnvironmentFBXModel {...props} />;
 }
+
+Object.values(ENEMY_CONFIG).forEach(cfg => {
+  if (cfg.assetPath) useFBX.preload(cfg.assetPath);
+});
