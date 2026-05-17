@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
 import { clampToArena, getSpawnInterval } from "./balance";
-import { playerRuntime, touchRuntime } from "./gameRuntime";
+import { cameraRuntime, playerRuntime, touchRuntime } from "./gameRuntime";
 import { CharacterAssetModel } from "./AssetModels";
 import { getClassDefinition, getLoadoutModifiers } from "./loadout";
 import { perkLevel } from "./perks";
@@ -25,7 +25,8 @@ enum Controls {
 const BASE_SPEED = 10.35;
 const SNAPSHOT_RATE = 0.055;
 const RUN_START_SPAWN_DELAY_MS = 950;
-const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const MOUSE_LOOK_SENSITIVITY = 0.0027;
+const MOBILE_TURN_SPEED = 3.8;
 
 export default function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -38,16 +39,11 @@ export default function Player() {
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const runId = useGameStore(s => s.runId);
   const [, getKeys] = useKeyboardControls<Controls>();
-  const { camera, gl } = useThree();
+  const { gl } = useThree();
 
   const velocity = useRef(new THREE.Vector2());
   const moveDir = useRef(new THREE.Vector2(0, -1));
   const dashDir = useRef(new THREE.Vector2(0, -1));
-  const mouseAim = useRef(new THREE.Vector2(0, -1));
-  const hasPointerAim = useRef(false);
-  const pointerNdc = useRef(new THREE.Vector2());
-  const raycaster = useRef(new THREE.Raycaster());
-  const pointerHit = useRef(new THREE.Vector3());
   const shooting = useRef(false);
   const fireCooldown = useRef(0);
   const dashCooldown = useRef(0);
@@ -64,39 +60,34 @@ export default function Player() {
   const clockTimer = useRef(0);
   const cleanupTimer = useRef(0);
   const facingAngle = useRef(Math.PI);
+  const mouseLookDelta = useRef(0);
 
   useEffect(() => {
     const canvas = gl.domElement;
 
-    const updatePointerAim = (clientX: number, clientY: number) => {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-      pointerNdc.current.set(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -((clientY - rect.top) / rect.height) * 2 + 1,
-      );
-      raycaster.current.setFromCamera(pointerNdc.current, camera);
-      const hit = raycaster.current.ray.intersectPlane(GROUND_PLANE, pointerHit.current);
-      if (!hit) return;
-      const dx = hit.x - playerRuntime.x;
-      const dz = hit.z - playerRuntime.z;
-      const len = Math.hypot(dx, dz);
-      if (len < 0.08) return;
-      mouseAim.current.set(dx / len, dz / len);
-      hasPointerAim.current = true;
+    const updatePointerLook = (movementX: number, clientX: number, clientY: number) => {
+      const clampedMovement = THREE.MathUtils.clamp(movementX, -80, 80);
+      mouseLookDelta.current += clampedMovement;
       playerRuntime.screenX = clientX;
       playerRuntime.screenY = clientY;
     };
 
-    const handleMove = (event: PointerEvent) => {
+    const handleMouseMove = (event: MouseEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
-      if (event.pointerType && event.pointerType !== "mouse") return;
-      updatePointerAim(event.clientX, event.clientY);
+      updatePointerLook(event.movementX || 0, event.clientX, event.clientY);
     };
     const handleDown = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
       if (event.pointerType === "mouse") {
-        updatePointerAim(event.clientX, event.clientY);
+        updatePointerLook(event.movementX || 0, event.clientX, event.clientY);
+        if (document.pointerLockElement !== canvas) {
+          try {
+            const lockRequest = canvas.requestPointerLock?.();
+            if (lockRequest && "catch" in lockRequest) lockRequest.catch(() => undefined);
+          } catch {
+            // Some embedded/headless browsers deny pointer lock; mouse-look still works from movement deltas.
+          }
+        }
       }
       if (event.button === 0) shooting.current = true;
       if (event.button === 1 || event.button === 2) touchRuntime.meleePressed = true;
@@ -109,20 +100,20 @@ export default function Player() {
     };
     const handleContext = (event: MouseEvent) => event.preventDefault();
 
-    canvas.addEventListener("pointermove", handleMove);
+    window.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("pointerdown", handleDown);
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("blur", handleLeave);
     canvas.addEventListener("contextmenu", handleContext);
 
     return () => {
-      canvas.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("pointerdown", handleDown);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("blur", handleLeave);
       canvas.removeEventListener("contextmenu", handleContext);
     };
-  }, [camera, gl.domElement]);
+  }, [gl.domElement]);
 
   useEffect(() => {
     if (phase === "playing") return;
@@ -153,8 +144,8 @@ export default function Player() {
       moveDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
       dashDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
       facingAngle.current = startAngle;
-      mouseAim.current.set(playerRuntime.aimX, playerRuntime.aimZ);
-      hasPointerAim.current = false;
+      cameraRuntime.yaw = startAngle;
+      mouseLookDelta.current = 0;
       fireCooldown.current = 0;
       dashCooldown.current = 0;
       dashTime.current = 0;
@@ -218,38 +209,17 @@ export default function Player() {
     const inputActive = moveInput.lengthSq() > 0.0001;
     if (inputActive) moveInput.normalize();
 
-    let aimX = playerRuntime.aimX;
-    let aimZ = playerRuntime.aimZ;
-
+    let targetAngle = facingAngle.current - mouseLookDelta.current * MOUSE_LOOK_SENSITIVITY;
+    mouseLookDelta.current = 0;
     if (touchRuntime.aimActive) {
-      const len = Math.hypot(touchRuntime.aimX, touchRuntime.aimY);
-      if (len > 0.08) {
-        aimX = touchRuntime.aimX / len;
-        aimZ = touchRuntime.aimY / len;
-        hasPointerAim.current = false;
-      }
-    } else if (hasPointerAim.current) {
-      aimX = mouseAim.current.x;
-      aimZ = mouseAim.current.y;
-    } else if (inputActive) {
-      const forwardLen = Math.hypot(playerRuntime.aimX, playerRuntime.aimZ) || 1;
-      const forwardX = playerRuntime.aimX / forwardLen;
-      const forwardZ = playerRuntime.aimZ / forwardLen;
-      const rightX = -forwardZ;
-      const rightZ = forwardX;
-      const desiredX = rightX * moveInput.x + forwardX * moveInput.y;
-      const desiredZ = rightZ * moveInput.x + forwardZ * moveInput.y;
-      const desiredLen = Math.hypot(desiredX, desiredZ);
-      if (desiredLen > 0.01) {
-        aimX = desiredX / desiredLen;
-        aimZ = desiredZ / desiredLen;
-      }
+      const turnInput = Math.abs(touchRuntime.aimX) > 0.04 ? touchRuntime.aimX : 0;
+      targetAngle -= turnInput * MOBILE_TURN_SPEED * delta;
     }
+    facingAngle.current = targetAngle;
+    cameraRuntime.yaw = targetAngle;
 
-    if (Math.hypot(aimX, aimZ) < 0.01) {
-      aimX = 0;
-      aimZ = -1;
-    }
+    const aimX = Math.sin(targetAngle);
+    const aimZ = Math.cos(targetAngle);
 
     playerRuntime.aimX = aimX;
     playerRuntime.aimZ = aimZ;

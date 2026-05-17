@@ -184,7 +184,7 @@ export default function HUD() {
             <span>LEFT</span>
           </div>
           <div className="wave-strip">WAVE {wave}/{wavesTotal} - {killsThisStage}/{killsRequired}</div>
-          <div className="archero-hint">MOVE: WASD / LEFT STICK - AIM: CURSOR / RIGHT STICK</div>
+          <div className="archero-hint">MOVE: WASD / LEFT STICK - LOOK: MOUSE / RIGHT STICK</div>
         </section>
 
         <section className="hud-panel hud-score-panel">

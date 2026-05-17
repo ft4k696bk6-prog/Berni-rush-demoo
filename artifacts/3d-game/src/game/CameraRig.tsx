@@ -59,7 +59,7 @@ export default function CameraRig() {
       playerRuntime.z + forwardZ * aimLead,
     );
 
-    camera.position.lerp(targetPos.current, 1 - Math.exp(-10.5 * delta));
+    camera.position.lerp(targetPos.current, 1 - Math.exp(-18 * delta));
     camera.lookAt(lookTarget.current);
   });
 
