@@ -1254,7 +1254,7 @@ button {
   display: flex;
   justify-content: center;
   gap: 12px;
-  margin: 30px 0 24px;
+  margin: 16px 0 0;
 }
 
 .menu-actions button {
@@ -1605,6 +1605,10 @@ button {
 }
 
 .fpp-reticle {
+  --reticle-gap: 14px;
+  --reticle-color: #bfeeff;
+  --reticle-alpha: 0.9;
+  --reticle-arm: 10px;
   position: fixed;
   left: 50%;
   top: 50%;
@@ -1613,40 +1617,40 @@ button {
   height: 56px;
   display: block;
   pointer-events: none;
-  opacity: 0.9;
+  opacity: var(--reticle-alpha);
   transform: translate(-50%, -50%) scale(1);
   transition: transform 90ms ease, opacity 120ms ease;
 }
 
 .fpp-reticle i {
   position: absolute;
-  width: 10px;
+  width: var(--reticle-arm);
   height: 2px;
   border-radius: 999px;
-  background: rgba(221, 244, 255, 0.95);
-  box-shadow: 0 0 10px rgba(125, 252, 255, 0.68);
+  background: var(--reticle-color);
+  box-shadow: 0 0 10px var(--reticle-color);
 }
 
 .fpp-reticle i:nth-child(1) {
-  left: 14px;
+  left: var(--reticle-gap);
   top: 18px;
   transform: rotate(42deg);
 }
 
 .fpp-reticle i:nth-child(2) {
-  right: 14px;
+  right: var(--reticle-gap);
   top: 18px;
   transform: rotate(-42deg);
 }
 
 .fpp-reticle i:nth-child(3) {
-  left: 14px;
+  left: var(--reticle-gap);
   bottom: 18px;
   transform: rotate(-42deg);
 }
 
 .fpp-reticle i:nth-child(4) {
-  right: 14px;
+  right: var(--reticle-gap);
   bottom: 18px;
   transform: rotate(42deg);
 }
@@ -1660,7 +1664,7 @@ button {
   border-radius: 50%;
   transform: translate(-50%, -50%);
   background: #f8fdff;
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8), 0 0 20px rgba(125, 252, 255, 0.36);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8), 0 0 20px var(--reticle-color);
 }
 
 .fpp-reticle.hit {
@@ -1720,12 +1724,12 @@ button {
 .fpp-melee-slash.miner { --slash-color: #f7c251; --slash-edge: #fff2a8; }
 
 .loadout-menu {
-  width: min(1040px, calc(100vw - 36px));
+  width: min(1080px, calc(100vw - 36px));
   max-height: calc(100vh - 36px);
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   grid-template-rows: auto 1fr;
-  gap: 16px 18px;
+  gap: 12px 18px;
   overflow: hidden;
 }
 
@@ -1751,7 +1755,7 @@ button {
   grid-row: 1;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-direction: column;
   align-items: flex-start;
 }
@@ -1849,7 +1853,7 @@ button {
   grid-row: 2;
   align-self: start;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   overflow: visible;
   padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1926,16 +1930,17 @@ button {
 .menu-home {
   display: grid;
   align-content: start;
-  gap: 18px;
+  gap: 14px;
 }
 
 .loadout-current {
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .loadout-current div {
-  flex: 1;
-  min-height: 132px;
+  width: 100%;
+  min-height: 122px;
   flex-direction: column;
   gap: 7px;
   padding: 16px;
@@ -2511,6 +2516,12 @@ button {
     --threat-radius: 66px;
   }
 
+  .fpp-reticle {
+    width: 68px;
+    height: 68px;
+    --reticle-arm: 12px;
+  }
+
   .hud-top {
     display: contents;
   }
@@ -2878,6 +2889,12 @@ button {
     width: clamp(86px, 16vw, 106px);
     height: clamp(86px, 16vw, 106px);
     transform: scale(0.9);
+  }
+
+  .fpp-reticle {
+    width: 58px;
+    height: 58px;
+    --reticle-arm: 10px;
   }
 
   .touch-pad.active {

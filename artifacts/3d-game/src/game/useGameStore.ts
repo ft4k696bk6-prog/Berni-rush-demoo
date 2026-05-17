@@ -51,7 +51,7 @@ import {
   SAFE_SPAWN_RADIUS,
 } from "./balance";
 import { playerRuntime, resetPlayerRuntime } from "./gameRuntime";
-import { perkLevel, rollPerkChoices } from "./perks";
+import { PERK_CONFIG, perkLevel, rollPerkChoices } from "./perks";
 import { SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
 import { WEAPON_CONFIG } from "./weapons";
 import { clearAllEnemyRuntime, clearEnemyRuntime, poisonCurrentPos } from "./poisonPositions";
@@ -68,6 +68,17 @@ const DRUG_TYPES: DrugType[] = [
   "speed", "heal", "invincibility", "strength",
   "flight", "time_slow", "triple_shot", "melee_360",
 ];
+
+const MUSHROOM_MUTATIONS: Record<DrugType, PerkId[]> = {
+  speed: ["swift_boots", "rapid_fire"],
+  heal: ["strong_heart", "lucky_coin"],
+  invincibility: ["nimble", "strong_heart"],
+  strength: ["fire_arrows", "front_arrow"],
+  flight: ["piercing", "swift_boots"],
+  time_slow: ["ricochet", "nimble"],
+  triple_shot: ["multishot", "side_arrows"],
+  melee_360: ["front_arrow", "rapid_fire"],
+};
 
 let idc = 0;
 const nid = (prefix = "g") => `${prefix}${++idc}`;
@@ -145,6 +156,10 @@ function spawnMushroom(): DrugItem {
     type: DRUG_TYPES[Math.floor(Math.random() * DRUG_TYPES.length)],
     collected: false,
   };
+}
+
+function mutationFromMushroom(type: DrugType, perks: Partial<Record<PerkId, number>>) {
+  return MUSHROOM_MUTATIONS[type].find(id => perkLevel(perks, id) < PERK_CONFIG[id].maxLevel);
 }
 
 function spawnPositionAwayFromPlayer(minDistance = SAFE_SPAWN_RADIUS): [number, number, number] {
@@ -331,15 +346,13 @@ function applyKills(state: GameState, nextPoisons: PoisonItem[], killed: PoisonI
   let nextPhase: GamePhase = state.phase;
   let nextPerkChoices = state.perkChoices;
   let nextPendingLevelUps = state.pendingLevelUps;
-  let gainedLevelUps = 0;
 
   let xpResult = addXp(state.playerLevel, state.xp, state.xpToNext, xpGain);
   if (xpResult.levelUps > 0) {
     nextStatPoints += xpResult.levelUps;
-    gainedLevelUps += xpResult.levelUps;
     nextCenterMessage = centerMessage(
-      "LEVEL UP",
-      `Choose a new ability - hero level ${xpResult.playerLevel}`,
+      "HERO LEVEL",
+      `+${xpResult.levelUps} stat point${xpResult.levelUps > 1 ? "s" : ""}. Mutations now come from mushrooms.`,
       "level",
       2600,
     );
@@ -349,7 +362,6 @@ function applyKills(state: GameState, nextPoisons: PoisonItem[], killed: PoisonI
     const reward = getStageReward(state.stage);
     xpResult = addXp(xpResult.playerLevel, xpResult.xp, xpResult.xpToNext, reward.xp);
     nextStatPoints += reward.statPoints + xpResult.levelUps;
-    gainedLevelUps += xpResult.levelUps;
     const classCoins = Math.round(reward.coins * loadoutMods.coinMultiplier);
     nextCoins += classCoins;
     nextCoinsCollected += classCoins;
@@ -370,12 +382,6 @@ function applyKills(state: GameState, nextPoisons: PoisonItem[], killed: PoisonI
       "reward",
       3100,
     );
-  }
-
-  if (gainedLevelUps > 0) {
-    nextPhase = "upgrade";
-    nextPendingLevelUps += gainedLevelUps;
-    nextPerkChoices = rollPerkChoices(state.perks);
   }
 
   return {
@@ -571,25 +577,46 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const now = Date.now();
       const cfg = DRUG_CONFIG[drug.type];
       const drugs = s.drugs.filter(d => d.id !== id);
-      const float = floater(cfg.label, drug.position[0], drug.position[2], cfg.color, 2.2, 900);
+      const mutation = mutationFromMushroom(drug.type, s.perks);
+      const nextPerks = mutation ? { ...s.perks, [mutation]: perkLevel(s.perks, mutation) + 1 } : s.perks;
+      const mutationName = mutation ? PERK_CONFIG[mutation].name : undefined;
+      const heartGain = mutation === "strong_heart" ? 24 : 0;
+      const float = floater(
+        mutationName ? `${cfg.label} + ${mutationName}` : cfg.label,
+        drug.position[0],
+        drug.position[2],
+        cfg.color,
+        2.35,
+        1050,
+      );
+      const mushroomMessage = mutationName
+        ? centerMessage("MUSHROOM MUTATION", mutationName, "reward", 1450)
+        : centerMessage("MUSHROOM POWER", cfg.label, "reward", 1100);
 
       if (drug.type === "heal") {
         return {
           drugs,
-          health: Math.min(s.maxHealth, s.health + 40),
+          perks: nextPerks,
+          maxHealth: s.maxHealth + heartGain,
+          health: Math.min(s.maxHealth + heartGain, s.health + 40 + heartGain),
           score: s.score + 120,
           floatingTexts: [...s.floatingTexts.slice(-18), float],
+          centerMessage: mushroomMessage,
         };
       }
 
       return {
         drugs,
+        perks: nextPerks,
+        maxHealth: s.maxHealth + heartGain,
+        health: Math.min(s.maxHealth + heartGain, s.health + heartGain),
         activeEffects: [
           ...s.activeEffects.filter(e => e.type !== drug.type),
           { type: drug.type, expiresAt: now + cfg.duration * 1000 },
         ],
         score: s.score + 120,
         floatingTexts: [...s.floatingTexts.slice(-18), float],
+        centerMessage: mushroomMessage,
       };
     });
   },
@@ -1157,7 +1184,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           coins: s.coins - cost,
           shopUpgrades: { ...s.shopUpgrades, [id]: currentLevel + 1 },
           perks: { ...s.perks, [perk]: perkLevel(s.perks, perk) + 1 },
-          centerMessage: centerMessage("WILD MUTATION", perk.replaceAll("_", " ").toUpperCase(), "reward", 1500),
+          centerMessage: centerMessage("WILD MUTATION", PERK_CONFIG[perk].name, "reward", 1500),
         };
       }
 

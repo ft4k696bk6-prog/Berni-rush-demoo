@@ -517,16 +517,16 @@ export default function Arena() {
   const theme = BIOME_THEMES[biome];
   const groundGeom = useMemo(() => new THREE.PlaneGeometry(SIZE + 20, SIZE + 20, 32, 32), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
-  const treeCount = quality === "low" ? 8 : quality === "medium" ? 16 : 26;
-  const rockCount = quality === "low" ? 14 : quality === "medium" ? 28 : 44;
-  const flowerCount = quality === "low" ? 8 : quality === "medium" ? 18 : 34;
-  const grassCount = quality === "low" ? 36 : quality === "medium" ? 74 : 126;
-  const bushCount = quality === "low" ? 8 : quality === "medium" ? 16 : 26;
-  const ruinCount = quality === "low" ? 4 : quality === "medium" ? 9 : 15;
-  const assetCount = quality === "low" ? 14 : quality === "medium" ? 30 : 44;
-  const scuffCount = quality === "low" ? 14 : quality === "medium" ? 28 : DECOR.roadScuffs.length;
-  const pondCount = quality === "low" ? 2 : quality === "medium" ? 5 : DECOR.ponds.length;
-  const crystalCount = quality === "low" ? 5 : quality === "medium" ? 10 : DECOR.crystals.length;
+  const treeCount = quality === "low" ? 6 : quality === "medium" ? 12 : 18;
+  const rockCount = quality === "low" ? 10 : quality === "medium" ? 20 : 32;
+  const flowerCount = quality === "low" ? 5 : quality === "medium" ? 12 : 22;
+  const grassCount = quality === "low" ? 18 : quality === "medium" ? 42 : 64;
+  const bushCount = quality === "low" ? 5 : quality === "medium" ? 10 : 18;
+  const ruinCount = quality === "low" ? 3 : quality === "medium" ? 6 : 11;
+  const assetCount = quality === "low" ? 8 : quality === "medium" ? 16 : 24;
+  const scuffCount = quality === "low" ? 10 : quality === "medium" ? 18 : 26;
+  const pondCount = quality === "low" ? 1 : quality === "medium" ? 3 : 5;
+  const crystalCount = quality === "low" ? 3 : quality === "medium" ? 7 : 10;
 
   const biomeTrees = DECOR.trees.filter(item => item.biomes.includes(biome)).slice(0, treeCount);
   const biomeRocks = DECOR.rocks.filter(item => item.biomes.includes(biome)).slice(0, rockCount);

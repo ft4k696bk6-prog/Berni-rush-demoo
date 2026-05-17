@@ -30,9 +30,9 @@ export default function AbilityDraft() {
     <div className="ability-overlay">
       <section className="ability-shell">
         <div className="ability-heading">
-          <span>LEVEL UP</span>
-          <h2>Choose an ability</h2>
-          <p>{pending > 1 ? `${pending} choices queued` : "Pick one upgrade and jump back into the arena."}</p>
+          <span>MUSHROOM MUTATION</span>
+          <h2>Choose a spore power</h2>
+          <p>{pending > 1 ? `${pending} spore choices queued` : "Absorb one mushroom mutation and jump back into the arena."}</p>
         </div>
 
         <div className="ability-grid">

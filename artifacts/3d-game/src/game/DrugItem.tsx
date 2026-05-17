@@ -2,6 +2,7 @@ import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { DrugItem as PickupItemType, DRUG_CONFIG } from "./types";
+import { useGameStore } from "./useGameStore";
 
 interface Props {
   drug: PickupItemType;
@@ -156,6 +157,7 @@ function DrugItem({ drug }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const haloRef = useRef<THREE.Mesh>(null);
   const t = useRef(Math.random() * Math.PI * 2);
+  const quality = useGameStore(s => s.quality);
   const cfg = DRUG_CONFIG[drug.type];
   const color = PICKUP_ACCENTS[drug.type] ?? cfg.color;
 
@@ -174,24 +176,24 @@ function DrugItem({ drug }: Props) {
   if (drug.collected) return null;
 
   return (
-    <group ref={groupRef} position={[drug.position[0], drug.position[1], drug.position[2]]}>
-      <pointLight color={color} intensity={0.9} distance={3.2} />
+    <group ref={groupRef} position={[drug.position[0], drug.position[1], drug.position[2]]} scale={1.18}>
+      {quality === "high" && <pointLight color={color} intensity={0.55} distance={2.7} />}
 
       <mesh position={[0, -0.48, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.42, 0.54, 0.13, 34]} />
+        <cylinderGeometry args={[0.46, 0.6, 0.13, 30]} />
         <meshStandardMaterial color="#26372f" roughness={0.82} metalness={0.08} />
       </mesh>
 
       <mesh position={[0, -0.36, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.46, 0.72, 54]} />
-        <meshBasicMaterial color={color} transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} />
+        <ringGeometry args={[0.52, 0.82, 46]} />
+        <meshBasicMaterial color={color} transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
       <MagicMushroom type={drug.type} color={color} />
 
       <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.18, 0]}>
-        <torusGeometry args={[0.55, 0.018, 8, 48]} />
-        <meshBasicMaterial color={color} transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} />
+        <torusGeometry args={[0.66, 0.02, 8, 42]} />
+        <meshBasicMaterial color={color} transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
       <group position={[0, 0.02, 0.52]} scale={0.78}>

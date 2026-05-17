@@ -152,13 +152,13 @@ function Projectile({ projectile }: Props) {
   const trailRef = useRef<THREE.Group>(null);
   const style = projectile.attackStyle ?? "melee_arc";
   const angle = Math.atan2(projectile.direction[0], projectile.direction[1]);
-  const radius = Math.max(0.095, projectile.radius * 0.62);
-  const length = (style === "rapid_projectile" ? 1.18
-    : style === "magic_orb" ? 0.82
-    : style === "dash_strike" ? 0.78
-    : style === "heavy_cone" ? 0.76
-    : style === "pickaxe_throw" ? 0.72
-    : 0.82);
+  const radius = Math.max(0.13, projectile.radius * 0.86);
+  const length = (style === "rapid_projectile" ? 1.34
+    : style === "magic_orb" ? 0.96
+    : style === "dash_strike" ? 0.9
+    : style === "heavy_cone" ? 0.92
+    : style === "pickaxe_throw" ? 0.86
+    : 0.94);
 
   useFrame((_, delta) => {
     if (meshRef.current) {
@@ -173,7 +173,7 @@ function Projectile({ projectile }: Props) {
   });
 
   return (
-    <group position={projectile.position} rotation={[0, angle, 0]}>
+    <group position={projectile.position} rotation={[0, angle, 0]} scale={projectile.critical ? 1.22 : 1.12}>
       <group ref={meshRef}>
         {style === "rapid_projectile" ? (
           <RangerArrow color={projectile.color} radius={radius} />
@@ -194,7 +194,7 @@ function Projectile({ projectile }: Props) {
         <Trail
           color={projectile.color}
           length={length}
-          width={style === "heavy_cone" ? radius * 1.05 : style === "magic_orb" ? radius * 0.92 : radius * 0.55}
+          width={style === "heavy_cone" ? radius * 1.24 : style === "magic_orb" ? radius * 1.1 : radius * 0.7}
           hot={style === "magic_orb" || projectile.critical}
         />
         {(style === "magic_orb" || projectile.critical) && (

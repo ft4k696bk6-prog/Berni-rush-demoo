@@ -105,8 +105,8 @@ export const SHOP_UPGRADES: Record<ShopUpgradeId, ShopUpgradeConfig> = {
   random_perk: {
     id: "random_perk",
     category: "Utility",
-    name: "Wild Mutation",
-    description: "Buy a random perk level. Risky, but often run-defining.",
+    name: "Spore Infusion",
+    description: "Force one mushroom-style mutation when you need a run boost.",
     maxLevel: 99,
     baseCost: 45,
     costGrowth: 1.24,
