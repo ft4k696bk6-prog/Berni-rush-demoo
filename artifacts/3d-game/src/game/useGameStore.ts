@@ -53,7 +53,7 @@ import {
 import { playerRuntime, resetPlayerRuntime } from "./gameRuntime";
 import { PERK_CONFIG, perkLevel, rollPerkChoices } from "./perks";
 import { SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
-import { WEAPON_CONFIG } from "./weapons";
+import { WEAPON_CONFIG, WEAPON_ORDER } from "./weapons";
 import { clearAllEnemyRuntime, clearEnemyRuntime, poisonCurrentPos } from "./poisonPositions";
 import {
   loadProfile,
@@ -85,6 +85,7 @@ const nid = (prefix = "g") => `${prefix}${++idc}`;
 const MELEE_DUR = 620;
 const START_GRACE_MS = 2600;
 const RESUME_GRACE_MS = 1500;
+const TESTER_COINS = 999999;
 const isBossType = (type: EnemySubType) => type === "boss10" || type === "boss20" || type === "boss_dragon";
 
 function clampMobileSensitivity(value: number) {
@@ -464,6 +465,7 @@ interface GameStore extends GameState {
   setMobileLookSensitivity: (value: number) => void;
   setMobileLookDeadzone: (value: number) => void;
   setMobileLeftHanded: (enabled: boolean) => void;
+  grantTesterCoins: () => void;
   refreshRecords: () => void;
 }
 
@@ -1399,6 +1401,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
       },
     }));
     set({ mobileLeftHanded: next });
+  },
+
+  grantTesterCoins: () => {
+    const profile = updateProfile(profile => ({
+      ...profile,
+      totalCoins: Math.max(profile.totalCoins, TESTER_COINS),
+    }));
+    set(s => ({
+      walletCoins: profile.totalCoins,
+      coins: Math.max(s.coins, TESTER_COINS),
+      ownedWeapons: Array.from(new Set([...s.ownedWeapons, ...WEAPON_ORDER])),
+      centerMessage: centerMessage("TEST MODE", "999999 coins + all weapons unlocked for this run", "reward", 2600),
+    }));
   },
 
   refreshRecords: () => set({ records: loadRecords() }),
