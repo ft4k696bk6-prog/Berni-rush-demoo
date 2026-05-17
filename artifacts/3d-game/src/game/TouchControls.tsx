@@ -12,13 +12,12 @@ function clampStick(dx: number, dy: number, limit: number) {
   return { x: dx * scale, y: dy * scale, nx: dx / len, ny: dy / len };
 }
 
-function applyAimCurve(nx: number, ny: number, deadzone: number, sensitivity: number) {
-  const len = Math.hypot(nx, ny);
-  if (len <= deadzone || len < 1e-6) return { x: 0, y: 0 };
-  const normalized = Math.min(1, (len - deadzone) / (1 - deadzone));
-  const curved = (normalized * 0.58 + normalized * normalized * 0.42) * sensitivity;
-  const scaled = curved / len;
-  return { x: nx * scaled, y: ny * scaled };
+function applyTurnCurve(nx: number, deadzone: number, sensitivity: number) {
+  const magnitude = Math.abs(nx);
+  if (magnitude <= deadzone) return 0;
+  const normalized = Math.min(1, (magnitude - deadzone) / (1 - deadzone));
+  const curved = normalized * 0.45 + normalized * normalized * 0.55;
+  return Math.sign(nx) * curved * sensitivity;
 }
 
 function hapticTap(strength = 8) {
@@ -98,7 +97,6 @@ export default function TouchControls() {
     pad.style.top = `${py - half}px`;
     pad.style.right = "auto";
     pad.style.bottom = "auto";
-    pad.style.transform = "scale(1)";
   };
 
   const updateLeft = (event: PointerEvent<HTMLDivElement>) => {
@@ -123,12 +121,12 @@ export default function TouchControls() {
     const dx = event.clientX - rightOrigin.current.x;
     const dy = event.clientY - rightOrigin.current.y;
     const stick = clampStick(dx, dy, limit);
-    const curvedAim = applyAimCurve(stick.nx, stick.ny, Math.max(0.08, mobileLookDeadzone), Math.max(0.42, mobileLookSensitivity * 0.72));
+    const turn = applyTurnCurve(stick.nx, Math.max(0.08, mobileLookDeadzone), Math.max(0.42, mobileLookSensitivity));
 
     touchRuntime.shooting = true;
     touchRuntime.aimActive = true;
-    touchRuntime.aimX = curvedAim.x;
-    touchRuntime.aimY = curvedAim.y;
+    touchRuntime.aimX = turn;
+    touchRuntime.aimY = stick.ny;
     playerRuntime.screenX = event.clientX;
     playerRuntime.screenY = event.clientY;
     knob.style.transform = `translate3d(${stick.x * 0.72}px, ${stick.y * 0.72}px, 0)`;

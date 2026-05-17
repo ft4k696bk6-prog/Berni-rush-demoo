@@ -13,7 +13,6 @@ export default function Game() {
   const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
   const pauseGame = useGameStore(s => s.pauseGame);
   const resumeGame = useGameStore(s => s.resumeGame);
-  const saveGame = useGameStore(s => s.saveGame);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -30,7 +29,6 @@ export default function Game() {
   useEffect(() => {
     const pauseAndSave = () => {
       if (useGameStore.getState().phase !== "playing") return;
-      saveGame();
       pauseGame();
     };
     const handleVisibility = () => {
@@ -43,7 +41,7 @@ export default function Game() {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("pagehide", pauseAndSave);
     };
-  }, [pauseGame, saveGame]);
+  }, [pauseGame]);
 
   useEffect(() => {
     const isCoarsePortrait = () => {
@@ -54,7 +52,6 @@ export default function Game() {
     const handleOrientation = () => {
       if (!isCoarsePortrait()) return;
       if (useGameStore.getState().phase !== "playing") return;
-      saveGame();
       pauseGame();
     };
 
@@ -64,7 +61,7 @@ export default function Game() {
       window.removeEventListener("resize", handleOrientation);
       window.removeEventListener("orientationchange", handleOrientation);
     };
-  }, [pauseGame, saveGame]);
+  }, [pauseGame]);
 
   return (
     <div className={`game-root ${phase} ${mobileLeftHanded ? "mobile-left-handed" : ""}`.trim()}>

@@ -477,9 +477,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   restartGame: () => get().startGame(),
 
-  pauseGame: () => set(s => s.phase === "playing" ? { phase: "paused" } : {}),
+  pauseGame: () => {
+    const state = get();
+    if (state.phase !== "playing") return;
+    saveGameState(state);
+    set({ phase: "paused" });
+  },
 
-  resumeGame: () => set(s => s.phase === "paused" ? { phase: "playing" } : {}),
+  resumeGame: () => set(s => {
+    if (s.phase !== "paused") return {};
+    const now = Date.now();
+    return {
+      phase: "playing",
+      activeEffects: [
+        ...s.activeEffects.filter(effect => effect.type !== "invincibility"),
+        { type: "invincibility", expiresAt: now + RESUME_GRACE_MS },
+      ],
+      centerMessage: centerMessage("READY", "Brief shield after pause.", "save", 1150),
+    };
+  }),
 
   exitToMenu: () => {
     const state = get();

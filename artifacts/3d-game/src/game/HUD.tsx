@@ -5,6 +5,7 @@ import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
 import { getClassDefinition, getSkinDefinition } from "./loadout";
 import { WEAPON_CONFIG } from "./weapons";
 import { poisonCurrentPos } from "./poisonPositions";
+import { playerRuntime } from "./gameRuntime";
 
 const STAT_ORDER: StatKey[] = ["strength", "superpower", "vitality", "luck", "dodge", "speed"];
 
@@ -39,6 +40,7 @@ export default function HUD() {
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
   const impactBursts = useGameStore(s => s.impactBursts);
+  const meleeSwings = useGameStore(s => s.meleeSwings);
   const poisons = useGameStore(s => s.poisons);
   const playerPos = useGameStore(s => s.playerPos);
   const boss = useGameStore(s => s.poisons.find(enemy => enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20"));
@@ -54,9 +56,9 @@ export default function HUD() {
   ));
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    const timer = window.setInterval(() => setNow(Date.now()), phase === "playing" ? 120 : 240);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [phase]);
 
   useEffect(() => {
     const handleHudToggle = (event: KeyboardEvent) => {
@@ -119,6 +121,21 @@ export default function HUD() {
     }
     return null;
   }, [impactBursts, now]);
+  const recentSlash = useMemo(() => {
+    for (let i = meleeSwings.length - 1; i >= 0; i--) {
+      const swing = meleeSwings[i];
+      const age = now - swing.startedAt;
+      if (age > 420) continue;
+      return swing;
+    }
+    return null;
+  }, [meleeSwings, now]);
+  const reticleFiring = playerRuntime.attackAnimType === "shoot" && playerRuntime.attackAnimUntil > now;
+  const reticleStyle = useMemo(() => ({
+    "--reticle-gap": reticleFiring ? "13px" : recentHit?.kind === "heavy" ? "15px" : "14px",
+    "--reticle-alpha": reticleFiring ? "1" : "0.9",
+    "--reticle-color": recentHit?.color ?? "#bfeeff",
+  }) as CSSProperties, [recentHit?.color, recentHit?.kind, reticleFiring]);
   const threats = useMemo(() => {
     return poisons
       .map(enemy => {
@@ -272,6 +289,23 @@ export default function HUD() {
         <div className={messageClass}>
           <strong>{centerMessage.title}</strong>
           {centerMessage.subtitle && <span>{centerMessage.subtitle}</span>}
+        </div>
+      )}
+
+      {phase === "playing" && (
+        <div className={`fpp-reticle ${reticleFiring ? "hit" : ""}`} style={reticleStyle} aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+          <b />
+        </div>
+      )}
+
+      {phase === "playing" && recentSlash && (
+        <div className={`fpp-melee-slash ${recentSlash.is360 ? "power" : ""} ${recentSlash.theme ?? "knight"}`} key={recentSlash.id} aria-hidden="true">
+          <i />
+          <b />
         </div>
       )}
 
