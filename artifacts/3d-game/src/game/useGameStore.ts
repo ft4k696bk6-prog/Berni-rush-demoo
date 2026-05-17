@@ -120,6 +120,20 @@ function floater(text: string, x: number, z: number, color: string, y = 2.2, dur
   return { id: nid("txt"), text, position: [x, y, z], color, createdAt: Date.now(), duration };
 }
 
+function pointToSegmentDistanceSq(px: number, pz: number, ax: number, az: number, bx: number, bz: number) {
+  const abx = bx - ax;
+  const abz = bz - az;
+  const apx = px - ax;
+  const apz = pz - az;
+  const abLenSq = abx * abx + abz * abz;
+  const t = abLenSq > 0.0001 ? Math.max(0, Math.min(1, (apx * abx + apz * abz) / abLenSq)) : 0;
+  const cx = ax + abx * t;
+  const cz = az + abz * t;
+  const dx = px - cx;
+  const dz = pz - cz;
+  return dx * dx + dz * dz;
+}
+
 function impactBurst(x: number, z: number, color: string, theme: VfxTheme, kind: ImpactBurst["kind"] = "hit", power = 1): ImpactBurst {
   return {
     id: nid("imp"),
@@ -904,11 +918,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
         for (let i = 0; i < poisons.length; i++) {
           const enemy = poisons[i];
           const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
-          const dx = next.position[0] - live[0];
-          const dz = next.position[2] - live[1];
           const radius = enemy.scale * 0.8 + next.radius;
 
-          if (dx * dx + dz * dz > radius * radius) continue;
+          if (
+            pointToSegmentDistanceSq(
+              live[0],
+              live[1],
+              projectile.position[0],
+              projectile.position[2],
+              next.position[0],
+              next.position[2],
+            ) > radius * radius
+          ) continue;
 
           enemy.hp -= next.damage;
           impactBursts.push(impactBurst(
