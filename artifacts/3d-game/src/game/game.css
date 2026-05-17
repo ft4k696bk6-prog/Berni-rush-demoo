@@ -27,7 +27,7 @@ button {
 }
 
 .game-root.playing canvas {
-  cursor: none;
+  cursor: crosshair;
 }
 
 .menu-stage *,
@@ -514,19 +514,19 @@ button {
   z-index: 3;
   width: clamp(104px, 18vw, 128px);
   height: clamp(104px, 18vw, 128px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.12), rgba(3, 10, 18, 0.38));
-  box-shadow: inset 0 0 28px rgba(125, 252, 255, 0.09), 0 18px 42px rgba(0, 0, 0, 0.26);
+  background: radial-gradient(circle at 45% 40%, rgba(255, 255, 255, 0.18), rgba(26, 75, 105, 0.26) 48%, rgba(3, 10, 18, 0.42));
+  box-shadow: inset 0 0 30px rgba(125, 252, 255, 0.12), 0 18px 42px rgba(0, 0, 0, 0.26);
   pointer-events: none;
   touch-action: none;
-  opacity: 0.66;
+  opacity: 0.78;
   transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
 .touch-pad.active {
   opacity: 1;
-  transform: scale(1.04);
+  transform: scale(1.06);
   border-color: rgba(125, 252, 255, 0.4);
   background: radial-gradient(circle, rgba(125, 252, 255, 0.18), rgba(3, 10, 18, 0.44));
 }
@@ -566,16 +566,16 @@ button {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 56px;
-  height: 56px;
+  width: 58px;
+  height: 58px;
   display: grid;
   place-items: center;
-  margin: -28px 0 0 -28px;
+  margin: -29px 0 0 -29px;
   border-radius: 50%;
   color: #dffaff;
-  background: rgba(7, 21, 32, 0.74);
-  border: 1px solid rgba(125, 252, 255, 0.42);
-  box-shadow: 0 0 22px rgba(125, 252, 255, 0.18);
+  background: linear-gradient(180deg, rgba(23, 44, 62, 0.86), rgba(7, 21, 32, 0.82));
+  border: 2px solid rgba(125, 252, 255, 0.42);
+  box-shadow: 0 0 24px rgba(125, 252, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.16);
   will-change: transform;
 }
 
@@ -590,8 +590,9 @@ button {
   z-index: 4;
   right: max(152px, calc(env(safe-area-inset-right) + 152px));
   bottom: max(34px, calc(env(safe-area-inset-bottom) + 34px));
-  display: grid;
-  gap: 10px;
+  display: flex;
+  align-items: flex-end;
+  gap: 9px;
   pointer-events: auto;
 }
 
@@ -601,16 +602,16 @@ button {
 }
 
 .touch-buttons button {
-  width: 54px;
-  height: 54px;
+  width: 56px;
+  height: 56px;
   position: relative;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 2px solid rgba(255, 255, 255, 0.18);
   border-radius: 50%;
   color: #ffffff;
-  background: rgba(7, 21, 32, 0.78);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+  background: linear-gradient(180deg, rgba(24, 43, 59, 0.84), rgba(7, 21, 32, 0.78));
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   touch-action: none;
   transition: transform 110ms ease, border-color 110ms ease, background 110ms ease;
 }

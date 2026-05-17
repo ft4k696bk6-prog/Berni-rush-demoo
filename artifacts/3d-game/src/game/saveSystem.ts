@@ -73,7 +73,7 @@ export const defaultProfile = (): ProfileData => ({
   bossesDefeated: 0,
   settings: {
     quality: "medium",
-    cameraViewMode: "first_person",
+    cameraViewMode: "third_person",
     mobileControls: {
       lookSensitivity: 0.72,
       lookDeadzone: 0.1,
@@ -138,7 +138,7 @@ export function loadProfile(): ProfileData {
     settings: {
       ...base.settings,
       ...(saved.settings ?? {}),
-      cameraViewMode: "first_person",
+      cameraViewMode: "third_person",
       mobileControls: clampMobileControls(saved.settings?.mobileControls),
     },
   };
@@ -162,7 +162,7 @@ export function updateProfile(patch: Partial<ProfileData> | ((profile: ProfileDa
     bossesDefeated: Math.max(0, next.bossesDefeated),
     settings: {
       quality: next.settings?.quality ?? "medium",
-      cameraViewMode: "first_person",
+      cameraViewMode: "third_person",
       mobileControls: clampMobileControls(next.settings?.mobileControls),
     },
   };

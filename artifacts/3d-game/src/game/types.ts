@@ -1,6 +1,6 @@
 export type GamePhase = "menu" | "playing" | "paused" | "upgrade" | "gameover";
 export type QualityLevel = "low" | "medium" | "high";
-export type CameraViewMode = "first_person";
+export type CameraViewMode = "third_person" | "first_person";
 
 export interface MobileControlSettings {
   lookSensitivity: number;

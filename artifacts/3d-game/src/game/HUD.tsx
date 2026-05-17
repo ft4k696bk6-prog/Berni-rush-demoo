@@ -39,10 +39,8 @@ export default function HUD() {
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
   const impactBursts = useGameStore(s => s.impactBursts);
-  const meleeSwings = useGameStore(s => s.meleeSwings);
   const poisons = useGameStore(s => s.poisons);
   const playerPos = useGameStore(s => s.playerPos);
-  const playerAngle = useGameStore(s => s.playerAngle);
   const boss = useGameStore(s => s.poisons.find(enemy => enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20"));
   const upgradeStat = useGameStore(s => s.upgradeStat);
   const pauseGame = useGameStore(s => s.pauseGame);
@@ -121,11 +119,6 @@ export default function HUD() {
     }
     return null;
   }, [impactBursts, now]);
-  const latestMelee = useMemo(() => {
-    const swing = meleeSwings[meleeSwings.length - 1];
-    if (!swing || now - swing.startedAt > 560) return null;
-    return swing;
-  }, [meleeSwings, now]);
   const threats = useMemo(() => {
     return poisons
       .map(enemy => {
@@ -135,8 +128,7 @@ export default function HUD() {
         const distance = Math.hypot(dx, dz);
         if (distance > 34) return null;
 
-        const worldAngle = Math.atan2(dx, dz);
-        const angle = Math.atan2(Math.sin(worldAngle - playerAngle), Math.cos(worldAngle - playerAngle));
+        const angle = Math.atan2(dx, -dz);
         const bossThreat = enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20";
         const rangedThreat = enemy.type === "ranged_enemy" || enemy.type === "shooter";
         const danger = bossThreat || distance < 9;
@@ -156,7 +148,7 @@ export default function HUD() {
       .filter((threat): threat is NonNullable<typeof threat> => Boolean(threat))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 5);
-  }, [now, playerAngle, playerPos, poisons]);
+  }, [now, playerPos, poisons]);
 
   if (!runVisible) return null;
 
@@ -192,7 +184,7 @@ export default function HUD() {
             <span>LEFT</span>
           </div>
           <div className="wave-strip">WAVE {wave}/{wavesTotal} - {killsThisStage}/{killsRequired}</div>
-          <div className="archero-hint">AIM WITH CURSOR / RIGHT SIDE - HOLD TO SHOOT</div>
+          <div className="archero-hint">MOVE: WASD / LEFT STICK - AIM: CURSOR / RIGHT STICK</div>
         </section>
 
         <section className="hud-panel hud-score-panel">
@@ -257,7 +249,7 @@ export default function HUD() {
       {mobilePortrait && (
         <div className="mobile-orientation-hint" aria-live="polite">
           <RotateCw size={14} />
-          <strong>Rotate to landscape for first-person combat</strong>
+          <strong>Rotate to landscape for clearer arena combat</strong>
           <span>Run auto-pauses in portrait to prevent unfair hits.</span>
         </div>
       )}
@@ -310,27 +302,6 @@ export default function HUD() {
           <i />
           <i />
           <i />
-        </div>
-      )}
-
-      {phase === "playing" && (
-        <div className={`fpp-reticle ${recentHit ? "hit" : ""}`} aria-hidden="true">
-          <i />
-          <i />
-          <i />
-          <i />
-          <b />
-        </div>
-      )}
-
-      {phase === "playing" && latestMelee && (
-        <div
-          key={latestMelee.id}
-          className={`fpp-melee-slash ${latestMelee.is360 ? "power" : ""} ${latestMelee.theme ?? "knight"}`}
-          aria-hidden="true"
-        >
-          <i />
-          <b />
         </div>
       )}
 

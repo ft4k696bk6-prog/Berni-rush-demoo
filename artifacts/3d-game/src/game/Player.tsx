@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
 import { clampToArena, getSpawnInterval } from "./balance";
-import { cameraRuntime, defaultCameraPitch, playerRuntime, touchRuntime } from "./gameRuntime";
+import { playerRuntime, touchRuntime } from "./gameRuntime";
 import { CharacterAssetModel } from "./AssetModels";
 import { getClassDefinition, getLoadoutModifiers } from "./loadout";
 import { perkLevel } from "./perks";
@@ -11,7 +11,6 @@ import { shopUpgradeLevel } from "./shop";
 import { useGameStore } from "./useGameStore";
 import { WEAPON_CONFIG } from "./weapons";
 import { poisonCurrentPos } from "./poisonPositions";
-import { useCompactViewport } from "./useCompactViewport";
 
 enum Controls {
   forward = "forward",
@@ -25,115 +24,8 @@ enum Controls {
 
 const BASE_SPEED = 10.35;
 const SNAPSHOT_RATE = 0.055;
-const MOUSE_SENSITIVITY = 0.0036;
 const RUN_START_SPAWN_DELAY_MS = 950;
-
-function getCameraYawVectors() {
-  const forward2 = new THREE.Vector2(Math.sin(cameraRuntime.yaw), Math.cos(cameraRuntime.yaw)).normalize();
-  const right2 = new THREE.Vector2(Math.cos(cameraRuntime.yaw), -Math.sin(cameraRuntime.yaw)).normalize();
-  return { forward2, right2 };
-}
-
-function rotateCameraFromMouse(deltaX: number, deltaY: number) {
-  cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw + deltaX * MOUSE_SENSITIVITY, Math.PI * 2);
-  cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + deltaY * MOUSE_SENSITIVITY * 0.82, -0.28, 0.72);
-}
-
-function FirstPersonCaster({ color, compact }: { color: string; compact: boolean }) {
-  const coreRef = useRef<THREE.Mesh>(null);
-  const flashRef = useRef<THREE.Group>(null);
-  const chargeRef = useRef<THREE.Mesh>(null);
-  const slashRef = useRef<THREE.Group>(null);
-
-  useFrame((_, delta) => {
-    const active = Date.now() < playerRuntime.attackAnimUntil && playerRuntime.attackAnimType === "shoot";
-    const slashActive = Date.now() < playerRuntime.attackAnimUntil && playerRuntime.attackAnimType === "slash";
-    const remaining = Math.max(0, playerRuntime.attackAnimUntil - Date.now()) / 260;
-
-    if (coreRef.current) {
-      coreRef.current.visible = !compact || active || slashActive;
-      coreRef.current.rotation.z += delta * 4.2;
-      coreRef.current.position.z = active ? 0.16 - remaining * 0.1 : slashActive ? 0.2 : 0.12;
-      const material = coreRef.current.material as THREE.MeshStandardMaterial;
-      material.emissive.set(color);
-      material.emissiveIntensity = active || slashActive ? 2.4 : 0.85;
-    }
-
-    if (chargeRef.current) {
-      chargeRef.current.visible = !compact || active || slashActive;
-      chargeRef.current.rotation.z -= delta * 9;
-      const material = chargeRef.current.material as THREE.MeshStandardMaterial;
-      material.emissive.set(color);
-      material.emissiveIntensity = active || slashActive ? 2.2 : 1.0;
-    }
-
-    if (flashRef.current) {
-      flashRef.current.visible = active;
-      const pulse = active ? 0.72 + (1 - remaining) * 0.5 : 0.4;
-      flashRef.current.scale.setScalar(pulse);
-    }
-
-    if (slashRef.current) {
-      slashRef.current.visible = slashActive;
-      const slashRemaining = Math.max(0, playerRuntime.attackAnimUntil - Date.now()) / 430;
-      const t = THREE.MathUtils.clamp(1 - slashRemaining, 0, 1);
-      const hit = THREE.MathUtils.smoothstep(t, 0.16, 0.74);
-      const fade = 1 - THREE.MathUtils.smoothstep(t, 0.72, 1);
-      slashRef.current.rotation.z = -0.95 + hit * 1.9;
-      slashRef.current.rotation.y = -0.15 + hit * 0.3;
-      slashRef.current.position.x = compact ? 0.05 + hit * 0.08 : 0.16 + hit * 0.1;
-      slashRef.current.position.y = compact ? -0.01 + Math.sin(hit * Math.PI) * 0.08 : 0.04 + Math.sin(hit * Math.PI) * 0.11;
-      slashRef.current.scale.setScalar((compact ? 0.82 : 1) * (0.74 + hit * 0.34));
-      slashRef.current.traverse(obj => {
-        if (!("material" in obj)) return;
-        const material = obj.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
-        if ("opacity" in material) material.opacity = fade * (obj.name === "slash-core" ? 0.72 : 0.46);
-        if ("emissiveIntensity" in material) material.emissiveIntensity = fade * 3.2;
-      });
-    }
-  });
-
-  return (
-    <group position={compact ? [0.02, 0.06, 1.36] : [-0.28, 0.22, 1.22]} rotation={[0.08, 0.04, 0]} scale={compact ? 0.34 : 0.54}>
-      <mesh ref={coreRef} castShadow rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.055, 0.085, 0.62, 12]} />
-        <meshStandardMaterial color="#201812" emissive={color} emissiveIntensity={0.9} roughness={0.34} metalness={0.58} />
-      </mesh>
-      <mesh ref={chargeRef} position={[0, 0, 0.42]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.12, 0.012, 6, 32]} />
-        <meshStandardMaterial color="#f9fff0" emissive={color} emissiveIntensity={1.1} transparent opacity={0.82} roughness={0.18} metalness={0.3} />
-      </mesh>
-      <group ref={flashRef} visible={false} position={[0, 0, 0.78]}>
-        <pointLight intensity={2.2} distance={4.2} color={color} />
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <coneGeometry args={[0.12, 0.42, 14]} />
-          <meshBasicMaterial color={color} transparent opacity={0.58} depthWrite={false} blending={THREE.AdditiveBlending} />
-        </mesh>
-        <mesh position={[0, 0, 0.12]} rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.18, 0.014, 6, 32]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.62} depthWrite={false} blending={THREE.AdditiveBlending} />
-        </mesh>
-        {[-1, 0, 1].map(index => (
-          <mesh key={index} position={[index * 0.08, 0.01, -0.06 + Math.abs(index) * 0.04]} rotation={[0.3, index * 0.5, index * 0.24]}>
-            <boxGeometry args={[0.015, 0.015, 0.18]} />
-            <meshBasicMaterial color="#fff1b8" transparent opacity={0.72} depthWrite={false} />
-          </mesh>
-        ))}
-      </group>
-      <group ref={slashRef} visible={false} position={[0.08, 0.02, 0.76]} rotation={[0.05, 0, -0.9]}>
-        <mesh name="slash-core" position={[0.1, 0.02, 0.26]} rotation={[0.18, 0.04, Math.PI * 0.5]}>
-          <torusGeometry args={[0.42, 0.024, 8, 44, Math.PI * 1.16]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.62} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
-        </mesh>
-        <mesh position={[0.16, -0.02, 0.28]} rotation={[0.2, 0.04, Math.PI * 0.5]}>
-          <torusGeometry args={[0.54, 0.036, 8, 48, Math.PI * 1.05]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.4} transparent opacity={0.46} depthWrite={false} side={THREE.DoubleSide} />
-        </mesh>
-        <pointLight intensity={1.45} distance={3.2} color={color} />
-      </group>
-    </group>
-  );
-}
+const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
 export default function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -145,14 +37,17 @@ export default function Player() {
   const selectedClassId = useGameStore(s => s.selectedClassId);
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const runId = useGameStore(s => s.runId);
-  const compactViewport = useCompactViewport();
   const [, getKeys] = useKeyboardControls<Controls>();
-  const { gl } = useThree();
+  const { camera, gl } = useThree();
 
   const velocity = useRef(new THREE.Vector2());
   const moveDir = useRef(new THREE.Vector2(0, -1));
   const dashDir = useRef(new THREE.Vector2(0, -1));
-  const lastMousePos = useRef<{ x: number; y: number } | null>(null);
+  const mouseAim = useRef(new THREE.Vector2(0, -1));
+  const hasPointerAim = useRef(false);
+  const pointerNdc = useRef(new THREE.Vector2());
+  const raycaster = useRef(new THREE.Raycaster());
+  const pointerHit = useRef(new THREE.Vector3());
   const shooting = useRef(false);
   const fireCooldown = useRef(0);
   const dashCooldown = useRef(0);
@@ -173,57 +68,49 @@ export default function Player() {
   useEffect(() => {
     const canvas = gl.domElement;
 
-    const applyMouseLook = (deltaX: number, deltaY: number, clientX: number, clientY: number) => {
-      rotateCameraFromMouse(
-        THREE.MathUtils.clamp(deltaX, -42, 42),
-        THREE.MathUtils.clamp(deltaY, -42, 42),
+    const updatePointerAim = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      pointerNdc.current.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
       );
+      raycaster.current.setFromCamera(pointerNdc.current, camera);
+      const hit = raycaster.current.ray.intersectPlane(GROUND_PLANE, pointerHit.current);
+      if (!hit) return;
+      const dx = hit.x - playerRuntime.x;
+      const dz = hit.z - playerRuntime.z;
+      const len = Math.hypot(dx, dz);
+      if (len < 0.08) return;
+      mouseAim.current.set(dx / len, dz / len);
+      hasPointerAim.current = true;
       playerRuntime.screenX = clientX;
       playerRuntime.screenY = clientY;
-      lastMousePos.current = { x: clientX, y: clientY };
     };
 
     const handleMove = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
       if (event.pointerType && event.pointerType !== "mouse") return;
-      const fallbackX = lastMousePos.current ? event.clientX - lastMousePos.current.x : 0;
-      const fallbackY = lastMousePos.current ? event.clientY - lastMousePos.current.y : 0;
-      const deltaX = Number.isFinite(event.movementX) ? event.movementX : fallbackX;
-      const deltaY = Number.isFinite(event.movementY) ? event.movementY : fallbackY;
-      applyMouseLook(deltaX, deltaY, event.clientX, event.clientY);
-    };
-    const handleLockedMouseMove = (event: MouseEvent) => {
-      if (document.pointerLockElement !== canvas) return;
-      if (useGameStore.getState().phase !== "playing") return;
-      applyMouseLook(event.movementX, event.movementY, window.innerWidth / 2, window.innerHeight / 2);
+      updatePointerAim(event.clientX, event.clientY);
     };
     const handleDown = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
       if (event.pointerType === "mouse") {
-        playerRuntime.screenX = event.clientX;
-        playerRuntime.screenY = event.clientY;
-        lastMousePos.current = { x: event.clientX, y: event.clientY };
-        if (document.pointerLockElement !== canvas) {
-          try {
-            const lockRequest = canvas.requestPointerLock?.();
-            if (lockRequest && "catch" in lockRequest) lockRequest.catch(() => undefined);
-          } catch {
-            // Pointer lock is optional; embedded/headless browsers can reject it.
-          }
-        }
+        updatePointerAim(event.clientX, event.clientY);
       }
       if (event.button === 0) shooting.current = true;
+      if (event.button === 1 || event.button === 2) touchRuntime.meleePressed = true;
     };
-    const handleUp = () => { shooting.current = false; };
+    const handleUp = (event: PointerEvent) => {
+      if (event.button === 0) shooting.current = false;
+    };
     const handleLeave = () => {
       shooting.current = false;
-      lastMousePos.current = null;
     };
     const handleContext = (event: MouseEvent) => event.preventDefault();
 
     canvas.addEventListener("pointermove", handleMove);
     canvas.addEventListener("pointerdown", handleDown);
-    window.addEventListener("mousemove", handleLockedMouseMove);
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("blur", handleLeave);
     canvas.addEventListener("contextmenu", handleContext);
@@ -231,12 +118,11 @@ export default function Player() {
     return () => {
       canvas.removeEventListener("pointermove", handleMove);
       canvas.removeEventListener("pointerdown", handleDown);
-      window.removeEventListener("mousemove", handleLockedMouseMove);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("blur", handleLeave);
       canvas.removeEventListener("contextmenu", handleContext);
     };
-  }, [gl.domElement]);
+  }, [camera, gl.domElement]);
 
   useEffect(() => {
     if (phase === "playing") return;
@@ -263,13 +149,12 @@ export default function Player() {
       playerRuntime.aimZ = aimLen > 0.05 ? aimDz / aimLen : Math.cos(startAngle);
       playerRuntime.aimWorldX = aimWorldX;
       playerRuntime.aimWorldZ = aimWorldZ;
-      cameraRuntime.yaw = startAngle;
-      cameraRuntime.pitch = defaultCameraPitch();
       velocity.current.set(0, 0);
       moveDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
       dashDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
       facingAngle.current = startAngle;
-      lastMousePos.current = null;
+      mouseAim.current.set(playerRuntime.aimX, playerRuntime.aimZ);
+      hasPointerAim.current = false;
       fireCooldown.current = 0;
       dashCooldown.current = 0;
       dashTime.current = 0;
@@ -326,31 +211,37 @@ export default function Player() {
     const has360 = activeEffects.some(e => e.type === "melee_360" && e.expiresAt > now);
 
     const controls = getKeys();
-    const localMove = new THREE.Vector2(
-      (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX,
-      (controls.forward ? 1 : 0) - (controls.back ? 1 : 0) - touchRuntime.moveZ,
-    );
-    const localMoveActive = localMove.lengthSq() > 0;
-    if (localMoveActive) localMove.normalize();
-
-    const { forward2, right2 } = getCameraYawVectors();
     const moveWorld = new THREE.Vector2(
-      right2.x * localMove.x + forward2.x * localMove.y,
-      right2.y * localMove.x + forward2.y * localMove.y,
+      (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX,
+      (controls.back ? 1 : 0) - (controls.forward ? 1 : 0) + touchRuntime.moveZ,
     );
-    const inputActive = moveWorld.lengthSq() > 0;
-    if (inputActive) moveDir.current.copy(moveWorld);
+    const inputActive = moveWorld.lengthSq() > 0.0001;
+    if (inputActive) {
+      moveWorld.normalize();
+      moveDir.current.copy(moveWorld);
+    }
 
-    let aimX = Math.sin(cameraRuntime.yaw);
-    let aimZ = Math.cos(cameraRuntime.yaw);
+    let aimX = playerRuntime.aimX;
+    let aimZ = playerRuntime.aimZ;
 
     if (touchRuntime.aimActive) {
-      const yawSpeed = compactViewport ? 2.9 : 2.55;
-      const pitchSpeed = compactViewport ? 2.0 : 1.75;
-      cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw + touchRuntime.aimX * yawSpeed * delta, Math.PI * 2);
-      cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + touchRuntime.aimY * pitchSpeed * delta, -0.24, 0.72);
-      aimX = Math.sin(cameraRuntime.yaw);
-      aimZ = Math.cos(cameraRuntime.yaw);
+      const len = Math.hypot(touchRuntime.aimX, touchRuntime.aimY);
+      if (len > 0.08) {
+        aimX = touchRuntime.aimX / len;
+        aimZ = touchRuntime.aimY / len;
+        hasPointerAim.current = false;
+      }
+    } else if (hasPointerAim.current) {
+      aimX = mouseAim.current.x;
+      aimZ = mouseAim.current.y;
+    } else if (inputActive) {
+      aimX = moveDir.current.x;
+      aimZ = moveDir.current.y;
+    }
+
+    if (Math.hypot(aimX, aimZ) < 0.01) {
+      aimX = 0;
+      aimZ = -1;
     }
 
     playerRuntime.aimX = aimX;
@@ -358,7 +249,6 @@ export default function Player() {
     playerRuntime.aimWorldX = playerRuntime.x + aimX * 14;
     playerRuntime.aimWorldZ = playerRuntime.z + aimZ * 14;
     facingAngle.current = Math.atan2(aimX, aimZ);
-    cameraRuntime.yaw = facingAngle.current;
 
     const swiftBoots = perkLevel(store.perks, "swift_boots");
     const moveUpgrade = shopUpgradeLevel(store.shopUpgrades, "move_speed");
@@ -505,9 +395,7 @@ export default function Player() {
 
   return (
     <group ref={groupRef} position={[0, 1.2, 0]}>
-      <FirstPersonCaster color={classColor} compact={compactViewport} />
-
-      <group visible={false}>
+      <group>
         <pointLight ref={glowRef} intensity={0.8} distance={6} color={classColor} />
 
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.12, 0]}>

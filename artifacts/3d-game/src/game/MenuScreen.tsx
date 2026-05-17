@@ -303,9 +303,9 @@ export default function MenuScreen() {
             </section>
             <section className="mobile-controls-block mobile-settings-card">
               <strong><Smartphone size={15} /> Mobile controls</strong>
-              <p>Recommended for first-person combat: landscape orientation and two-thumb grip.</p>
+              <p>Recommended for arena combat: landscape orientation, left thumb to move, right thumb to aim and fire.</p>
               <label>
-                <span><Crosshair size={14} /> Look speed</span>
+                <span><Crosshair size={14} /> Aim speed</span>
                 <b>{mobileLookSensitivity.toFixed(2)}x</b>
               </label>
               <input
@@ -315,7 +315,7 @@ export default function MenuScreen() {
                 step={0.05}
                 value={mobileLookSensitivity}
                 onChange={event => setMobileLookSensitivity(Number(event.currentTarget.value))}
-                aria-label="Mobile look speed"
+                aria-label="Mobile aim speed"
               />
               <label>
                 <span><SlidersHorizontal size={14} /> Deadzone</span>

@@ -262,7 +262,7 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
     pendingLevelUps: 0,
     records,
     quality,
-    cameraViewMode: "first_person",
+    cameraViewMode: "third_person",
     mobileLookSensitivity: clampMobileSensitivity(profile.settings.mobileControls.lookSensitivity),
     mobileLookDeadzone: clampMobileDeadzone(profile.settings.mobileControls.lookDeadzone),
     mobileLeftHanded: Boolean(profile.settings.mobileControls.leftHanded),

@@ -193,7 +193,7 @@ export default function PauseMenu() {
           <div className="mobile-controls-block">
             <strong><Smartphone size={15} /> Mobile Aim</strong>
             <label>
-              <span><Crosshair size={14} /> Look speed</span>
+              <span><Crosshair size={14} /> Aim speed</span>
               <b>{mobileLookSensitivity.toFixed(2)}x</b>
             </label>
             <input
@@ -203,7 +203,7 @@ export default function PauseMenu() {
               step={0.05}
               value={mobileLookSensitivity}
               onChange={event => setMobileLookSensitivity(Number(event.currentTarget.value))}
-              aria-label="Mobile look speed"
+              aria-label="Mobile aim speed"
             />
             <label>
               <span><SlidersHorizontal size={14} /> Deadzone</span>
