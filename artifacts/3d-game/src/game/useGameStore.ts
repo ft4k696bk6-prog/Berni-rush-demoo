@@ -265,6 +265,7 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
     cameraViewMode: "first_person",
     mobileLookSensitivity: clampMobileSensitivity(profile.settings.mobileControls.lookSensitivity),
     mobileLookDeadzone: clampMobileDeadzone(profile.settings.mobileControls.lookDeadzone),
+    mobileLeftHanded: Boolean(profile.settings.mobileControls.leftHanded),
   };
 }
 
@@ -442,6 +443,7 @@ interface GameStore extends GameState {
   setQuality: (quality: QualityLevel) => void;
   setMobileLookSensitivity: (value: number) => void;
   setMobileLookDeadzone: (value: number) => void;
+  setMobileLeftHanded: (enabled: boolean) => void;
   refreshRecords: () => void;
 }
 
@@ -1307,6 +1309,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       },
     }));
     set({ mobileLookDeadzone: clamped });
+  },
+
+  setMobileLeftHanded: (enabled) => {
+    const next = Boolean(enabled);
+    updateProfile(profile => ({
+      ...profile,
+      settings: {
+        ...profile.settings,
+        mobileControls: {
+          ...profile.settings.mobileControls,
+          leftHanded: next,
+        },
+      },
+    }));
+    set({ mobileLeftHanded: next });
   },
 
   refreshRecords: () => set({ records: loadRecords() }),

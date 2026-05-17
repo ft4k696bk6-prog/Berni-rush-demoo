@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Coins, Crosshair, Gauge, Play, Save, Settings, ShoppingBag, SlidersHorizontal, Smartphone, Swords, Trophy, X } from "lucide-react";
+import { BarChart3, Coins, Crosshair, Gauge, Hand, Play, Save, Settings, ShoppingBag, SlidersHorizontal, Smartphone, Swords, Trophy, X } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { QualityLevel, STAT_LABELS, StatKey } from "./types";
 import { SHOP_CATEGORIES, SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
@@ -43,8 +43,10 @@ export default function PauseMenu() {
   const quality = useGameStore(s => s.quality);
   const mobileLookSensitivity = useGameStore(s => s.mobileLookSensitivity);
   const mobileLookDeadzone = useGameStore(s => s.mobileLookDeadzone);
+  const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
   const setMobileLookSensitivity = useGameStore(s => s.setMobileLookSensitivity);
   const setMobileLookDeadzone = useGameStore(s => s.setMobileLookDeadzone);
+  const setMobileLeftHanded = useGameStore(s => s.setMobileLeftHanded);
 
   useEffect(() => {
     if (phase === "paused") refreshRecords();
@@ -216,6 +218,9 @@ export default function PauseMenu() {
               onChange={event => setMobileLookDeadzone(Number(event.currentTarget.value))}
               aria-label="Mobile aim deadzone"
             />
+            <button type="button" className={mobileLeftHanded ? "active" : ""} onClick={() => setMobileLeftHanded(!mobileLeftHanded)}>
+              <Hand size={14} /> {mobileLeftHanded ? "Left-handed layout" : "Right-handed layout"}
+            </button>
           </div>
         </footer>
       </div>

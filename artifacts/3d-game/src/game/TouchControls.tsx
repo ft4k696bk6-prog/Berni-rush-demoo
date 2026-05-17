@@ -127,12 +127,8 @@ export default function TouchControls() {
 
     touchRuntime.shooting = true;
     touchRuntime.aimActive = true;
-    if (Math.hypot(curvedAim.x, curvedAim.y) > 0.02) {
-      touchRuntime.aimX = curvedAim.x;
-      touchRuntime.aimY = curvedAim.y;
-      playerRuntime.aimWorldX = playerRuntime.x + curvedAim.x * 12;
-      playerRuntime.aimWorldZ = playerRuntime.z + curvedAim.y * 12;
-    }
+    touchRuntime.aimX = curvedAim.x;
+    touchRuntime.aimY = curvedAim.y;
     playerRuntime.screenX = event.clientX;
     playerRuntime.screenY = event.clientY;
     knob.style.transform = `translate3d(${stick.x * 0.72}px, ${stick.y * 0.72}px, 0)`;
@@ -209,13 +205,29 @@ export default function TouchControls() {
       </div>
 
       <div className="touch-buttons">
-        <button type="button" onPointerDown={event => { event.preventDefault(); touchRuntime.dashPressed = true; hapticTap(12); }}>
+        <button
+          type="button"
+          aria-label="Dash"
+          onPointerDown={event => {
+            event.preventDefault();
+            touchRuntime.dashPressed = true;
+            hapticTap(12);
+          }}
+        >
           <Zap size={22} />
         </button>
         <button type="button" onPointerDown={event => { event.preventDefault(); touchRuntime.meleePressed = true; hapticTap(12); }}>
           <Swords size={22} />
         </button>
-        <button type="button" onPointerDown={event => { event.preventDefault(); touchRuntime.powerPressed = true; hapticTap(18); }}>
+        <button
+          type="button"
+          aria-label="Power slash"
+          onPointerDown={event => {
+            event.preventDefault();
+            touchRuntime.powerPressed = true;
+            hapticTap(18);
+          }}
+        >
           <Sparkles size={22} />
         </button>
       </div>

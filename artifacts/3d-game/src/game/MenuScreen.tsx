@@ -4,6 +4,7 @@ import {
   Coins,
   Crosshair,
   Gauge,
+  Hand,
   Pickaxe,
   Play,
   RotateCcw,
@@ -13,6 +14,8 @@ import {
   ShieldPlus,
   ShoppingBag,
   Skull,
+  SlidersHorizontal,
+  Smartphone,
   Sparkles,
   Swords,
   Trophy,
@@ -74,6 +77,9 @@ export default function MenuScreen() {
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const unlockedSkinIds = useGameStore(s => s.unlockedSkinIds);
   const quality = useGameStore(s => s.quality);
+  const mobileLookSensitivity = useGameStore(s => s.mobileLookSensitivity);
+  const mobileLookDeadzone = useGameStore(s => s.mobileLookDeadzone);
+  const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
   const startGame = useGameStore(s => s.startGame);
   const restartGame = useGameStore(s => s.restartGame);
   const loadGame = useGameStore(s => s.loadGame);
@@ -81,6 +87,9 @@ export default function MenuScreen() {
   const selectSkin = useGameStore(s => s.selectSkin);
   const buySkin = useGameStore(s => s.buySkin);
   const setQuality = useGameStore(s => s.setQuality);
+  const setMobileLookSensitivity = useGameStore(s => s.setMobileLookSensitivity);
+  const setMobileLookDeadzone = useGameStore(s => s.setMobileLookDeadzone);
+  const setMobileLeftHanded = useGameStore(s => s.setMobileLeftHanded);
   const [view, setView] = useState<MenuView>("home");
   const [skinFilter, setSkinFilter] = useState<SkinFilter>("available");
   const [hasSave, setHasSave] = useState(false);
@@ -291,6 +300,39 @@ export default function MenuScreen() {
                   </button>
                 ))}
               </div>
+            </section>
+            <section className="mobile-controls-block mobile-settings-card">
+              <strong><Smartphone size={15} /> Mobile controls</strong>
+              <p>Recommended for first-person combat: landscape orientation and two-thumb grip.</p>
+              <label>
+                <span><Crosshair size={14} /> Look speed</span>
+                <b>{mobileLookSensitivity.toFixed(2)}x</b>
+              </label>
+              <input
+                type="range"
+                min={0.35}
+                max={1.35}
+                step={0.05}
+                value={mobileLookSensitivity}
+                onChange={event => setMobileLookSensitivity(Number(event.currentTarget.value))}
+                aria-label="Mobile look speed"
+              />
+              <label>
+                <span><SlidersHorizontal size={14} /> Deadzone</span>
+                <b>{Math.round(mobileLookDeadzone * 100)}%</b>
+              </label>
+              <input
+                type="range"
+                min={0.05}
+                max={0.28}
+                step={0.01}
+                value={mobileLookDeadzone}
+                onChange={event => setMobileLookDeadzone(Number(event.currentTarget.value))}
+                aria-label="Mobile aim deadzone"
+              />
+              <button type="button" className={mobileLeftHanded ? "active" : ""} onClick={() => setMobileLeftHanded(!mobileLeftHanded)}>
+                <Hand size={14} /> {mobileLeftHanded ? "Left-handed layout" : "Right-handed layout"}
+              </button>
             </section>
           </main>
         )}

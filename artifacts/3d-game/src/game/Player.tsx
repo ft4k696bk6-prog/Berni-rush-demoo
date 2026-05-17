@@ -11,6 +11,7 @@ import { shopUpgradeLevel } from "./shop";
 import { useGameStore } from "./useGameStore";
 import { WEAPON_CONFIG } from "./weapons";
 import { poisonCurrentPos } from "./poisonPositions";
+import { useCompactViewport } from "./useCompactViewport";
 
 enum Controls {
   forward = "forward",
@@ -24,56 +25,71 @@ enum Controls {
 
 const BASE_SPEED = 10.35;
 const SNAPSHOT_RATE = 0.055;
-const MOUSE_SENSITIVITY = 0.0031;
+const MOUSE_SENSITIVITY = 0.0036;
 const RUN_START_SPAWN_DELAY_MS = 950;
 
 function getCameraYawVectors() {
   const forward2 = new THREE.Vector2(Math.sin(cameraRuntime.yaw), Math.cos(cameraRuntime.yaw)).normalize();
-  const right2 = new THREE.Vector2(-Math.cos(cameraRuntime.yaw), Math.sin(cameraRuntime.yaw)).normalize();
+  const right2 = new THREE.Vector2(Math.cos(cameraRuntime.yaw), -Math.sin(cameraRuntime.yaw)).normalize();
   return { forward2, right2 };
 }
 
 function rotateCameraFromMouse(deltaX: number, deltaY: number) {
-  cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw - deltaX * MOUSE_SENSITIVITY, Math.PI * 2);
-  cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + deltaY * MOUSE_SENSITIVITY * 0.82, -0.2, 0.66);
+  cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw + deltaX * MOUSE_SENSITIVITY, Math.PI * 2);
+  cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + deltaY * MOUSE_SENSITIVITY * 0.82, -0.28, 0.72);
 }
 
-function dampAngle(current: number, target: number, lambda: number, delta: number) {
-  const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current));
-  return current + diff * (1 - Math.exp(-lambda * delta));
-}
-
-function FirstPersonCaster({ color }: { color: string }) {
+function FirstPersonCaster({ color, compact }: { color: string; compact: boolean }) {
   const coreRef = useRef<THREE.Mesh>(null);
   const flashRef = useRef<THREE.Group>(null);
   const chargeRef = useRef<THREE.Mesh>(null);
-  const compact = typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 780);
+  const slashRef = useRef<THREE.Group>(null);
 
   useFrame((_, delta) => {
     const active = Date.now() < playerRuntime.attackAnimUntil && playerRuntime.attackAnimType === "shoot";
+    const slashActive = Date.now() < playerRuntime.attackAnimUntil && playerRuntime.attackAnimType === "slash";
     const remaining = Math.max(0, playerRuntime.attackAnimUntil - Date.now()) / 260;
 
     if (coreRef.current) {
-      coreRef.current.visible = !compact || active;
+      coreRef.current.visible = !compact || active || slashActive;
       coreRef.current.rotation.z += delta * 4.2;
-      coreRef.current.position.z = active ? 0.16 - remaining * 0.1 : 0.12;
+      coreRef.current.position.z = active ? 0.16 - remaining * 0.1 : slashActive ? 0.2 : 0.12;
       const material = coreRef.current.material as THREE.MeshStandardMaterial;
       material.emissive.set(color);
-      material.emissiveIntensity = active ? 2.4 : 0.85;
+      material.emissiveIntensity = active || slashActive ? 2.4 : 0.85;
     }
 
     if (chargeRef.current) {
-      chargeRef.current.visible = !compact || active;
+      chargeRef.current.visible = !compact || active || slashActive;
       chargeRef.current.rotation.z -= delta * 9;
       const material = chargeRef.current.material as THREE.MeshStandardMaterial;
       material.emissive.set(color);
-      material.emissiveIntensity = active ? 2.2 : 1.0;
+      material.emissiveIntensity = active || slashActive ? 2.2 : 1.0;
     }
 
     if (flashRef.current) {
       flashRef.current.visible = active;
       const pulse = active ? 0.72 + (1 - remaining) * 0.5 : 0.4;
       flashRef.current.scale.setScalar(pulse);
+    }
+
+    if (slashRef.current) {
+      slashRef.current.visible = slashActive;
+      const slashRemaining = Math.max(0, playerRuntime.attackAnimUntil - Date.now()) / 430;
+      const t = THREE.MathUtils.clamp(1 - slashRemaining, 0, 1);
+      const hit = THREE.MathUtils.smoothstep(t, 0.16, 0.74);
+      const fade = 1 - THREE.MathUtils.smoothstep(t, 0.72, 1);
+      slashRef.current.rotation.z = -0.95 + hit * 1.9;
+      slashRef.current.rotation.y = -0.15 + hit * 0.3;
+      slashRef.current.position.x = compact ? 0.05 + hit * 0.08 : 0.16 + hit * 0.1;
+      slashRef.current.position.y = compact ? -0.01 + Math.sin(hit * Math.PI) * 0.08 : 0.04 + Math.sin(hit * Math.PI) * 0.11;
+      slashRef.current.scale.setScalar((compact ? 0.82 : 1) * (0.74 + hit * 0.34));
+      slashRef.current.traverse(obj => {
+        if (!("material" in obj)) return;
+        const material = obj.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
+        if ("opacity" in material) material.opacity = fade * (obj.name === "slash-core" ? 0.72 : 0.46);
+        if ("emissiveIntensity" in material) material.emissiveIntensity = fade * 3.2;
+      });
     }
   });
 
@@ -104,6 +120,17 @@ function FirstPersonCaster({ color }: { color: string }) {
           </mesh>
         ))}
       </group>
+      <group ref={slashRef} visible={false} position={[0.08, 0.02, 0.76]} rotation={[0.05, 0, -0.9]}>
+        <mesh name="slash-core" position={[0.1, 0.02, 0.26]} rotation={[0.18, 0.04, Math.PI * 0.5]}>
+          <torusGeometry args={[0.42, 0.024, 8, 44, Math.PI * 1.16]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.62} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+        </mesh>
+        <mesh position={[0.16, -0.02, 0.28]} rotation={[0.2, 0.04, Math.PI * 0.5]}>
+          <torusGeometry args={[0.54, 0.036, 8, 48, Math.PI * 1.05]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2.4} transparent opacity={0.46} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+        <pointLight intensity={1.45} distance={3.2} color={color} />
+      </group>
     </group>
   );
 }
@@ -118,17 +145,14 @@ export default function Player() {
   const selectedClassId = useGameStore(s => s.selectedClassId);
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const runId = useGameStore(s => s.runId);
+  const compactViewport = useCompactViewport();
   const [, getKeys] = useKeyboardControls<Controls>();
-  const { gl, camera } = useThree();
+  const { gl } = useThree();
 
   const velocity = useRef(new THREE.Vector2());
   const moveDir = useRef(new THREE.Vector2(0, -1));
   const dashDir = useRef(new THREE.Vector2(0, -1));
-  const raycaster = useRef(new THREE.Raycaster());
-  const aimPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), -1.2));
-  const aimTarget = useRef(new THREE.Vector3());
-  const aimNdc = useRef(new THREE.Vector2());
-  const mouseAimActive = useRef(false);
+  const lastMousePos = useRef<{ x: number; y: number } | null>(null);
   const shooting = useRef(false);
   const fireCooldown = useRef(0);
   const dashCooldown = useRef(0);
@@ -149,28 +173,57 @@ export default function Player() {
   useEffect(() => {
     const canvas = gl.domElement;
 
+    const applyMouseLook = (deltaX: number, deltaY: number, clientX: number, clientY: number) => {
+      rotateCameraFromMouse(
+        THREE.MathUtils.clamp(deltaX, -42, 42),
+        THREE.MathUtils.clamp(deltaY, -42, 42),
+      );
+      playerRuntime.screenX = clientX;
+      playerRuntime.screenY = clientY;
+      lastMousePos.current = { x: clientX, y: clientY };
+    };
+
     const handleMove = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
       if (event.pointerType && event.pointerType !== "mouse") return;
-      mouseAimActive.current = true;
-      playerRuntime.screenX = event.clientX;
-      playerRuntime.screenY = event.clientY;
+      const fallbackX = lastMousePos.current ? event.clientX - lastMousePos.current.x : 0;
+      const fallbackY = lastMousePos.current ? event.clientY - lastMousePos.current.y : 0;
+      const deltaX = Number.isFinite(event.movementX) ? event.movementX : fallbackX;
+      const deltaY = Number.isFinite(event.movementY) ? event.movementY : fallbackY;
+      applyMouseLook(deltaX, deltaY, event.clientX, event.clientY);
+    };
+    const handleLockedMouseMove = (event: MouseEvent) => {
+      if (document.pointerLockElement !== canvas) return;
+      if (useGameStore.getState().phase !== "playing") return;
+      applyMouseLook(event.movementX, event.movementY, window.innerWidth / 2, window.innerHeight / 2);
     };
     const handleDown = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
       if (event.pointerType === "mouse") {
-        mouseAimActive.current = true;
         playerRuntime.screenX = event.clientX;
         playerRuntime.screenY = event.clientY;
+        lastMousePos.current = { x: event.clientX, y: event.clientY };
+        if (document.pointerLockElement !== canvas) {
+          try {
+            const lockRequest = canvas.requestPointerLock?.();
+            if (lockRequest && "catch" in lockRequest) lockRequest.catch(() => undefined);
+          } catch {
+            // Pointer lock is optional; embedded/headless browsers can reject it.
+          }
+        }
       }
       if (event.button === 0) shooting.current = true;
     };
     const handleUp = () => { shooting.current = false; };
-    const handleLeave = () => { shooting.current = false; };
+    const handleLeave = () => {
+      shooting.current = false;
+      lastMousePos.current = null;
+    };
     const handleContext = (event: MouseEvent) => event.preventDefault();
 
     canvas.addEventListener("pointermove", handleMove);
     canvas.addEventListener("pointerdown", handleDown);
+    window.addEventListener("mousemove", handleLockedMouseMove);
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("blur", handleLeave);
     canvas.addEventListener("contextmenu", handleContext);
@@ -178,11 +231,17 @@ export default function Player() {
     return () => {
       canvas.removeEventListener("pointermove", handleMove);
       canvas.removeEventListener("pointerdown", handleDown);
+      window.removeEventListener("mousemove", handleLockedMouseMove);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("blur", handleLeave);
       canvas.removeEventListener("contextmenu", handleContext);
     };
   }, [gl.domElement]);
+
+  useEffect(() => {
+    if (phase === "playing") return;
+    if (document.pointerLockElement === gl.domElement) document.exitPointerLock?.();
+  }, [gl.domElement, phase]);
 
   useEffect(() => {
     if (groupRef.current) {
@@ -210,7 +269,7 @@ export default function Player() {
       moveDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
       dashDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
       facingAngle.current = startAngle;
-      mouseAimActive.current = false;
+      lastMousePos.current = null;
       fireCooldown.current = 0;
       dashCooldown.current = 0;
       dashTime.current = 0;
@@ -267,44 +326,31 @@ export default function Player() {
     const has360 = activeEffects.some(e => e.type === "melee_360" && e.expiresAt > now);
 
     const controls = getKeys();
-    const input = new THREE.Vector2(
+    const localMove = new THREE.Vector2(
       (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX,
-      (controls.back ? 1 : 0) - (controls.forward ? 1 : 0) + touchRuntime.moveZ,
+      (controls.forward ? 1 : 0) - (controls.back ? 1 : 0) - touchRuntime.moveZ,
     );
-    const inputActive = input.lengthSq() > 0;
+    const localMoveActive = localMove.lengthSq() > 0;
+    if (localMoveActive) localMove.normalize();
 
-    if (inputActive) {
-      input.normalize();
-      moveDir.current.copy(input);
-    }
+    const { forward2, right2 } = getCameraYawVectors();
+    const moveWorld = new THREE.Vector2(
+      right2.x * localMove.x + forward2.x * localMove.y,
+      right2.y * localMove.x + forward2.y * localMove.y,
+    );
+    const inputActive = moveWorld.lengthSq() > 0;
+    if (inputActive) moveDir.current.copy(moveWorld);
 
-    let aimX = playerRuntime.aimX;
-    let aimZ = playerRuntime.aimZ;
+    let aimX = Math.sin(cameraRuntime.yaw);
+    let aimZ = Math.cos(cameraRuntime.yaw);
 
     if (touchRuntime.aimActive) {
-      const aimLen = Math.hypot(touchRuntime.aimX, touchRuntime.aimY);
-      if (aimLen > 0.04) {
-        aimX = touchRuntime.aimX / aimLen;
-        aimZ = touchRuntime.aimY / aimLen;
-      }
-    } else if (mouseAimActive.current && typeof window !== "undefined") {
-      aimNdc.current.set(
-        (playerRuntime.screenX / Math.max(1, window.innerWidth)) * 2 - 1,
-        -(playerRuntime.screenY / Math.max(1, window.innerHeight)) * 2 + 1,
-      );
-      raycaster.current.setFromCamera(aimNdc.current, camera);
-      if (raycaster.current.ray.intersectPlane(aimPlane.current, aimTarget.current)) {
-        const dx = aimTarget.current.x - playerRuntime.x;
-        const dz = aimTarget.current.z - playerRuntime.z;
-        const len = Math.hypot(dx, dz);
-        if (len > 0.1) {
-          aimX = dx / len;
-          aimZ = dz / len;
-        }
-      }
-    } else if (inputActive) {
-      aimX = input.x;
-      aimZ = input.y;
+      const yawSpeed = compactViewport ? 2.9 : 2.55;
+      const pitchSpeed = compactViewport ? 2.0 : 1.75;
+      cameraRuntime.yaw = THREE.MathUtils.euclideanModulo(cameraRuntime.yaw + touchRuntime.aimX * yawSpeed * delta, Math.PI * 2);
+      cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch + touchRuntime.aimY * pitchSpeed * delta, -0.24, 0.72);
+      aimX = Math.sin(cameraRuntime.yaw);
+      aimZ = Math.cos(cameraRuntime.yaw);
     }
 
     playerRuntime.aimX = aimX;
@@ -323,7 +369,7 @@ export default function Player() {
     const loadoutMods = getLoadoutModifiers(store.selectedClassId, store.selectedSkinId);
     const klass = getClassDefinition(store.selectedClassId);
     const speed = BASE_SPEED * loadoutMods.moveSpeedMultiplier * (1 + store.stats.speed * 0.045 + swiftBoots * 0.055 + moveUpgrade * 0.045) * (hasSpeed ? 1.45 : 1) * (hasFlight ? 1.08 : 1);
-    const targetVelocity = input.multiplyScalar(speed);
+    const targetVelocity = moveWorld.multiplyScalar(speed);
     const accel = 1 - Math.exp(-24 * delta);
     velocity.current.lerp(targetVelocity, accel);
 
@@ -403,7 +449,7 @@ export default function Player() {
     }
 
     groupRef.current.position.set(playerRuntime.x, playerRuntime.y, playerRuntime.z);
-    groupRef.current.rotation.y = dampAngle(groupRef.current.rotation.y, facingAngle.current, 15, delta);
+    groupRef.current.rotation.y = facingAngle.current;
 
     if (bodyRef.current) {
       const moving = velocity.current.lengthSq() > 0.25;
@@ -459,9 +505,9 @@ export default function Player() {
 
   return (
     <group ref={groupRef} position={[0, 1.2, 0]}>
-      {false && <FirstPersonCaster color={classColor} />}
+      <FirstPersonCaster color={classColor} compact={compactViewport} />
 
-      <group visible>
+      <group visible={false}>
         <pointLight ref={glowRef} intensity={0.8} distance={6} color={classColor} />
 
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.12, 0]}>

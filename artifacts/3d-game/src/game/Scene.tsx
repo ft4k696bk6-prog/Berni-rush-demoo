@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { ContactShadows, KeyboardControls } from "@react-three/drei";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import Arena from "./Arena";
 import Player from "./Player";
@@ -36,7 +36,58 @@ const keyMap = [
   { name: Controls.power, keys: ["KeyQ", "KeyE"] },
 ];
 
-function SceneContent() {
+type SceneProfile = {
+  dpr: number | [number, number];
+  antialias: boolean;
+  powerPreference: WebGLPowerPreference;
+  shadowMapSize: [number, number];
+  contactShadowResolution: number;
+  performanceMin: number;
+  toneMappingExposure: number;
+};
+
+function detectMobileLikeViewport() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) <= 900;
+}
+
+function getSceneProfile(quality: "low" | "medium" | "high", mobileLike: boolean): SceneProfile {
+  if (quality === "low") {
+    return {
+      dpr: mobileLike ? 0.9 : 1,
+      antialias: false,
+      powerPreference: mobileLike ? "default" : "high-performance",
+      shadowMapSize: [1024, 1024],
+      contactShadowResolution: 384,
+      performanceMin: mobileLike ? 0.48 : 0.62,
+      toneMappingExposure: 0.97,
+    };
+  }
+
+  if (quality === "high") {
+    return {
+      dpr: mobileLike ? [1, 1.35] : [1.15, 2.25],
+      antialias: !mobileLike,
+      powerPreference: mobileLike ? "default" : "high-performance",
+      shadowMapSize: mobileLike ? [2048, 2048] : [4096, 4096],
+      contactShadowResolution: mobileLike ? 512 : 1024,
+      performanceMin: mobileLike ? 0.5 : 0.65,
+      toneMappingExposure: mobileLike ? 1 : 1.02,
+    };
+  }
+
+  return {
+    dpr: mobileLike ? [0.95, 1.2] : [1, 1.7],
+    antialias: !mobileLike,
+    powerPreference: mobileLike ? "default" : "high-performance",
+    shadowMapSize: mobileLike ? [1536, 1536] : [2048, 2048],
+    contactShadowResolution: mobileLike ? 448 : 512,
+    performanceMin: mobileLike ? 0.5 : 0.65,
+    toneMappingExposure: 0.98,
+  };
+}
+
+function SceneContent({ shadowMapSize, contactShadowResolution }: { shadowMapSize: [number, number]; contactShadowResolution: number }) {
   const drugs = useGameStore(s => s.drugs);
   const poisons = useGameStore(s => s.poisons);
   const projectiles = useGameStore(s => s.projectiles);
@@ -58,7 +109,7 @@ function SceneContent() {
         position={[14, 26, 16]}
         intensity={quality === "low" ? 1.75 : 2.65}
         castShadow={quality !== "low"}
-        shadow-mapSize={quality === "high" ? [4096, 4096] : [2048, 2048]}
+        shadow-mapSize={shadowMapSize}
         shadow-camera-far={100}
         shadow-camera-left={-48}
         shadow-camera-right={48}
@@ -72,7 +123,17 @@ function SceneContent() {
       <color attach="background" args={[theme.sky]} />
 
       <Arena />
-      {quality !== "low" && <ContactShadows position={[0, 0.045, 0]} opacity={0.5} scale={94} blur={2.25} far={18} resolution={quality === "high" ? 1024 : 512} color={theme.baseDark} />}
+      {quality !== "low" && (
+        <ContactShadows
+          position={[0, 0.045, 0]}
+          opacity={0.5}
+          scale={94}
+          blur={2.25}
+          far={18}
+          resolution={contactShadowResolution}
+          color={theme.baseDark}
+        />
+      )}
 
       {inRun && (
         <>
@@ -95,12 +156,29 @@ function SceneContent() {
 
 export default function Scene() {
   const [webglFailed, setWebglFailed] = useState(false);
+  const [mobileLike, setMobileLike] = useState(() => detectMobileLikeViewport());
   const quality = useGameStore(s => s.quality);
-  const dpr = useMemo<[number, number] | number>(() => {
-    if (quality === "low") return 1;
-    if (quality === "medium") return [1, 1.7];
-    return [1.15, 2.25];
-  }, [quality]);
+  const profile = useMemo(() => getSceneProfile(quality, mobileLike), [quality, mobileLike]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(pointer: coarse)");
+    const syncViewport = () => setMobileLike(detectMobileLikeViewport());
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    if (media.addEventListener) {
+      media.addEventListener("change", syncViewport);
+    } else {
+      media.addListener(syncViewport);
+    }
+    return () => {
+      window.removeEventListener("resize", syncViewport);
+      if (media.removeEventListener) {
+        media.removeEventListener("change", syncViewport);
+      } else {
+        media.removeListener(syncViewport);
+      }
+    };
+  }, []);
 
   if (webglFailed) {
     return (
@@ -118,23 +196,23 @@ export default function Scene() {
     <KeyboardControls map={keyMap}>
       <Canvas
         shadows={quality !== "low"}
-        dpr={dpr}
+        dpr={profile.dpr}
         frameloop="always"
-        performance={{ min: 0.65 }}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        performance={{ min: profile.performanceMin }}
+        gl={{ antialias: profile.antialias, powerPreference: profile.powerPreference }}
         style={{ width: "100vw", height: "100vh" }}
         camera={{ fov: 52, near: 0.1, far: 150, position: [0, 17, 15] }}
         onCreated={({ gl }) => {
           if (!gl.getContext()) setWebglFailed(true);
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = quality === "high" ? 1.02 : 0.98;
+          gl.toneMappingExposure = profile.toneMappingExposure;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
           gl.setClearColor("#143027");
         }}
       >
         <Suspense fallback={null}>
-          <SceneContent />
+          <SceneContent shadowMapSize={profile.shadowMapSize} contactShadowResolution={profile.contactShadowResolution} />
         </Suspense>
       </Canvas>
     </KeyboardControls>

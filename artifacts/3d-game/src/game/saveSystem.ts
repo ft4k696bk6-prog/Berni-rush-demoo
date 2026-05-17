@@ -77,6 +77,7 @@ export const defaultProfile = (): ProfileData => ({
     mobileControls: {
       lookSensitivity: 0.72,
       lookDeadzone: 0.1,
+      leftHanded: false,
     },
   },
 });
@@ -85,6 +86,7 @@ function clampMobileControls(input?: Partial<MobileControlSettings>): MobileCont
   return {
     lookSensitivity: Math.max(0.35, Math.min(1.35, input?.lookSensitivity ?? 0.72)),
     lookDeadzone: Math.max(0.05, Math.min(0.28, input?.lookDeadzone ?? 0.1)),
+    leftHanded: Boolean(input?.leftHanded),
   };
 }
 
@@ -233,6 +235,7 @@ export function saveGameState(state: GameState) {
       mobileControls: {
         lookSensitivity: state.mobileLookSensitivity,
         lookDeadzone: state.mobileLookDeadzone,
+        leftHanded: state.mobileLeftHanded,
       },
     },
   }));

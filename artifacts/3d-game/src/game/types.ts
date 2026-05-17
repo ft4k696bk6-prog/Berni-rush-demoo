@@ -5,6 +5,7 @@ export type CameraViewMode = "first_person";
 export interface MobileControlSettings {
   lookSensitivity: number;
   lookDeadzone: number;
+  leftHanded: boolean;
 }
 
 export type ClassId = "knight" | "ranger" | "mage" | "assassin" | "tank" | "miner";
@@ -305,6 +306,7 @@ export interface GameState {
   cameraViewMode: CameraViewMode;
   mobileLookSensitivity: number;
   mobileLookDeadzone: number;
+  mobileLeftHanded: boolean;
 }
 
 export const STAT_LABELS: Record<StatKey, { label: string; description: string }> = {

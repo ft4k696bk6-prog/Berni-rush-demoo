@@ -10,6 +10,7 @@ import "./game.css";
 
 export default function Game() {
   const phase = useGameStore(s => s.phase);
+  const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
   const pauseGame = useGameStore(s => s.pauseGame);
   const resumeGame = useGameStore(s => s.resumeGame);
   const saveGame = useGameStore(s => s.saveGame);
@@ -44,8 +45,29 @@ export default function Game() {
     };
   }, [pauseGame, saveGame]);
 
+  useEffect(() => {
+    const isCoarsePortrait = () => {
+      if (typeof window === "undefined") return false;
+      return window.matchMedia("(pointer: coarse)").matches && window.innerHeight > window.innerWidth;
+    };
+
+    const handleOrientation = () => {
+      if (!isCoarsePortrait()) return;
+      if (useGameStore.getState().phase !== "playing") return;
+      saveGame();
+      pauseGame();
+    };
+
+    window.addEventListener("resize", handleOrientation);
+    window.addEventListener("orientationchange", handleOrientation);
+    return () => {
+      window.removeEventListener("resize", handleOrientation);
+      window.removeEventListener("orientationchange", handleOrientation);
+    };
+  }, [pauseGame, saveGame]);
+
   return (
-    <div className={`game-root ${phase}`}>
+    <div className={`game-root ${phase} ${mobileLeftHanded ? "mobile-left-handed" : ""}`.trim()}>
       <Scene />
       <HUD />
       <AbilityDraft />

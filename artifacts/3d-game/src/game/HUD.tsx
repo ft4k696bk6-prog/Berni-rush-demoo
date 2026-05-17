@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { BadgePlus, Clock3, Coins, Crosshair, Eye, EyeOff, Gauge, HeartPulse, Pause, Skull, Swords, Trophy, Zap } from "lucide-react";
+import { BadgePlus, Clock3, Coins, Eye, EyeOff, Gauge, HeartPulse, Pause, RotateCw, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
 import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
 import { getClassDefinition, getSkinDefinition } from "./loadout";
@@ -38,8 +38,8 @@ export default function HUD() {
   const stats = useGameStore(s => s.stats);
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
-  const skillStatus = useGameStore(s => s.skillStatus);
   const impactBursts = useGameStore(s => s.impactBursts);
+  const meleeSwings = useGameStore(s => s.meleeSwings);
   const poisons = useGameStore(s => s.poisons);
   const playerPos = useGameStore(s => s.playerPos);
   const playerAngle = useGameStore(s => s.playerAngle);
@@ -51,25 +51,13 @@ export default function HUD() {
   const [hudMode, setHudMode] = useState<"minimal" | "full">(() => (
     typeof window !== "undefined" && (window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 780) ? "minimal" : "full"
   ));
-  const [cursor, setCursor] = useState({ x: 0, y: 0, visible: false });
+  const [mobilePortrait, setMobilePortrait] = useState(() => (
+    typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches && window.innerHeight > window.innerWidth
+  ));
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const handleMove = (event: PointerEvent) => {
-      if (event.pointerType && event.pointerType !== "mouse") return;
-      setCursor({ x: event.clientX, y: event.clientY, visible: true });
-    };
-    const handleLeave = () => setCursor(c => ({ ...c, visible: false }));
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("blur", handleLeave);
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("blur", handleLeave);
-    };
   }, []);
 
   useEffect(() => {
@@ -81,6 +69,19 @@ export default function HUD() {
     };
     window.addEventListener("keydown", handleHudToggle);
     return () => window.removeEventListener("keydown", handleHudToggle);
+  }, []);
+
+  useEffect(() => {
+    const syncMobilePortrait = () => {
+      setMobilePortrait(window.matchMedia("(pointer: coarse)").matches && window.innerHeight > window.innerWidth);
+    };
+    syncMobilePortrait();
+    window.addEventListener("resize", syncMobilePortrait);
+    window.addEventListener("orientationchange", syncMobilePortrait);
+    return () => {
+      window.removeEventListener("resize", syncMobilePortrait);
+      window.removeEventListener("orientationchange", syncMobilePortrait);
+    };
   }, []);
 
   const hpPct = Math.max(0, Math.min(100, (health / maxHealth) * 100));
@@ -120,6 +121,11 @@ export default function HUD() {
     }
     return null;
   }, [impactBursts, now]);
+  const latestMelee = useMemo(() => {
+    const swing = meleeSwings[meleeSwings.length - 1];
+    if (!swing || now - swing.startedAt > 560) return null;
+    return swing;
+  }, [meleeSwings, now]);
   const threats = useMemo(() => {
     return poisons
       .map(enemy => {
@@ -242,26 +248,17 @@ export default function HUD() {
         </div>
       )}
 
-      <div className="skill-dock" aria-hidden="true">
-        {Object.values(skillStatus).map(skill => {
-          const ready = now >= skill.readyAt;
-          const remaining = Math.max(0, skill.readyAt - now);
-          const progress = ready ? 100 : Math.max(0, 100 - (remaining / Math.max(1, skill.cooldownMs)) * 100);
-          const Icon = skill.id === "dash" ? Zap : skill.id === "power_slash" ? Swords : Crosshair;
-          return (
-            <div key={skill.id} className={`skill-chip skill-${skill.id} ${ready ? "ready" : ""} ${skill.active ? "active" : ""}`}>
-              <Icon size={16} />
-              <span>{skill.label}</span>
-              <b>{ready ? "READY" : `${Math.ceil(remaining / 1000)}s`}</b>
-              <i style={{ width: `${progress}%` }} />
-            </div>
-          );
-        })}
-      </div>
-
       {phase === "playing" && (
         <div className="hud-mode-hint">
           {hudMode === "full" ? "TAB: minimal HUD" : "TAB: full HUD"}
+        </div>
+      )}
+
+      {mobilePortrait && (
+        <div className="mobile-orientation-hint" aria-live="polite">
+          <RotateCw size={14} />
+          <strong>Rotate to landscape for first-person combat</strong>
+          <span>Run auto-pauses in portrait to prevent unfair hits.</span>
         </div>
       )}
 
@@ -316,12 +313,27 @@ export default function HUD() {
         </div>
       )}
 
-      {phase === "playing" && cursor.visible && (
-        <div className="cursor-reticle" style={{ transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)` }}>
-          <Crosshair size={26} />
-          <Zap size={12} />
+      {phase === "playing" && (
+        <div className={`fpp-reticle ${recentHit ? "hit" : ""}`} aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+          <b />
         </div>
       )}
+
+      {phase === "playing" && latestMelee && (
+        <div
+          key={latestMelee.id}
+          className={`fpp-melee-slash ${latestMelee.is360 ? "power" : ""} ${latestMelee.theme ?? "knight"}`}
+          aria-hidden="true"
+        >
+          <i />
+          <b />
+        </div>
+      )}
+
     </div>
   );
 }

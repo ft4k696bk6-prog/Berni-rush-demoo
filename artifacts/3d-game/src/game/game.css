@@ -67,7 +67,6 @@ button {
 .hud-shell.full .hud-panel,
 .hud-shell.full .hud-center-panel,
 .hud-shell.full .effect-chip,
-.hud-shell.full .skill-chip,
 .hud-shell.full .boss-health {
   animation: hud-soft-in 180ms ease-out;
 }
@@ -365,85 +364,6 @@ button {
   opacity: 0.92;
 }
 
-.skill-dock {
-  position: fixed;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.skill-chip {
-  position: relative;
-  min-width: 92px;
-  min-height: 40px;
-  overflow: hidden;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  align-items: center;
-  column-gap: 7px;
-  padding: 6px 9px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  background: rgba(5, 12, 20, 0.76);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
-}
-
-.skill-chip svg {
-  grid-row: 1 / 3;
-  color: #9fb6c1;
-}
-
-.skill-chip span {
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 1000;
-  line-height: 1;
-}
-
-.skill-chip b {
-  color: #9fb6c1;
-  font-size: 10px;
-  font-weight: 950;
-}
-
-.skill-chip i {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 3px;
-  background: linear-gradient(90deg, #7dfcff, #ffd85a);
-}
-
-.skill-chip.ready {
-  border-color: rgba(255, 216, 90, 0.5);
-}
-
-.skill-chip.ready svg,
-.skill-chip.ready b {
-  color: #ffd85a;
-}
-
-.skill-chip.active {
-  box-shadow: 0 0 24px rgba(125, 252, 255, 0.22), 0 14px 28px rgba(0, 0, 0, 0.22);
-}
-
-.hud-shell.minimal .skill-dock {
-  bottom: 18px;
-}
-
-.hud-shell.minimal .skill-power_slash {
-  min-width: 76px;
-  min-height: 36px;
-  padding: 5px 7px 7px;
-  background: rgba(5, 12, 20, 0.58);
-  border-color: rgba(255, 216, 90, 0.28);
-}
-
 .hud-mode-hint {
   position: fixed;
   left: 50%;
@@ -548,28 +468,6 @@ button {
 .center-message.danger strong { color: #ff5d70; }
 .center-message.save strong { color: #7dffb2; }
 
-.cursor-reticle {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 42px;
-  height: 42px;
-  margin: -21px 0 0 -21px;
-  display: grid;
-  place-items: center;
-  color: #f9fdff;
-  text-shadow: 0 0 10px rgba(125, 252, 255, 0.9);
-  opacity: 0.86;
-  mix-blend-mode: screen;
-}
-
-.cursor-reticle svg:last-child {
-  position: absolute;
-  right: 4px;
-  bottom: 3px;
-  color: #ffd85a;
-}
-
 .touch-controls {
   position: fixed;
   inset: 0;
@@ -596,6 +494,18 @@ button {
 .touch-aim-zone {
   right: 0;
   width: 56vw;
+}
+
+.game-root.mobile-left-handed .touch-move-zone {
+  left: auto;
+  right: 0;
+  width: 56vw;
+}
+
+.game-root.mobile-left-handed .touch-aim-zone {
+  left: 0;
+  right: auto;
+  width: 46vw;
 }
 
 .touch-pad {
@@ -632,6 +542,16 @@ button {
 
 .touch-pad-right {
   right: max(22px, env(safe-area-inset-right));
+}
+
+.game-root.mobile-left-handed .touch-pad-left {
+  left: auto;
+  right: max(22px, env(safe-area-inset-right));
+}
+
+.game-root.mobile-left-handed .touch-pad-right {
+  left: max(22px, env(safe-area-inset-left));
+  right: auto;
 }
 
 .touch-pad::before {
@@ -675,9 +595,15 @@ button {
   pointer-events: auto;
 }
 
+.game-root.mobile-left-handed .touch-buttons {
+  left: max(152px, calc(env(safe-area-inset-left) + 152px));
+  right: auto;
+}
+
 .touch-buttons button {
   width: 54px;
   height: 54px;
+  position: relative;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -910,7 +836,8 @@ button {
 .pause-actions button,
 .weapon-card button,
 .quality-row button,
-.menu-actions button {
+.menu-actions button,
+.mobile-controls-block button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -931,6 +858,8 @@ button {
 .quality-row button:hover,
 .quality-row button.active,
 .menu-actions button:hover,
+.mobile-controls-block button:hover,
+.mobile-controls-block button.active,
 .icon-button:hover {
   border-color: rgba(125, 252, 255, 0.58);
   background: rgba(125, 252, 255, 0.14);
@@ -1504,6 +1433,57 @@ button {
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22);
 }
 
+.mobile-orientation-hint {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 72;
+  display: none;
+  width: min(86vw, 320px);
+  transform: translate(-50%, -50%);
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 216, 90, 0.44);
+  border-radius: 10px;
+  background: rgba(4, 11, 19, 0.92);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.38), inset 0 0 22px rgba(255, 216, 90, 0.08);
+  text-align: center;
+}
+
+.mobile-orientation-hint strong,
+.mobile-orientation-hint span {
+  display: block;
+}
+
+.mobile-orientation-hint svg {
+  margin: 0 auto 5px;
+  color: #ffd85a;
+}
+
+.mobile-orientation-hint strong {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 0.2px;
+}
+
+.mobile-orientation-hint span {
+  margin-top: 4px;
+  color: #d7edf5;
+  font-size: 11px;
+  font-weight: 840;
+  line-height: 1.32;
+}
+
+.game-root.mobile-left-handed .mobile-pause-button {
+  left: max(10px, env(safe-area-inset-left));
+  right: auto;
+}
+
+.game-root.mobile-left-handed .mobile-hud-toggle {
+  left: max(10px, env(safe-area-inset-left));
+  right: auto;
+}
+
 .threat-ring {
   position: fixed;
   left: 50%;
@@ -1622,6 +1602,121 @@ button {
 .hit-marker.magic i {
   width: 20px;
 }
+
+.fpp-reticle {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 24;
+  width: 56px;
+  height: 56px;
+  display: block;
+  pointer-events: none;
+  opacity: 0.9;
+  transform: translate(-50%, -50%) scale(1);
+  transition: transform 90ms ease, opacity 120ms ease;
+}
+
+.fpp-reticle i {
+  position: absolute;
+  width: 10px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(221, 244, 255, 0.95);
+  box-shadow: 0 0 10px rgba(125, 252, 255, 0.68);
+}
+
+.fpp-reticle i:nth-child(1) {
+  left: 14px;
+  top: 18px;
+  transform: rotate(42deg);
+}
+
+.fpp-reticle i:nth-child(2) {
+  right: 14px;
+  top: 18px;
+  transform: rotate(-42deg);
+}
+
+.fpp-reticle i:nth-child(3) {
+  left: 14px;
+  bottom: 18px;
+  transform: rotate(-42deg);
+}
+
+.fpp-reticle i:nth-child(4) {
+  right: 14px;
+  bottom: 18px;
+  transform: rotate(42deg);
+}
+
+.fpp-reticle b {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #f8fdff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8), 0 0 20px rgba(125, 252, 255, 0.36);
+}
+
+.fpp-reticle.hit {
+  animation: mobile-reticle-hit 200ms ease-out;
+}
+
+.fpp-melee-slash {
+  --slash-color: #9be7ff;
+  --slash-edge: #ffffff;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 25;
+  width: min(44vw, 430px);
+  height: min(30vw, 270px);
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  animation: fpp-slash-sweep 360ms cubic-bezier(0.16, 0.84, 0.22, 1) both;
+  mix-blend-mode: screen;
+}
+
+.fpp-melee-slash i,
+.fpp-melee-slash b {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border-top: 8px solid var(--slash-edge);
+  border-right: 4px solid transparent;
+  filter: drop-shadow(0 0 10px var(--slash-color)) drop-shadow(0 0 24px var(--slash-color));
+}
+
+.fpp-melee-slash b {
+  inset: 16px 20px 28px;
+  border-top-width: 18px;
+  border-color: var(--slash-color) transparent transparent transparent;
+  opacity: 0.48;
+  filter: blur(1px) drop-shadow(0 0 22px var(--slash-color));
+}
+
+.fpp-melee-slash.power {
+  width: min(52vw, 500px);
+  height: min(52vw, 500px);
+  transform: translate(-50%, -50%) rotate(0deg);
+  animation-name: fpp-power-pulse;
+}
+
+.fpp-melee-slash.power i,
+.fpp-melee-slash.power b {
+  border: 7px solid var(--slash-color);
+  box-shadow: inset 0 0 28px var(--slash-color), 0 0 34px var(--slash-color);
+}
+
+.fpp-melee-slash.ranger { --slash-color: #42d6ae; --slash-edge: #dfffee; }
+.fpp-melee-slash.mage { --slash-color: #ff7c45; --slash-edge: #fff0c7; }
+.fpp-melee-slash.assassin { --slash-color: #ff5daa; --slash-edge: #fff0fb; }
+.fpp-melee-slash.tank { --slash-color: #ffd36a; --slash-edge: #fff3bd; }
+.fpp-melee-slash.miner { --slash-color: #f7c251; --slash-edge: #fff2a8; }
 
 .loadout-menu {
   width: min(1040px, calc(100vw - 36px));
@@ -2152,6 +2247,27 @@ button {
   align-content: start;
 }
 
+.settings-view .mobile-settings-card {
+  display: grid;
+  align-content: start;
+  justify-content: stretch;
+  gap: 7px;
+  min-height: 0;
+}
+
+.settings-view .mobile-settings-card p {
+  color: #9fb6c1;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.4;
+}
+
+.settings-view .mobile-settings-card button {
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
 .quality-pills {
   gap: 8px;
 }
@@ -2205,6 +2321,53 @@ button {
   100% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(1.18);
+  }
+}
+
+@keyframes mobile-reticle-hit {
+  0% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes fpp-slash-sweep {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-56deg) scale(0.72);
+  }
+  18% {
+    opacity: 0.95;
+  }
+  72% {
+    opacity: 0.82;
+    transform: translate(-50%, -50%) rotate(22deg) scale(1.04);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(38deg) scale(1.12);
+  }
+}
+
+@keyframes fpp-power-pulse {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.54);
+  }
+  24% {
+    opacity: 0.86;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.2);
   }
 }
 
@@ -2333,8 +2496,8 @@ button {
     display: grid;
   }
 
-  .cursor-reticle {
-    display: none;
+  .mobile-orientation-hint {
+    display: block;
   }
 
   .threat-marker {
@@ -2490,47 +2653,6 @@ button {
   .effect-chip span,
   .effect-chip b {
     font-size: 9px;
-  }
-
-  .skill-dock {
-    bottom: max(224px, calc(env(safe-area-inset-bottom) + 224px));
-    gap: 5px;
-  }
-
-  .hud-shell.minimal .skill-dock {
-    left: auto;
-    right: max(8px, env(safe-area-inset-right));
-    top: calc(max(8px, env(safe-area-inset-top)) + 78px);
-    bottom: auto;
-    transform: none;
-  }
-
-  .skill-chip {
-    min-width: 62px;
-    min-height: 34px;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 2px;
-    padding: 5px 6px 7px;
-  }
-
-  .skill-chip svg {
-    grid-row: auto;
-    width: 14px;
-    height: 14px;
-  }
-
-  .skill-chip span {
-    font-size: 9px;
-  }
-
-  .skill-chip b {
-    font-size: 8px;
-  }
-
-  .hud-shell.minimal .skill-power_slash {
-    min-width: 66px;
-    min-height: 32px;
   }
 
   .center-message {
@@ -2771,6 +2893,11 @@ button {
     right: max(126px, calc(env(safe-area-inset-right) + 126px));
     bottom: max(16px, calc(env(safe-area-inset-bottom) + 16px));
     gap: 7px;
+  }
+
+  .game-root.mobile-left-handed .touch-buttons {
+    left: max(126px, calc(env(safe-area-inset-left) + 126px));
+    right: auto;
   }
 
   .touch-buttons button {

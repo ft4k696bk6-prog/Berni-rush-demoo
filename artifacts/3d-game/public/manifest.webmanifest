@@ -2,10 +2,13 @@
   "name": "Berni Rush",
   "short_name": "Berni Rush",
   "description": "Mobile roguelite arena survival game with classes, skins and boss fights.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",
-  "orientation": "any",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape-primary",
+  "categories": ["games", "entertainment"],
   "background_color": "#061019",
   "theme_color": "#061019",
   "icons": [
@@ -13,6 +16,12 @@
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/berni-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
