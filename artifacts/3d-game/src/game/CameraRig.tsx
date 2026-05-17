@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { playerRuntime } from "./gameRuntime";
+import { cameraRuntime, playerRuntime } from "./gameRuntime";
 import { useGameStore } from "./useGameStore";
 import { useCompactViewport } from "./useCompactViewport";
 
@@ -10,6 +10,8 @@ const DESKTOP_BACK_DISTANCE = 10.6;
 const MOBILE_BACK_DISTANCE = 13.4;
 const DESKTOP_HEIGHT = 6.6;
 const MOBILE_HEIGHT = 8.4;
+const CAMERA_PITCH_MIN = -0.22;
+const CAMERA_PITCH_MAX = 0.52;
 
 export default function CameraRig() {
   const { camera } = useThree();
@@ -45,8 +47,11 @@ export default function CameraRig() {
     const forwardX = playerRuntime.aimX / forwardLen;
     const forwardZ = playerRuntime.aimZ / forwardLen;
     const backDistance = compact ? MOBILE_BACK_DISTANCE : DESKTOP_BACK_DISTANCE;
-    const height = compact ? MOBILE_HEIGHT : DESKTOP_HEIGHT;
-    const aimLead = compact ? 2.4 : 3.1;
+    const pitch = THREE.MathUtils.clamp(cameraRuntime.pitch, CAMERA_PITCH_MIN, CAMERA_PITCH_MAX);
+    const normalizedPitch = (pitch - 0.18);
+    const height = (compact ? MOBILE_HEIGHT : DESKTOP_HEIGHT) + normalizedPitch * (compact ? 4.4 : 3.5);
+    const aimLead = (compact ? 2.4 : 3.1) + normalizedPitch * 1.2;
+    const lookHeight = THREE.MathUtils.clamp(1.35 + normalizedPitch * 4.7, 0.72, 3.65);
 
     targetPos.current.set(
       playerRuntime.x - forwardX * backDistance,
@@ -55,7 +60,7 @@ export default function CameraRig() {
     );
     lookTarget.current.set(
       playerRuntime.x + forwardX * aimLead,
-      playerRuntime.y + 1.35,
+      playerRuntime.y + lookHeight,
       playerRuntime.z + forwardZ * aimLead,
     );
 

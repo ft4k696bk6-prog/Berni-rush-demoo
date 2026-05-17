@@ -12,12 +12,12 @@ function clampStick(dx: number, dy: number, limit: number) {
   return { x: dx * scale, y: dy * scale, nx: dx / len, ny: dy / len };
 }
 
-function applyTurnCurve(nx: number, deadzone: number, sensitivity: number) {
-  const magnitude = Math.abs(nx);
+function applyLookCurve(value: number, deadzone: number, sensitivity: number, axisScale = 1) {
+  const magnitude = Math.abs(value);
   if (magnitude <= deadzone) return 0;
   const normalized = Math.min(1, (magnitude - deadzone) / (1 - deadzone));
-  const curved = normalized * 0.45 + normalized * normalized * 0.55;
-  return Math.sign(nx) * curved * sensitivity;
+  const curved = normalized * 0.34 + Math.pow(normalized, 1.55) * 0.66;
+  return Math.sign(value) * curved * sensitivity * axisScale;
 }
 
 function hapticTap(strength = 8) {
@@ -121,12 +121,15 @@ export default function TouchControls() {
     const dx = event.clientX - rightOrigin.current.x;
     const dy = event.clientY - rightOrigin.current.y;
     const stick = clampStick(dx, dy, limit);
-    const turn = applyTurnCurve(stick.nx, Math.max(0.08, mobileLookDeadzone), Math.max(0.42, mobileLookSensitivity));
+    const deadzone = Math.max(0.06, mobileLookDeadzone * 0.86);
+    const sensitivity = Math.max(0.54, mobileLookSensitivity);
+    const turn = applyLookCurve(stick.nx, deadzone, sensitivity, 1.28);
+    const pitch = applyLookCurve(stick.ny, deadzone, sensitivity, 0.74);
 
     touchRuntime.shooting = true;
     touchRuntime.aimActive = true;
     touchRuntime.aimX = turn;
-    touchRuntime.aimY = stick.ny;
+    touchRuntime.aimY = pitch;
     playerRuntime.screenX = event.clientX;
     playerRuntime.screenY = event.clientY;
     knob.style.transform = `translate3d(${stick.x * 0.72}px, ${stick.y * 0.72}px, 0)`;

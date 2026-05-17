@@ -26,7 +26,11 @@ const BASE_SPEED = 10.35;
 const SNAPSHOT_RATE = 0.055;
 const RUN_START_SPAWN_DELAY_MS = 950;
 const MOUSE_LOOK_SENSITIVITY = 0.0027;
-const MOBILE_TURN_SPEED = 3.8;
+const MOUSE_PITCH_SENSITIVITY = 0.0018;
+const MOBILE_TURN_SPEED = 5.15;
+const MOBILE_PITCH_SPEED = 1.85;
+const CAMERA_PITCH_MIN = -0.22;
+const CAMERA_PITCH_MAX = 0.52;
 
 export default function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -61,25 +65,28 @@ export default function Player() {
   const cleanupTimer = useRef(0);
   const facingAngle = useRef(Math.PI);
   const mouseLookDelta = useRef(0);
+  const mousePitchDelta = useRef(0);
 
   useEffect(() => {
     const canvas = gl.domElement;
 
-    const updatePointerLook = (movementX: number, clientX: number, clientY: number) => {
+    const updatePointerLook = (movementX: number, movementY: number, clientX: number, clientY: number) => {
       const clampedMovement = THREE.MathUtils.clamp(movementX, -80, 80);
+      const clampedPitch = THREE.MathUtils.clamp(movementY, -70, 70);
       mouseLookDelta.current += clampedMovement;
+      mousePitchDelta.current += clampedPitch;
       playerRuntime.screenX = clientX;
       playerRuntime.screenY = clientY;
     };
 
     const handleMouseMove = (event: MouseEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
-      updatePointerLook(event.movementX || 0, event.clientX, event.clientY);
+      updatePointerLook(event.movementX || 0, event.movementY || 0, event.clientX, event.clientY);
     };
     const handleDown = (event: PointerEvent) => {
       if (useGameStore.getState().phase !== "playing") return;
       if (event.pointerType === "mouse") {
-        updatePointerLook(event.movementX || 0, event.clientX, event.clientY);
+        updatePointerLook(event.movementX || 0, event.movementY || 0, event.clientX, event.clientY);
         if (document.pointerLockElement !== canvas) {
           try {
             const lockRequest = canvas.requestPointerLock?.();
@@ -145,7 +152,9 @@ export default function Player() {
       dashDir.current.set(playerRuntime.aimX, playerRuntime.aimZ);
       facingAngle.current = startAngle;
       cameraRuntime.yaw = startAngle;
+      cameraRuntime.pitch = THREE.MathUtils.clamp(cameraRuntime.pitch || 0.18, CAMERA_PITCH_MIN, CAMERA_PITCH_MAX);
       mouseLookDelta.current = 0;
+      mousePitchDelta.current = 0;
       fireCooldown.current = 0;
       dashCooldown.current = 0;
       dashTime.current = 0;
@@ -211,9 +220,23 @@ export default function Player() {
 
     let targetAngle = facingAngle.current - mouseLookDelta.current * MOUSE_LOOK_SENSITIVITY;
     mouseLookDelta.current = 0;
+    if (Math.abs(mousePitchDelta.current) > 0.01) {
+      cameraRuntime.pitch = THREE.MathUtils.clamp(
+        cameraRuntime.pitch - mousePitchDelta.current * MOUSE_PITCH_SENSITIVITY,
+        CAMERA_PITCH_MIN,
+        CAMERA_PITCH_MAX,
+      );
+      mousePitchDelta.current = 0;
+    }
     if (touchRuntime.aimActive) {
       const turnInput = Math.abs(touchRuntime.aimX) > 0.04 ? touchRuntime.aimX : 0;
+      const pitchInput = Math.abs(touchRuntime.aimY) > 0.035 ? touchRuntime.aimY : 0;
       targetAngle -= turnInput * MOBILE_TURN_SPEED * delta;
+      cameraRuntime.pitch = THREE.MathUtils.clamp(
+        cameraRuntime.pitch - pitchInput * MOBILE_PITCH_SPEED * delta,
+        CAMERA_PITCH_MIN,
+        CAMERA_PITCH_MAX,
+      );
     }
     facingAngle.current = targetAngle;
     cameraRuntime.yaw = targetAngle;

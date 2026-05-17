@@ -5,7 +5,9 @@ import { EnvironmentAssetModel } from "./AssetModels";
 import { useGameStore } from "./useGameStore";
 import { BIOME_THEMES, BiomeId, getBiomeForStage, getTextureSize } from "./worldTheme";
 
-const SIZE = ARENA_BOUND * 2;
+const VISUAL_MARGIN = 64;
+const VISUAL_BOUND = ARENA_BOUND + VISUAL_MARGIN;
+const VISUAL_SIZE = VISUAL_BOUND * 2;
 const KENNEY = "/assets/kenney/";
 const natureAsset = (name: string) => `${KENNEY}nature/${name}`;
 const townAsset = (name: string) => `${KENNEY}fantasy-town/${name}`;
@@ -40,6 +42,7 @@ const DECOR = (() => {
   const ruins: Array<{ x: number; z: number; s: number; rot: number; broken: number; biomes: BiomeId[] }> = [];
   const ponds: Array<{ x: number; z: number; rx: number; rz: number; rot: number; biomes: BiomeId[] }> = [];
   const crystals: Array<{ x: number; z: number; s: number; rot: number; biomes: BiomeId[] }> = [];
+  const horizonTrees: Array<{ x: number; z: number; h: number; hue: number; rot: number; biomes: BiomeId[] }> = [];
   const assets: AssetProp[] = [];
 
   const colors = ["#e8c96a", "#d8e0b8", "#d39d79", "#f0e3bc"];
@@ -272,68 +275,44 @@ const DECOR = (() => {
     });
   }
 
-  return { trees, rocks, flowers, grass, bushes, roadScuffs, ruins, ponds, crystals, assets };
+  for (let i = 0; i < 78; i++) {
+    const angle = rand() * Math.PI * 2;
+    const radius = ARENA_BOUND + 10 + rand() * (VISUAL_MARGIN - 18);
+    horizonTrees.push({
+      x: Math.cos(angle) * radius + (rand() - 0.5) * 8,
+      z: Math.sin(angle) * radius + (rand() - 0.5) * 8,
+      h: 3.4 + rand() * 3.8,
+      hue: rand(),
+      rot: rand() * Math.PI * 2,
+      biomes: rand() > 0.16 ? ["ruins", "marsh"] : ["boss_arena", "crystal_arena", "mine"],
+    });
+  }
+
+  return { trees, rocks, flowers, grass, bushes, roadScuffs, ruins, ponds, crystals, horizonTrees, assets };
 })();
 
-function buildRibbonGeometry(points: Array<[number, number]>, widths: number[]) {
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-
-  points.forEach(([x, z], index) => {
-    const prev = points[Math.max(0, index - 1)];
-    const next = points[Math.min(points.length - 1, index + 1)];
-    const tx = next[0] - prev[0];
-    const tz = next[1] - prev[1];
-    const len = Math.max(0.001, Math.sqrt(tx * tx + tz * tz));
-    const nx = -tz / len;
-    const nz = tx / len;
-    const half = widths[index] * 0.5;
-    positions.push(x + nx * half, 0.048, z + nz * half, x - nx * half, 0.048, z - nz * half);
-    uvs.push(index / (points.length - 1), 0, index / (points.length - 1), 1);
-    if (index < points.length - 1) {
-      const base = index * 2;
-      indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
-    }
-  });
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
+function makeTerrainGeometry(size: number) {
+  const geometry = new THREE.PlaneGeometry(size, size, 112, 112);
+  const position = geometry.getAttribute("position") as THREE.BufferAttribute;
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    const d = Math.hypot(x, y) / (size * 0.5);
+    const broad = Math.sin(x * 0.026 + y * 0.017) * 0.035 + Math.cos(x * 0.041 - y * 0.023) * 0.024;
+    const fine = Math.sin(x * 0.13 + y * 0.09) * 0.008;
+    const playableFade = THREE.MathUtils.smoothstep(d, 0.04, 0.18);
+    const edgeLift = THREE.MathUtils.smoothstep(d, 0.7, 1) * 0.06;
+    position.setZ(i, (broad + fine + edgeLift) * playableFade);
+  }
+  position.needsUpdate = true;
   geometry.computeVertexNormals();
   return geometry;
-}
-
-function RoadRibbon({ vertical = false, color }: { vertical?: boolean; color: string }) {
-  const geometry = useMemo(() => {
-    const rand = lcg(vertical ? 938 : 617);
-    const points: Array<[number, number]> = [];
-    const widths: number[] = [];
-    const steps = Math.ceil((ARENA_BOUND - 4) / 2.75);
-    for (let i = -steps; i <= steps; i++) {
-      const t = i / steps;
-      const along = i * 2.75;
-      const wobble = Math.sin(i * 0.78) * 1.15 + Math.sin(i * 0.31) * 0.65;
-      const side = (rand() - 0.5) * 0.55;
-      if (vertical) points.push([wobble + side, along]);
-      else points.push([along, wobble + side]);
-      widths.push(3.45 + Math.sin(i * 0.6) * 0.45 + (rand() - 0.5) * 0.42 + (1 - Math.abs(t)) * 0.5);
-    }
-    return buildRibbonGeometry(points, widths);
-  }, [vertical]);
-
-  return (
-    <mesh geometry={geometry}>
-      <meshStandardMaterial color={color} roughness={0.96} transparent opacity={0.94} depthWrite={false} side={THREE.DoubleSide} />
-    </mesh>
-  );
 }
 
 function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnType<typeof useGameStore.getState>["quality"]) {
   const rand = lcg(theme.id === "marsh" ? 1731 : theme.id === "mine" ? 1439 : theme.id === "crystal_arena" ? 1221 : 912);
   const size = getTextureSize(quality);
-  const extent = ARENA_BOUND + 10;
+  const extent = VISUAL_BOUND;
   const point = (x: number, z: number) => [
     ((x + extent) / (extent * 2)) * size,
     ((z + extent) / (extent * 2)) * size,
@@ -344,17 +323,20 @@ function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnT
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  const base = ctx.createLinearGradient(0, 0, size, size);
-  base.addColorStop(0, theme.baseLight);
-  base.addColorStop(0.38, theme.base);
-  base.addColorStop(1, theme.baseDark);
-  ctx.fillStyle = base;
+  ctx.fillStyle = theme.base;
+  ctx.fillRect(0, 0, size, size);
+
+  const baseShade = ctx.createLinearGradient(0, 0, size, size);
+  baseShade.addColorStop(0, hexToRgba(theme.baseLight, 0.16));
+  baseShade.addColorStop(0.48, hexToRgba(theme.base, 0.02));
+  baseShade.addColorStop(1, hexToRgba(theme.baseDark, 0.2));
+  ctx.fillStyle = baseShade;
   ctx.fillRect(0, 0, size, size);
 
   const terrainVeil = ctx.createRadialGradient(size * 0.5, size * 0.52, size * 0.05, size * 0.5, size * 0.5, size * 0.66);
-  terrainVeil.addColorStop(0, hexToRgba(theme.baseLight, 0.16));
-  terrainVeil.addColorStop(0.45, hexToRgba(theme.base, 0.1));
-  terrainVeil.addColorStop(1, hexToRgba(theme.baseDark, 0.22));
+  terrainVeil.addColorStop(0, hexToRgba(theme.baseLight, 0.06));
+  terrainVeil.addColorStop(0.45, hexToRgba(theme.base, 0.03));
+  terrainVeil.addColorStop(1, hexToRgba(theme.baseDark, 0.08));
   ctx.fillStyle = terrainVeil;
   ctx.fillRect(0, 0, size, size);
 
@@ -381,7 +363,7 @@ function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnT
     const y = rand() * size;
     const w = 24 + rand() * 112;
     const h = 12 + rand() * 58;
-    ctx.fillStyle = hexToRgba(rand() > 0.46 ? theme.roadDark : theme.moss, 0.035 + rand() * 0.07);
+    ctx.fillStyle = hexToRgba(rand() > 0.46 ? theme.roadDark : theme.moss, 0.022 + rand() * 0.045);
     ctx.beginPath();
     ctx.ellipse(x, y, w, h, rand() * Math.PI, 0, Math.PI * 2);
     ctx.fill();
@@ -407,12 +389,12 @@ function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnT
       ctx.stroke();
       ctx.restore();
     };
-    draw(width * 1.72, theme.roadDark, 0.24);
-    draw(width * 1.22, theme.road, 0.58);
-    draw(width * 0.68, theme.road, 0.46);
+    draw(width * 1.72, theme.roadDark, 0.12);
+    draw(width * 1.22, theme.road, 0.3);
+    draw(width * 0.68, theme.road, 0.2);
   };
 
-  const roadWidth = size * 0.052;
+  const roadWidth = size * (4.6 / (extent * 2));
   drawRoad([[-extent, 4], [-29, 2.8], [-17, 5.6], [-5, 1.4], [9, 3.4], [24, -2.6], [extent, -1.4]], roadWidth);
   drawRoad([[-2.6, -extent], [0.4, -31], [-3.6, -18], [2.4, -6], [-1.2, 9], [3.4, 24], [1.4, extent]], roadWidth * 0.92);
 
@@ -517,7 +499,7 @@ export default function Arena() {
   const stage = useGameStore(s => s.stage);
   const biome = getBiomeForStage(stage);
   const theme = BIOME_THEMES[biome];
-  const groundGeom = useMemo(() => new THREE.PlaneGeometry(SIZE + 20, SIZE + 20, 32, 32), []);
+  const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
   const treeCount = quality === "low" ? 6 : quality === "medium" ? 13 : 22;
   const rockCount = quality === "low" ? 10 : quality === "medium" ? 22 : 36;
@@ -529,6 +511,7 @@ export default function Arena() {
   const scuffCount = quality === "low" ? 12 : quality === "medium" ? 24 : 38;
   const pondCount = quality === "low" ? 1 : quality === "medium" ? 3 : 5;
   const crystalCount = quality === "low" ? 3 : quality === "medium" ? 7 : 10;
+  const horizonTreeCount = quality === "low" ? 10 : quality === "medium" ? 22 : 36;
 
   const biomeTrees = DECOR.trees.filter(item => item.biomes.includes(biome)).slice(0, treeCount);
   const biomeRocks = DECOR.rocks.filter(item => item.biomes.includes(biome)).slice(0, rockCount);
@@ -543,6 +526,7 @@ export default function Arena() {
   const roadScuffs = DECOR.roadScuffs.slice(0, scuffCount);
   const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);
   const biomeCrystals = DECOR.crystals.filter(item => item.biomes.includes(biome)).slice(0, crystalCount);
+  const biomeHorizonTrees = DECOR.horizonTrees.filter(item => item.biomes.includes(biome)).slice(0, horizonTreeCount);
 
   return (
     <group>
@@ -558,9 +542,6 @@ export default function Arena() {
         />
       </mesh>
 
-      <RoadRibbon color={theme.road} />
-      <RoadRibbon vertical color={theme.roadDark} />
-
       {roadScuffs.map((scuff, i) => (
         <mesh key={`scuff-${i}`} rotation={[-Math.PI / 2, 0, scuff.rot]} position={[scuff.x, 0.041 + i * 0.0002, scuff.z]} receiveShadow>
           <planeGeometry args={[scuff.w, scuff.d]} />
@@ -575,25 +556,19 @@ export default function Arena() {
         </mesh>
       ))}
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
-        <ringGeometry args={[ARENA_BOUND - 0.85, ARENA_BOUND, 160]} />
-        <meshBasicMaterial color={theme.accent} transparent opacity={0.16} side={THREE.DoubleSide} />
-      </mesh>
-
-      {[
-        [0, -ARENA_BOUND, SIZE, 0.72],
-        [0, ARENA_BOUND, SIZE, 0.72],
-        [-ARENA_BOUND, 0, 0.72, SIZE],
-        [ARENA_BOUND, 0, 0.72, SIZE],
-      ].map(([x, z, w, d], i) => (
-        <group key={`wall-${i}`} position={[x, 0, z]}>
-          <mesh position={[0, 0.4, 0]} receiveShadow castShadow>
-            <boxGeometry args={[w, 0.8, d]} />
-            <meshStandardMaterial color={theme.stoneDark} roughness={0.86} metalness={0.03} />
+      {biomeHorizonTrees.map((tree, i) => (
+        <group key={`horizon-tree-${i}`} position={[tree.x, 0, tree.z]} rotation={[0, tree.rot, 0]}>
+          <mesh position={[0, tree.h * 0.32, 0]} castShadow={quality === "high"} receiveShadow>
+            <cylinderGeometry args={[0.24, 0.48, tree.h * 0.64, 18]} />
+            <meshStandardMaterial color={biome === "marsh" ? "#3d3329" : "#5b4633"} roughness={0.9} />
           </mesh>
-          <mesh position={[0, 0.86, 0]}>
-            <boxGeometry args={[w, 0.08, d]} />
-            <meshBasicMaterial color={theme.accentSoft} transparent opacity={0.45} />
+          <mesh position={[0, tree.h * 0.77, 0]} scale={[1.15, 0.8, 1.04]} castShadow={quality !== "low"}>
+            <sphereGeometry args={[1.08 + tree.h * 0.13, 36, 22]} />
+            <meshStandardMaterial color={biome === "marsh" ? "#2f6258" : tree.hue > 0.5 ? "#3f6f4b" : "#335a42"} roughness={0.88} />
+          </mesh>
+          <mesh position={[0.34, tree.h * 0.95, -0.12]} scale={[0.78, 0.56, 0.72]} castShadow={quality === "high"}>
+            <sphereGeometry args={[0.82 + tree.h * 0.08, 28, 18]} />
+            <meshStandardMaterial color={biome === "marsh" ? "#3b7567" : "#4f8257"} roughness={0.86} />
           </mesh>
         </group>
       ))}
