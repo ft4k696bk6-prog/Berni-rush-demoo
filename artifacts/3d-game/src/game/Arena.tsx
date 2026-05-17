@@ -509,11 +509,11 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const grassCount = quality === "low" ? 18 : quality === "medium" ? 46 : 72;
   const bushCount = quality === "low" ? 5 : quality === "medium" ? 12 : 20;
   const ruinCount = quality === "low" ? 3 : quality === "medium" ? 7 : 13;
-  const assetCount = quality === "low" ? 9 : quality === "medium" ? 20 : 30;
+  const assetCount = quality === "low" ? 0 : quality === "medium" ? 10 : 24;
   const scuffCount = quality === "low" ? 12 : quality === "medium" ? 24 : 38;
   const pondCount = quality === "low" ? 1 : quality === "medium" ? 3 : 5;
   const crystalCount = quality === "low" ? 3 : quality === "medium" ? 7 : 10;
-  const horizonTreeCount = quality === "low" ? 10 : quality === "medium" ? 22 : 36;
+  const horizonTreeCount = quality === "low" ? 8 : quality === "medium" ? 18 : 34;
 
   const biomeTrees = DECOR.trees.filter(item => item.biomes.includes(biome)).slice(0, treeCount);
   const biomeRocks = DECOR.rocks.filter(item => item.biomes.includes(biome)).slice(0, rockCount);

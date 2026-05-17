@@ -6,6 +6,7 @@ import { playerRuntime } from "./gameRuntime";
 import { EnemyAssetModel } from "./AssetModels";
 import { PoisonItem as EnemyType } from "./types";
 import { useGameStore } from "./useGameStore";
+import { useCompactViewport } from "./useCompactViewport";
 import {
   creeperCountdownStart,
   enemyContactTimers,
@@ -40,8 +41,10 @@ function PoisonItem({ poison }: Props) {
 
   const phase = useGameStore(s => s.phase);
   const quality = useGameStore(s => s.quality);
+  const compactViewport = useCompactViewport();
   const hpRatio = Math.max(0, poison.hp / poison.maxHp);
   const isBoss = poison.type === "boss10" || poison.type === "boss20" || poison.type === "boss_dragon";
+  const useAssetModel = Boolean(poison.assetPath) && (isBoss || (!compactViewport && quality !== "low"));
 
   useEffect(() => {
     if (poison.hp < previousHp.current) hitPulse.current = 1;
@@ -331,7 +334,7 @@ function PoisonItem({ poison }: Props) {
         <meshBasicMaterial color={ENEMY_RING_COLOR[poison.type]} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
 
-      {poison.assetPath ? (
+      {useAssetModel ? (
         <Suspense fallback={
           <group>
             <mesh castShadow position={[0, 0.18, 0]}>
@@ -406,7 +409,7 @@ function PoisonItem({ poison }: Props) {
         </group>
       )}
 
-      {!poison.assetPath && (
+      {!useAssetModel && (
         <>
           <mesh position={[0.18, isBoss ? 1.2 : 0.92, 0.36]}>
             <sphereGeometry args={[isBoss ? 0.085 : 0.065, 8, 8]} />
