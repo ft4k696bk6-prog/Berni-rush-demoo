@@ -4,6 +4,8 @@ import { playerRuntime, touchRuntime } from "./gameRuntime";
 import { useGameStore } from "./useGameStore";
 
 const BASE_PAD_SIZE = 118;
+const EDGE_FOLLOW_START = 0.82;
+const EDGE_FOLLOW_MAX_SHIFT = 0.55;
 
 function clampStick(dx: number, dy: number, limit: number) {
   const len = Math.hypot(dx, dy);
@@ -84,7 +86,7 @@ export default function TouchControls() {
   }, [phase]);
 
   const placePad = (pad: HTMLDivElement | null, x: number, y: number) => {
-    if (!pad) return;
+    if (!pad) return { x, y };
     const size = pad.getBoundingClientRect().width || BASE_PAD_SIZE;
     const half = size / 2;
     const minX = half + 8;
@@ -97,6 +99,7 @@ export default function TouchControls() {
     pad.style.top = `${py - half}px`;
     pad.style.right = "auto";
     pad.style.bottom = "auto";
+    return { x: px, y: py };
   };
 
   const updateLeft = (event: PointerEvent<HTMLDivElement>) => {
@@ -118,13 +121,28 @@ export default function TouchControls() {
     const knob = rightKnobRef.current;
     if (!pad || !knob) return;
     const limit = Math.max(78, Math.min(168, Math.min(window.innerWidth, window.innerHeight) * 0.34));
-    const dx = event.clientX - rightOrigin.current.x;
-    const dy = event.clientY - rightOrigin.current.y;
+    let dx = event.clientX - rightOrigin.current.x;
+    let dy = event.clientY - rightOrigin.current.y;
+    const len = Math.hypot(dx, dy);
+    const followStart = limit * EDGE_FOLLOW_START;
+    if (len > followStart) {
+      const overflow = Math.min(len - followStart, limit * EDGE_FOLLOW_MAX_SHIFT);
+      if (overflow > 0.001 && len > 0.001) {
+        const nextOrigin = placePad(
+          rightPadRef.current,
+          rightOrigin.current.x + (dx / len) * overflow,
+          rightOrigin.current.y + (dy / len) * overflow,
+        );
+        rightOrigin.current = nextOrigin;
+        dx = event.clientX - rightOrigin.current.x;
+        dy = event.clientY - rightOrigin.current.y;
+      }
+    }
     const stick = clampStick(dx, dy, limit);
     const deadzone = Math.max(0.06, mobileLookDeadzone * 0.86);
     const sensitivity = Math.max(0.54, mobileLookSensitivity);
-    const turn = applyLookCurve(stick.nx, deadzone, sensitivity, 1.28);
-    const pitch = applyLookCurve(stick.ny, deadzone, sensitivity, 0.74);
+    const turn = applyLookCurve(stick.nx, deadzone, sensitivity, 1.42);
+    const pitch = applyLookCurve(stick.ny, deadzone, sensitivity, 0.9);
 
     touchRuntime.shooting = true;
     touchRuntime.aimActive = true;
@@ -144,10 +162,9 @@ export default function TouchControls() {
         onPointerDown={event => {
           if (isInteractiveTarget(event.target)) return;
           leftPointer.current = event.pointerId;
-          leftOrigin.current = { x: event.clientX, y: event.clientY };
           setLeftActive(true);
           hapticTap();
-          placePad(leftPadRef.current, event.clientX, event.clientY);
+          leftOrigin.current = placePad(leftPadRef.current, event.clientX, event.clientY);
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
@@ -175,10 +192,9 @@ export default function TouchControls() {
         onPointerDown={event => {
           if (isInteractiveTarget(event.target)) return;
           rightPointer.current = event.pointerId;
-          rightOrigin.current = { x: event.clientX, y: event.clientY };
           setRightActive(true);
           hapticTap();
-          placePad(rightPadRef.current, event.clientX, event.clientY);
+          rightOrigin.current = placePad(rightPadRef.current, event.clientX, event.clientY);
           try {
             event.currentTarget.setPointerCapture(event.pointerId);
           } catch {
