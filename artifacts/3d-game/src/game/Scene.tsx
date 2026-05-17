@@ -15,6 +15,7 @@ import CoinItem from "./CoinItem";
 import FloatingText from "./FloatingText";
 import { useGameStore } from "./useGameStore";
 import { BIOME_THEMES, getBiomeForStage } from "./worldTheme";
+import { useCompactViewport } from "./useCompactViewport";
 import type { QualityLevel } from "./types";
 
 enum Controls {
@@ -157,6 +158,7 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const phase = useGameStore(s => s.phase);
   const quality = useGameStore(s => s.quality);
   const stage = useGameStore(s => s.stage);
+  const compactViewport = useCompactViewport();
   const theme = BIOME_THEMES[getBiomeForStage(stage)];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
 
@@ -197,7 +199,7 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
         <>
           <Player />
           {drugs.map(d => <DrugItem key={d.id} drug={d} />)}
-          {poisons.map(p => <PoisonItem key={p.id} poison={p} />)}
+          {poisons.map(p => <PoisonItem key={p.id} poison={p} compactViewport={compactViewport} />)}
           {coins.map(c => <CoinItem key={c.id} coin={c} />)}
           {projectiles.map(p => <Projectile key={p.id} projectile={p} />)}
           {enemyProjectiles.map(p => <EnemyProjectile key={p.id} projectile={p} />)}
