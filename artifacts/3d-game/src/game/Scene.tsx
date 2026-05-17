@@ -110,16 +110,16 @@ function SceneContent({ shadowMapSize, contactShadowResolution }: { shadowMapSiz
         intensity={quality === "low" ? 1.75 : 2.65}
         castShadow={quality !== "low"}
         shadow-mapSize={shadowMapSize}
-        shadow-camera-far={100}
-        shadow-camera-left={-48}
-        shadow-camera-right={48}
-        shadow-camera-top={48}
-        shadow-camera-bottom={-48}
+        shadow-camera-far={170}
+        shadow-camera-left={-88}
+        shadow-camera-right={88}
+        shadow-camera-top={88}
+        shadow-camera-bottom={-88}
         color="#ffe1a8"
       />
       {quality !== "low" && <hemisphereLight args={["#d8f4ff", theme.hemiGround, 0.52]} />}
 
-      <fog attach="fog" args={[theme.fog, 48, 116]} />
+      <fog attach="fog" args={[theme.fog, 72, 190]} />
       <color attach="background" args={[theme.sky]} />
 
       <Arena />
@@ -127,7 +127,7 @@ function SceneContent({ shadowMapSize, contactShadowResolution }: { shadowMapSiz
         <ContactShadows
           position={[0, 0.045, 0]}
           opacity={0.5}
-          scale={94}
+          scale={160}
           blur={2.25}
           far={18}
           resolution={contactShadowResolution}
@@ -201,7 +201,7 @@ export default function Scene() {
         performance={{ min: profile.performanceMin }}
         gl={{ antialias: profile.antialias, powerPreference: profile.powerPreference }}
         style={{ width: "100vw", height: "100vh" }}
-        camera={{ fov: 52, near: 0.1, far: 150, position: [0, 17, 15] }}
+        camera={{ fov: 58, near: 0.1, far: 220, position: [0, 10, 12] }}
         onCreated={({ gl }) => {
           if (!gl.getContext()) setWebglFailed(true);
           gl.outputColorSpace = THREE.SRGBColorSpace;

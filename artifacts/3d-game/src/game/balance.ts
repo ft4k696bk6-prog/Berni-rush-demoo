@@ -1,7 +1,7 @@
 import type { EnemySubType, QualityLevel } from "./types";
 
-export const ARENA_BOUND = 42;
-export const SAFE_SPAWN_RADIUS = 15;
+export const ARENA_BOUND = 74;
+export const SAFE_SPAWN_RADIUS = 21;
 export const PLAYER_RADIUS = 0.8;
 
 export function getStageKillTarget(stage: number) {

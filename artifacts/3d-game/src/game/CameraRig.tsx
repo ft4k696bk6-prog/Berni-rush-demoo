@@ -6,8 +6,10 @@ import { useGameStore } from "./useGameStore";
 import { useCompactViewport } from "./useCompactViewport";
 
 const MENU_POS = new THREE.Vector3(0, 9.5, 12.5);
-const DESKTOP_OFFSET = new THREE.Vector3(0, 14.8, 17.2);
-const MOBILE_OFFSET = new THREE.Vector3(0, 17.8, 20.8);
+const DESKTOP_BACK_DISTANCE = 10.6;
+const MOBILE_BACK_DISTANCE = 13.4;
+const DESKTOP_HEIGHT = 6.6;
+const MOBILE_HEIGHT = 8.4;
 
 export default function CameraRig() {
   const { camera } = useThree();
@@ -28,7 +30,7 @@ export default function CameraRig() {
     const compact = compactViewport;
     const perspective = camera as THREE.PerspectiveCamera;
     if (perspective.isPerspectiveCamera) {
-      const targetFov = compact ? 58 : 52;
+      const targetFov = compact ? 62 : 58;
       perspective.fov = THREE.MathUtils.damp(perspective.fov, targetFov, 9, delta);
       perspective.updateProjectionMatrix();
     }
@@ -39,24 +41,25 @@ export default function CameraRig() {
     const bobY = Math.sin(bobPhase.current) * (compact ? 0.045 : 0.06) * movementAlpha;
     const attackRecoil = THREE.MathUtils.clamp((playerRuntime.attackAnimUntil - Date.now()) / 260, 0, 1);
     const recoilLift = attackRecoil * (compact ? 0.08 : 0.12);
-    const aimLen = Math.hypot(playerRuntime.aimX, playerRuntime.aimZ) || 1;
-    const aimX = playerRuntime.aimX / aimLen;
-    const aimZ = playerRuntime.aimZ / aimLen;
-    const aimLead = compact ? 1.15 : 1.75;
-    const offset = compact ? MOBILE_OFFSET : DESKTOP_OFFSET;
+    const forwardLen = Math.hypot(playerRuntime.aimX, playerRuntime.aimZ) || 1;
+    const forwardX = playerRuntime.aimX / forwardLen;
+    const forwardZ = playerRuntime.aimZ / forwardLen;
+    const backDistance = compact ? MOBILE_BACK_DISTANCE : DESKTOP_BACK_DISTANCE;
+    const height = compact ? MOBILE_HEIGHT : DESKTOP_HEIGHT;
+    const aimLead = compact ? 2.4 : 3.1;
 
     targetPos.current.set(
-      playerRuntime.x + aimX * aimLead * 0.24 + offset.x,
-      playerRuntime.y + offset.y + bobY + recoilLift,
-      playerRuntime.z + aimZ * aimLead * 0.24 + offset.z,
+      playerRuntime.x - forwardX * backDistance,
+      playerRuntime.y + height + bobY + recoilLift,
+      playerRuntime.z - forwardZ * backDistance,
     );
     lookTarget.current.set(
-      playerRuntime.x + aimX * aimLead,
-      playerRuntime.y + 1.05,
-      playerRuntime.z + aimZ * aimLead,
+      playerRuntime.x + forwardX * aimLead,
+      playerRuntime.y + 1.35,
+      playerRuntime.z + forwardZ * aimLead,
     );
 
-    camera.position.lerp(targetPos.current, 1 - Math.exp(-8.5 * delta));
+    camera.position.lerp(targetPos.current, 1 - Math.exp(-10.5 * delta));
     camera.lookAt(lookTarget.current);
   });
 

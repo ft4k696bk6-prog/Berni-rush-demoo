@@ -167,7 +167,8 @@ const DECOR = (() => {
     bushes.push({ x, z, s: 0.5 + rand() * 0.9, hue: rand(), biomes: ["ruins", "marsh"] });
   }
 
-  for (let i = -12; i <= 12; i++) {
+  const roadScuffSteps = Math.ceil((ARENA_BOUND - 3) / 3.1);
+  for (let i = -roadScuffSteps; i <= roadScuffSteps; i++) {
     const wobble = Math.sin(i * 0.9) * 1.4;
     roadScuffs.push({
       x: i * 3.1 + (rand() - 0.5) * 1.1,
@@ -288,7 +289,7 @@ function buildRibbonGeometry(points: Array<[number, number]>, widths: number[]) 
     const nx = -tz / len;
     const nz = tx / len;
     const half = widths[index] * 0.5;
-    positions.push(x + nx * half, 0.018, z + nz * half, x - nx * half, 0.018, z - nz * half);
+    positions.push(x + nx * half, 0.048, z + nz * half, x - nx * half, 0.048, z - nz * half);
     uvs.push(index / (points.length - 1), 0, index / (points.length - 1), 1);
     if (index < points.length - 1) {
       const base = index * 2;
@@ -309,8 +310,9 @@ function RoadRibbon({ vertical = false, color }: { vertical?: boolean; color: st
     const rand = lcg(vertical ? 938 : 617);
     const points: Array<[number, number]> = [];
     const widths: number[] = [];
-    for (let i = -15; i <= 15; i++) {
-      const t = i / 15;
+    const steps = Math.ceil((ARENA_BOUND - 4) / 2.75);
+    for (let i = -steps; i <= steps; i++) {
+      const t = i / steps;
       const along = i * 2.75;
       const wobble = Math.sin(i * 0.78) * 1.15 + Math.sin(i * 0.31) * 0.65;
       const side = (rand() - 0.5) * 0.55;
@@ -322,8 +324,8 @@ function RoadRibbon({ vertical = false, color }: { vertical?: boolean; color: st
   }, [vertical]);
 
   return (
-    <mesh geometry={geometry} receiveShadow>
-      <meshStandardMaterial color={color} roughness={0.96} transparent opacity={0.92} side={THREE.DoubleSide} />
+    <mesh geometry={geometry}>
+      <meshStandardMaterial color={color} roughness={0.96} transparent opacity={0.94} depthWrite={false} side={THREE.DoubleSide} />
     </mesh>
   );
 }
@@ -517,14 +519,14 @@ export default function Arena() {
   const theme = BIOME_THEMES[biome];
   const groundGeom = useMemo(() => new THREE.PlaneGeometry(SIZE + 20, SIZE + 20, 32, 32), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
-  const treeCount = quality === "low" ? 6 : quality === "medium" ? 12 : 18;
-  const rockCount = quality === "low" ? 10 : quality === "medium" ? 20 : 32;
-  const flowerCount = quality === "low" ? 5 : quality === "medium" ? 12 : 22;
-  const grassCount = quality === "low" ? 18 : quality === "medium" ? 42 : 64;
-  const bushCount = quality === "low" ? 5 : quality === "medium" ? 10 : 18;
-  const ruinCount = quality === "low" ? 3 : quality === "medium" ? 6 : 11;
-  const assetCount = quality === "low" ? 8 : quality === "medium" ? 16 : 24;
-  const scuffCount = quality === "low" ? 10 : quality === "medium" ? 18 : 26;
+  const treeCount = quality === "low" ? 6 : quality === "medium" ? 13 : 22;
+  const rockCount = quality === "low" ? 10 : quality === "medium" ? 22 : 36;
+  const flowerCount = quality === "low" ? 5 : quality === "medium" ? 13 : 24;
+  const grassCount = quality === "low" ? 18 : quality === "medium" ? 46 : 72;
+  const bushCount = quality === "low" ? 5 : quality === "medium" ? 12 : 20;
+  const ruinCount = quality === "low" ? 3 : quality === "medium" ? 7 : 13;
+  const assetCount = quality === "low" ? 9 : quality === "medium" ? 20 : 30;
+  const scuffCount = quality === "low" ? 12 : quality === "medium" ? 24 : 38;
   const pondCount = quality === "low" ? 1 : quality === "medium" ? 3 : 5;
   const crystalCount = quality === "low" ? 3 : quality === "medium" ? 7 : 10;
 

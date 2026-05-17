@@ -163,12 +163,12 @@ function mutationFromMushroom(type: DrugType, perks: Partial<Record<PerkId, numb
 }
 
 function spawnPositionAwayFromPlayer(minDistance = SAFE_SPAWN_RADIUS): [number, number, number] {
+  const maxDistance = Math.min(ARENA_BOUND - 7, minDistance + 18);
   for (let i = 0; i < 12; i++) {
-    const side = Math.floor(Math.random() * 4);
-    const spread = (Math.random() * 2 - 1) * ARENA_BOUND * 0.86;
-    const edge = ARENA_BOUND - 2.5 - Math.random() * 3;
-    const x = side === 0 ? -edge : side === 1 ? edge : spread;
-    const z = side === 2 ? -edge : side === 3 ? edge : spread;
+    const angle = Math.random() * Math.PI * 2;
+    const distance = minDistance + Math.random() * Math.max(4, maxDistance - minDistance);
+    const x = clampToArena(playerRuntime.x + Math.cos(angle) * distance, 2.5);
+    const z = clampToArena(playerRuntime.z + Math.sin(angle) * distance, 2.5);
     const dx = x - playerRuntime.x;
     const dz = z - playerRuntime.z;
     if (dx * dx + dz * dz > minDistance * minDistance) {
@@ -815,7 +815,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         direction: [Math.sin(angle), Math.cos(angle)],
         speed: weapon.projectileSpeed * styleSpeed * 1.16,
         damage: weapon.damage * damageScale * luckScale * strengthBurst * damageMultiplier * (critical ? 1.85 : 1),
-        radius: weapon.radius * radiusMultiplier * styleRadius,
+        radius: weapon.radius * radiusMultiplier * styleRadius * 1.18,
         range: weapon.range * styleRange,
         distance: 0,
         age: 0,

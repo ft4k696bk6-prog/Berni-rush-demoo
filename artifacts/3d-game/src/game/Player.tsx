@@ -211,15 +211,12 @@ export default function Player() {
     const has360 = activeEffects.some(e => e.type === "melee_360" && e.expiresAt > now);
 
     const controls = getKeys();
-    const moveWorld = new THREE.Vector2(
+    const moveInput = new THREE.Vector2(
       (controls.right ? 1 : 0) - (controls.left ? 1 : 0) + touchRuntime.moveX,
-      (controls.back ? 1 : 0) - (controls.forward ? 1 : 0) + touchRuntime.moveZ,
+      (controls.forward ? 1 : 0) - (controls.back ? 1 : 0) - touchRuntime.moveZ,
     );
-    const inputActive = moveWorld.lengthSq() > 0.0001;
-    if (inputActive) {
-      moveWorld.normalize();
-      moveDir.current.copy(moveWorld);
-    }
+    const inputActive = moveInput.lengthSq() > 0.0001;
+    if (inputActive) moveInput.normalize();
 
     let aimX = playerRuntime.aimX;
     let aimZ = playerRuntime.aimZ;
@@ -235,8 +232,18 @@ export default function Player() {
       aimX = mouseAim.current.x;
       aimZ = mouseAim.current.y;
     } else if (inputActive) {
-      aimX = moveDir.current.x;
-      aimZ = moveDir.current.y;
+      const forwardLen = Math.hypot(playerRuntime.aimX, playerRuntime.aimZ) || 1;
+      const forwardX = playerRuntime.aimX / forwardLen;
+      const forwardZ = playerRuntime.aimZ / forwardLen;
+      const rightX = -forwardZ;
+      const rightZ = forwardX;
+      const desiredX = rightX * moveInput.x + forwardX * moveInput.y;
+      const desiredZ = rightZ * moveInput.x + forwardZ * moveInput.y;
+      const desiredLen = Math.hypot(desiredX, desiredZ);
+      if (desiredLen > 0.01) {
+        aimX = desiredX / desiredLen;
+        aimZ = desiredZ / desiredLen;
+      }
     }
 
     if (Math.hypot(aimX, aimZ) < 0.01) {
@@ -249,6 +256,20 @@ export default function Player() {
     playerRuntime.aimWorldX = playerRuntime.x + aimX * 14;
     playerRuntime.aimWorldZ = playerRuntime.z + aimZ * 14;
     facingAngle.current = Math.atan2(aimX, aimZ);
+    const forwardMove = new THREE.Vector2(aimX, aimZ);
+    const forwardMoveLen = forwardMove.length() || 1;
+    forwardMove.multiplyScalar(1 / forwardMoveLen);
+    const rightMove = new THREE.Vector2(-forwardMove.y, forwardMove.x);
+    const moveWorld = inputActive
+      ? new THREE.Vector2(
+        rightMove.x * moveInput.x + forwardMove.x * moveInput.y,
+        rightMove.y * moveInput.x + forwardMove.y * moveInput.y,
+      )
+      : new THREE.Vector2();
+    if (inputActive && moveWorld.lengthSq() > 0.0001) {
+      moveWorld.normalize();
+      moveDir.current.copy(moveWorld);
+    }
 
     const swiftBoots = perkLevel(store.perks, "swift_boots");
     const moveUpgrade = shopUpgradeLevel(store.shopUpgrades, "move_speed");
