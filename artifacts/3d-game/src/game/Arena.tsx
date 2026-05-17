@@ -4,6 +4,7 @@ import { ARENA_BOUND } from "./balance";
 import { EnvironmentAssetModel } from "./AssetModels";
 import { useGameStore } from "./useGameStore";
 import { BIOME_THEMES, BiomeId, getBiomeForStage, getTextureSize } from "./worldTheme";
+import type { QualityLevel } from "./types";
 
 const VISUAL_MARGIN = 64;
 const VISUAL_BOUND = ARENA_BOUND + VISUAL_MARGIN;
@@ -494,8 +495,9 @@ function CrystalCluster({ x, z, s, rot, color }: { x: number; z: number; s: numb
   );
 }
 
-export default function Arena() {
-  const quality = useGameStore(s => s.quality);
+export default function Arena({ qualityOverride }: { qualityOverride?: QualityLevel }) {
+  const storedQuality = useGameStore(s => s.quality);
+  const quality = qualityOverride ?? storedQuality;
   const stage = useGameStore(s => s.stage);
   const biome = getBiomeForStage(stage);
   const theme = BIOME_THEMES[biome];

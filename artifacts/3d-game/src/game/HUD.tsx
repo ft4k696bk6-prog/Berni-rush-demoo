@@ -15,6 +15,10 @@ function formatTime(totalSeconds: number) {
   return `${minutes}:${seconds}`;
 }
 
+function normalizeAngleRadians(value: number) {
+  return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
 export default function HUD() {
   const phase = useGameStore(s => s.phase);
   const health = useGameStore(s => s.health);
@@ -137,6 +141,9 @@ export default function HUD() {
     "--reticle-color": recentHit?.color ?? "#bfeeff",
   }) as CSSProperties, [recentHit?.color, recentHit?.kind, reticleFiring]);
   const threats = useMemo(() => {
+    const lookLen = Math.hypot(playerRuntime.aimX, playerRuntime.aimZ);
+    const lookAngle = lookLen > 0.001 ? Math.atan2(playerRuntime.aimX, -playerRuntime.aimZ) : 0;
+
     return poisons
       .map(enemy => {
         const live = poisonCurrentPos[enemy.id] ?? [enemy.position[0], enemy.position[2]];
@@ -145,7 +152,8 @@ export default function HUD() {
         const distance = Math.hypot(dx, dz);
         if (distance > 34) return null;
 
-        const angle = Math.atan2(dx, -dz);
+        const worldAngle = Math.atan2(dx, -dz);
+        const angle = normalizeAngleRadians(worldAngle - lookAngle);
         const bossThreat = enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20";
         const rangedThreat = enemy.type === "ranged_enemy" || enemy.type === "shooter";
         const danger = bossThreat || distance < 9;

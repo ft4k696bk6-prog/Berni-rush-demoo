@@ -1,6 +1,6 @@
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, KeyboardControls } from "@react-three/drei";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import Arena from "./Arena";
 import Player from "./Player";
@@ -15,6 +15,7 @@ import CoinItem from "./CoinItem";
 import FloatingText from "./FloatingText";
 import { useGameStore } from "./useGameStore";
 import { BIOME_THEMES, getBiomeForStage } from "./worldTheme";
+import type { QualityLevel } from "./types";
 
 enum Controls {
   forward = "forward",
@@ -40,10 +41,13 @@ type SceneProfile = {
   dpr: number | [number, number];
   antialias: boolean;
   powerPreference: WebGLPowerPreference;
+  shadows: boolean;
+  contactShadows: boolean;
   shadowMapSize: [number, number];
   contactShadowResolution: number;
   performanceMin: number;
   toneMappingExposure: number;
+  worldQuality: QualityLevel;
 };
 
 function detectMobileLikeViewport() {
@@ -51,43 +55,97 @@ function detectMobileLikeViewport() {
   return window.matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) <= 900;
 }
 
-function getSceneProfile(quality: "low" | "medium" | "high", mobileLike: boolean): SceneProfile {
+function lowerQuality(quality: QualityLevel): QualityLevel {
+  if (quality === "high") return "medium";
+  if (quality === "medium") return "low";
+  return "low";
+}
+
+function getSceneProfile(quality: QualityLevel, mobileLike: boolean, mobileTier: number): SceneProfile {
+  const mobileWorldQuality = mobileLike && mobileTier > 0 ? lowerQuality(quality) : mobileLike && quality === "high" ? "medium" : quality;
+  const mobileDprScale = mobileTier === 0 ? 1 : mobileTier === 1 ? 0.86 : 0.74;
+
   if (quality === "low") {
     return {
-      dpr: mobileLike ? 0.9 : 1,
+      dpr: mobileLike ? Math.max(0.68, 0.9 * mobileDprScale) : 1,
       antialias: false,
       powerPreference: mobileLike ? "default" : "high-performance",
-      shadowMapSize: [1024, 1024],
-      contactShadowResolution: 384,
-      performanceMin: mobileLike ? 0.48 : 0.62,
+      shadows: false,
+      contactShadows: false,
+      shadowMapSize: mobileLike ? [512, 512] : [1024, 1024],
+      contactShadowResolution: mobileLike ? 192 : 384,
+      performanceMin: mobileLike ? 0.38 : 0.62,
       toneMappingExposure: 0.97,
+      worldQuality: mobileWorldQuality,
     };
   }
 
   if (quality === "high") {
     return {
-      dpr: mobileLike ? [1, 1.35] : [1.15, 2.25],
+      dpr: mobileLike ? [Math.max(0.82, 1 * mobileDprScale), Math.max(1, 1.2 * mobileDprScale)] : [1.15, 2.25],
       antialias: !mobileLike,
       powerPreference: mobileLike ? "default" : "high-performance",
-      shadowMapSize: mobileLike ? [2048, 2048] : [4096, 4096],
-      contactShadowResolution: mobileLike ? 512 : 1024,
-      performanceMin: mobileLike ? 0.5 : 0.65,
+      shadows: mobileLike ? mobileTier === 0 : true,
+      contactShadows: mobileLike ? false : true,
+      shadowMapSize: mobileLike ? [1024, 1024] : [4096, 4096],
+      contactShadowResolution: mobileLike ? 256 : 1024,
+      performanceMin: mobileLike ? 0.42 : 0.65,
       toneMappingExposure: mobileLike ? 1 : 1.02,
+      worldQuality: mobileWorldQuality,
     };
   }
 
   return {
-    dpr: mobileLike ? [0.95, 1.2] : [1, 1.7],
+    dpr: mobileLike ? [Math.max(0.76, 0.92 * mobileDprScale), Math.max(0.94, 1.08 * mobileDprScale)] : [1, 1.7],
     antialias: !mobileLike,
     powerPreference: mobileLike ? "default" : "high-performance",
-    shadowMapSize: mobileLike ? [1536, 1536] : [2048, 2048],
-    contactShadowResolution: mobileLike ? 448 : 512,
-    performanceMin: mobileLike ? 0.5 : 0.65,
+    shadows: mobileLike ? mobileTier === 0 : true,
+    contactShadows: mobileLike ? false : true,
+    shadowMapSize: mobileLike ? [1024, 1024] : [2048, 2048],
+    contactShadowResolution: mobileLike ? 224 : 512,
+    performanceMin: mobileLike ? 0.42 : 0.65,
     toneMappingExposure: 0.98,
+    worldQuality: mobileWorldQuality,
   };
 }
 
-function SceneContent({ shadowMapSize, contactShadowResolution }: { shadowMapSize: [number, number]; contactShadowResolution: number }) {
+function AdaptiveMobileBudget({ mobileLike, onTierChange }: { mobileLike: boolean; onTierChange: (tier: number) => void }) {
+  const frameCount = useRef(0);
+  const frameTotal = useRef(0);
+  const tierRef = useRef(0);
+  const { performance } = useThree();
+
+  useEffect(() => {
+    frameCount.current = 0;
+    frameTotal.current = 0;
+    tierRef.current = 0;
+    onTierChange(0);
+  }, [mobileLike, onTierChange]);
+
+  useFrame((_, delta) => {
+    if (!mobileLike) return;
+    frameCount.current += 1;
+    frameTotal.current += Math.min(0.08, delta);
+    if (frameCount.current < 90) return;
+
+    const fps = frameCount.current / Math.max(0.001, frameTotal.current);
+    frameCount.current = 0;
+    frameTotal.current = 0;
+
+    if (fps < 36 && tierRef.current < 2) {
+      tierRef.current += 1;
+      performance.regress();
+      onTierChange(tierRef.current);
+    } else if (fps > 54 && tierRef.current > 0) {
+      tierRef.current -= 1;
+      onTierChange(tierRef.current);
+    }
+  });
+
+  return null;
+}
+
+function SceneContent({ profile }: { profile: SceneProfile }) {
   const drugs = useGameStore(s => s.drugs);
   const poisons = useGameStore(s => s.poisons);
   const projectiles = useGameStore(s => s.projectiles);
@@ -108,8 +166,8 @@ function SceneContent({ shadowMapSize, contactShadowResolution }: { shadowMapSiz
       <directionalLight
         position={[14, 26, 16]}
         intensity={quality === "low" ? 1.75 : 2.65}
-        castShadow={quality !== "low"}
-        shadow-mapSize={shadowMapSize}
+        castShadow={profile.shadows}
+        shadow-mapSize={profile.shadowMapSize}
         shadow-camera-far={245}
         shadow-camera-left={-138}
         shadow-camera-right={138}
@@ -122,15 +180,15 @@ function SceneContent({ shadowMapSize, contactShadowResolution }: { shadowMapSiz
       <fog attach="fog" args={[theme.fog, 86, 255]} />
       <color attach="background" args={[theme.sky]} />
 
-      <Arena />
-      {quality !== "low" && (
+      <Arena qualityOverride={profile.worldQuality} />
+      {profile.contactShadows && (
         <ContactShadows
           position={[0, 0.045, 0]}
           opacity={0.5}
           scale={240}
           blur={2.25}
           far={18}
-          resolution={contactShadowResolution}
+          resolution={profile.contactShadowResolution}
           color={theme.baseDark}
         />
       )}
@@ -157,8 +215,9 @@ function SceneContent({ shadowMapSize, contactShadowResolution }: { shadowMapSiz
 export default function Scene() {
   const [webglFailed, setWebglFailed] = useState(false);
   const [mobileLike, setMobileLike] = useState(() => detectMobileLikeViewport());
+  const [mobileTier, setMobileTier] = useState(0);
   const quality = useGameStore(s => s.quality);
-  const profile = useMemo(() => getSceneProfile(quality, mobileLike), [quality, mobileLike]);
+  const profile = useMemo(() => getSceneProfile(quality, mobileLike, mobileTier), [quality, mobileLike, mobileTier]);
 
   useEffect(() => {
     const media = window.matchMedia("(pointer: coarse)");
@@ -180,6 +239,10 @@ export default function Scene() {
     };
   }, []);
 
+  useEffect(() => {
+    setMobileTier(0);
+  }, [quality, mobileLike]);
+
   if (webglFailed) {
     return (
       <div className="webgl-fallback">
@@ -195,7 +258,7 @@ export default function Scene() {
   return (
     <KeyboardControls map={keyMap}>
       <Canvas
-        shadows={quality !== "low"}
+        shadows={profile.shadows}
         dpr={profile.dpr}
         frameloop="always"
         performance={{ min: profile.performanceMin }}
@@ -212,7 +275,8 @@ export default function Scene() {
         }}
       >
         <Suspense fallback={null}>
-          <SceneContent shadowMapSize={profile.shadowMapSize} contactShadowResolution={profile.contactShadowResolution} />
+          <AdaptiveMobileBudget mobileLike={mobileLike} onTierChange={setMobileTier} />
+          <SceneContent profile={profile} />
         </Suspense>
       </Canvas>
     </KeyboardControls>
