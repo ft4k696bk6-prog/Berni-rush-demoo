@@ -796,6 +796,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const perkPiercing = perkLevel(s.perks, "piercing");
     const perkRicochet = perkLevel(s.perks, "ricochet");
     const perkFire = perkLevel(s.perks, "fire_arrows");
+    const rangeUpgrade = shopUpgradeLevel(s.shopUpgrades, "attack_range");
     const classExtraPellets = klass.attackType === "rapid_projectile" ? 1 : 0;
     const pellets = (hasTriple && weapon.pellets === 1 ? 3 : weapon.pellets + (hasTriple ? 2 : 0)) + perkMultishot + classExtraPellets;
     const spread = weapon.spread || (pellets > 1 ? (klass.attackType === "heavy_cone" ? 0.18 : 0.12) : 0);
@@ -820,7 +821,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
       : klass.attackType === "dash_strike" ? 1.36
       : klass.attackType === "pickaxe_throw" ? 0.95
       : 1;
-    const styleRange = klass.attackType === "heavy_cone" ? 0.62 : klass.attackType === "magic_orb" ? 0.92 : 1;
+    const styleRange = klass.attackType === "heavy_cone" ? 0.86
+      : klass.attackType === "magic_orb" ? 1.08
+      : klass.attackType === "dash_strike" ? 1.18
+      : klass.attackType === "pickaxe_throw" ? 1.12
+      : klass.attackType === "rapid_projectile" ? 1.14
+      : 1.12;
+    const readableThirdPersonRange = 1.38 + rangeUpgrade * 0.075;
     const projectiles: Projectile[] = [];
 
     const pushProjectile = (angle: number, damageMultiplier = 1, radiusMultiplier = 1) => {
@@ -832,7 +839,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         speed: weapon.projectileSpeed * styleSpeed * 1.16,
         damage: weapon.damage * damageScale * luckScale * strengthBurst * damageMultiplier * (critical ? 1.85 : 1),
         radius: weapon.radius * radiusMultiplier * styleRadius * 1.18,
-        range: weapon.range * styleRange,
+        range: weapon.range * styleRange * readableThirdPersonRange,
         distance: 0,
         age: 0,
         pierce: (weapon.id === "laser" ? 1 + Math.floor(s.stats.superpower / 4) : 0) + perkPiercing,

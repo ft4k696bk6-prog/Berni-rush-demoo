@@ -26,7 +26,7 @@ export const SHOP_UPGRADES: Record<ShopUpgradeId, ShopUpgradeConfig> = {
     id: "attack_range",
     category: "Combat",
     name: "Longer Arc",
-    description: "Widens the regular slash and slightly expands 360 power slash.",
+    description: "Widens melee arcs and lets class projectiles travel farther.",
     maxLevel: 5,
     baseCost: 22,
     costGrowth: 1.62,

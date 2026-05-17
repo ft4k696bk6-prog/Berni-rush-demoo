@@ -116,7 +116,7 @@ export function CharacterAssetModel({ skinId, preview = false, rotatePreview = f
       ref={groupRef}
       position={skin.previewOffset}
       scale={skin.previewScale * (preview ? 0.68 : 1)}
-      rotation={[0, preview ? Math.PI * 0.15 : 0, 0]}
+      rotation={[0, preview ? Math.PI * 0.15 : Math.PI, 0]}
     >
       <primitive object={scene} />
     </group>
@@ -152,7 +152,7 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
       ref={groupRef}
       position={[0, cfg.modelYOffset ?? -1.1, 0]}
       scale={cfg.modelScale ?? 0.01}
-      rotation={[0, Math.PI, 0]}
+      rotation={[0, 0, 0]}
     >
       <primitive object={scene} />
     </group>
