@@ -33,6 +33,7 @@ const CAMERA_PITCH_MIN = -0.38;
 const CAMERA_PITCH_MAX = 0.72;
 const STRAFE_MOVE_WEIGHT = 0.68;
 const MELEE_COMBO_WINDOW_MS = 1350;
+const MELEE_BUFFER_MS = 260;
 const MELEE_COMBO_MAX = 3;
 
 export default function Player() {
@@ -71,6 +72,7 @@ export default function Player() {
   const mousePitchDelta = useRef(0);
   const meleeComboStep = useRef(0);
   const lastMeleeAt = useRef(0);
+  const queuedMeleeUntil = useRef(0);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -167,6 +169,7 @@ export default function Player() {
       powerCooldown.current = 0;
       meleeComboStep.current = 0;
       lastMeleeAt.current = 0;
+      queuedMeleeUntil.current = 0;
       spawnTimer.current = -RUN_START_SPAWN_DELAY_MS;
       cleanupTimer.current = 0;
       clockTimer.current = 0;
@@ -324,8 +327,11 @@ export default function Player() {
       fireCooldown.current = 1 / fireRate;
     }
 
-    const meleeRequested = (controls.melee && !meleeHeld.current) || touchRuntime.meleePressed;
+    const rawMeleeRequested = (controls.melee && !meleeHeld.current) || touchRuntime.meleePressed;
+    if (rawMeleeRequested) queuedMeleeUntil.current = now + MELEE_BUFFER_MS;
+    const meleeRequested = rawMeleeRequested || (queuedMeleeUntil.current > now && meleeCooldown.current <= 0);
     if (meleeRequested && meleeCooldown.current <= 0) {
+      queuedMeleeUntil.current = 0;
       const withinCombo = !has360 && now - lastMeleeAt.current <= MELEE_COMBO_WINDOW_MS;
       const comboStep = has360 ? 1 : withinCombo ? (meleeComboStep.current % MELEE_COMBO_MAX) + 1 : 1;
       meleeComboStep.current = comboStep;
