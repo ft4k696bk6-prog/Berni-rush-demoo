@@ -226,8 +226,8 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
             );
           })}
           {coins.map(c => <CoinItem key={c.id} coin={c} />)}
-          {projectiles.map(p => <Projectile key={p.id} projectile={p} />)}
-          {enemyProjectiles.map(p => <EnemyProjectile key={p.id} projectile={p} />)}
+          {projectiles.map(p => <Projectile key={p.id} projectile={p} renderQuality={profile.worldQuality} />)}
+          {enemyProjectiles.map(p => <EnemyProjectile key={p.id} projectile={p} renderQuality={profile.worldQuality} />)}
           {meleeSwings.map(m => <MeleeEffect key={m.id} swing={m} />)}
           {impactBursts.map(b => <ImpactEffect key={b.id} burst={b} />)}
           {floatingTexts.map(t => <FloatingText key={t.id} item={t} />)}

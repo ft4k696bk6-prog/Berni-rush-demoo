@@ -5,12 +5,14 @@ import { EnemyProjectile as EnemyProjType } from "./types";
 
 interface Props {
   projectile: EnemyProjType;
+  renderQuality: "low" | "medium" | "high";
 }
 
-function EnemyProjectile({ projectile }: Props) {
+function EnemyProjectile({ projectile, renderQuality }: Props) {
   const meshRef = useRef<THREE.Mesh>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const angle = Math.atan2(projectile.direction[0], projectile.direction[1]);
+  const lightEnabled = renderQuality !== "low";
 
   useFrame((_, delta) => {
     if (meshRef.current) meshRef.current.rotation.z += delta * 5;
@@ -22,7 +24,7 @@ function EnemyProjectile({ projectile }: Props) {
   });
 
   return (
-    <group position={projectile.position} rotation={[0, angle, 0]}>
+    <group position={projectile.position} rotation={[0, angle, 0]} scale={1.12}>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.72, 0]}>
         <ringGeometry args={[0.32, 0.5, 28]} />
         <meshBasicMaterial color="#d28cff" transparent opacity={0.24} side={THREE.DoubleSide} depthWrite={false} />
@@ -39,7 +41,7 @@ function EnemyProjectile({ projectile }: Props) {
         <planeGeometry args={[0.46, 1.1]} />
         <meshBasicMaterial color="#8f55ff" transparent opacity={0.3} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
-      <pointLight color="#b06cff" intensity={1.2} distance={4.2} />
+      {lightEnabled && <pointLight color="#b06cff" intensity={renderQuality === "high" ? 1.1 : 0.62} distance={3.7} />}
       {[-1, 0, 1].map(index => (
         <mesh key={index} position={[index * 0.12, 0.02, -0.42 - Math.abs(index) * 0.08]} rotation={[0.2, index * 0.4, 0]}>
           <boxGeometry args={[0.026, 0.026, 0.34]} />

@@ -5,6 +5,7 @@ import { Projectile as ProjType } from "./types";
 
 interface Props {
   projectile: ProjType;
+  renderQuality: "low" | "medium" | "high";
 }
 
 function Trail({ color, length, width, hot = false }: { color: string; length: number; width: number; hot?: boolean }) {
@@ -147,18 +148,21 @@ function MinerShard({ color, radius }: { color: string; radius: number }) {
   );
 }
 
-function Projectile({ projectile }: Props) {
+function Projectile({ projectile, renderQuality }: Props) {
   const meshRef = useRef<THREE.Group>(null);
   const trailRef = useRef<THREE.Group>(null);
   const style = projectile.attackStyle ?? "melee_arc";
   const angle = Math.atan2(projectile.direction[0], projectile.direction[1]);
-  const radius = Math.max(0.24, projectile.radius * 1.5);
+  const radius = Math.max(0.28, projectile.radius * 1.72);
   const length = (style === "rapid_projectile" ? 1.72
     : style === "magic_orb" ? 1.34
     : style === "dash_strike" ? 1.2
     : style === "heavy_cone" ? 1.28
     : style === "pickaxe_throw" ? 1.2
-    : 1.3);
+    : 1.3) * 1.14;
+  const visualScale = projectile.critical ? 1.86 : 1.62;
+  const lightEnabled = renderQuality === "high" || (renderQuality === "medium" && style === "magic_orb");
+  const trailWidth = style === "heavy_cone" ? radius * 1.72 : style === "magic_orb" ? radius * 1.56 : radius * 1.18;
 
   useFrame((_, delta) => {
     if (meshRef.current) {
@@ -173,7 +177,7 @@ function Projectile({ projectile }: Props) {
   });
 
   return (
-    <group position={projectile.position} rotation={[0, angle, 0]} scale={projectile.critical ? 1.62 : 1.46}>
+    <group position={projectile.position} rotation={[0, angle, 0]} scale={visualScale}>
       <group ref={meshRef}>
         {style === "rapid_projectile" ? (
           <RangerArrow color={projectile.color} radius={radius} />
@@ -194,11 +198,15 @@ function Projectile({ projectile }: Props) {
         <Trail
           color={projectile.color}
           length={length}
-          width={style === "heavy_cone" ? radius * 1.58 : style === "magic_orb" ? radius * 1.45 : radius * 1.05}
+          width={trailWidth}
           hot={style === "magic_orb" || projectile.critical}
         />
-        {(style === "magic_orb" || projectile.critical) && (
-          <pointLight color={projectile.color} intensity={style === "magic_orb" ? 1.7 : 1.15} distance={style === "magic_orb" ? 5.5 : 3.6} />
+        {lightEnabled && (style === "magic_orb" || projectile.critical) && (
+          <pointLight
+            color={projectile.color}
+            intensity={style === "magic_orb" ? (renderQuality === "high" ? 1.55 : 0.8) : 0.9}
+            distance={style === "magic_orb" ? 4.8 : 3.2}
+          />
         )}
         {style === "rapid_projectile" && (
           <mesh position={[0, 0.01, -0.28]} rotation={[Math.PI / 2, 0, 0]}>
