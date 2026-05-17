@@ -102,6 +102,56 @@ function PickupIcon({ type, color }: { type: PickupItemType["type"]; color: stri
   );
 }
 
+function MagicMushroom({ type, color }: { type: PickupItemType["type"]; color: string }) {
+  const capColor = type === "heal" ? "#ff5f68"
+    : type === "speed" ? "#46dff6"
+    : type === "invincibility" ? "#f2cf4d"
+    : type === "strength" ? "#f0823c"
+    : type === "flight" ? "#b686ff"
+    : type === "time_slow" ? "#4fdc9a"
+    : type === "triple_shot" ? "#ff72a8"
+    : "#ffb45a";
+  const spots = [
+    [-0.18, 0.1, 0.18, 0.055],
+    [0.16, 0.12, 0.22, 0.048],
+    [0, 0.18, 0.27, 0.065],
+    [-0.08, 0.2, -0.18, 0.04],
+    [0.22, 0.08, -0.08, 0.035],
+  ] as const;
+
+  return (
+    <group>
+      <mesh castShadow receiveShadow position={[0, -0.16, 0]} scale={[0.72, 1.05, 0.72]}>
+        <capsuleGeometry args={[0.19, 0.34, 8, 18]} />
+        <meshStandardMaterial color="#f0e6ce" roughness={0.56} metalness={0.02} emissive={color} emissiveIntensity={0.08} />
+      </mesh>
+      <mesh castShadow position={[0, 0.2, 0]} scale={[1.08, 0.42, 1]}>
+        <sphereGeometry args={[0.44, 34, 20]} />
+        <meshStandardMaterial color={capColor} roughness={0.42} metalness={0.04} emissive={color} emissiveIntensity={0.34} />
+      </mesh>
+      <mesh position={[0, 0.075, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1.08, 0.78, 1]}>
+        <torusGeometry args={[0.31, 0.018, 8, 36]} />
+        <meshStandardMaterial color="#f8dfb9" roughness={0.48} emissive={color} emissiveIntensity={0.1} />
+      </mesh>
+      {spots.map(([x, y, z, size], index) => (
+        <mesh key={index} position={[x, y + 0.19, z]} scale={[1, 0.32, 1]} castShadow>
+          <sphereGeometry args={[size, 12, 8]} />
+          <meshStandardMaterial color="#fff7d9" roughness={0.44} emissive="#ffffff" emissiveIntensity={0.12} />
+        </mesh>
+      ))}
+      {[0, 1, 2, 3].map(index => {
+        const angle = index * Math.PI * 0.5 + 0.28;
+        return (
+          <mesh key={index} position={[Math.sin(angle) * 0.48, -0.02 + index * 0.018, Math.cos(angle) * 0.48]} rotation={[0.4, angle, 0]}>
+            <sphereGeometry args={[0.035, 8, 6]} />
+            <meshBasicMaterial color={color} transparent opacity={0.58} depthWrite={false} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
 function DrugItem({ drug }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const haloRef = useRef<THREE.Mesh>(null);
@@ -127,35 +177,24 @@ function DrugItem({ drug }: Props) {
     <group ref={groupRef} position={[drug.position[0], drug.position[1], drug.position[2]]}>
       <pointLight color={color} intensity={0.9} distance={3.2} />
 
-      <mesh position={[0, -0.44, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.46, 0.54, 0.16, 28]} />
-        <meshStandardMaterial color="#26372f" roughness={0.78} metalness={0.12} />
+      <mesh position={[0, -0.48, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.42, 0.54, 0.13, 34]} />
+        <meshStandardMaterial color="#26372f" roughness={0.82} metalness={0.08} />
       </mesh>
 
-      <mesh position={[0, -0.3, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.5, 0.025, 10, 36]} />
-        <meshBasicMaterial color={color} transparent opacity={0.32} depthWrite={false} />
-      </mesh>
-
-      <mesh castShadow>
-        <sphereGeometry args={[0.36, 28, 18]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={1.3}
-          roughness={0.12}
-          metalness={0.22}
-          transparent
-          opacity={0.92}
-        />
-      </mesh>
-
-      <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.48, 0.64, 40]} />
+      <mesh position={[0, -0.36, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.46, 0.72, 54]} />
         <meshBasicMaterial color={color} transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
-      <group position={[0, 0.02, 0.38]}>
+      <MagicMushroom type={drug.type} color={color} />
+
+      <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.18, 0]}>
+        <torusGeometry args={[0.55, 0.018, 8, 48]} />
+        <meshBasicMaterial color={color} transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+
+      <group position={[0, 0.02, 0.52]} scale={0.78}>
         <PickupIcon type={drug.type} color={color} />
       </group>
     </group>

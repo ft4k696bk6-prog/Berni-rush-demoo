@@ -27,6 +27,7 @@ function PoisonItem({ poison }: Props) {
   const slamTelegraphRef = useRef<THREE.Mesh>(null);
   const shockwaveTelegraphRef = useRef<THREE.Mesh>(null);
   const explodeTelegraphRef = useRef<THREE.Mesh>(null);
+  const windupGlowRef = useRef<THREE.Mesh>(null);
   const posRef = useRef<[number, number]>([poison.position[0], poison.position[2]]);
   const meleeWindup = useRef<number | null>(null);
   const shootWindup = useRef<{ startedAt: number; dirX: number; dirZ: number } | null>(null);
@@ -54,6 +55,15 @@ function PoisonItem({ poison }: Props) {
     const material = mesh.material as THREE.MeshBasicMaterial;
     material.opacity = opacity;
   };
+  const setWindupGlow = (visible: boolean, color = ENEMY_RING_COLOR[poison.type], opacity = 0.3, scale = 1) => {
+    const mesh = windupGlowRef.current;
+    if (!mesh) return;
+    mesh.visible = visible;
+    mesh.scale.setScalar(scale);
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    material.color.set(color);
+    material.opacity = opacity;
+  };
 
   useFrame((_, rawDelta) => {
     const group = groupRef.current;
@@ -78,6 +88,7 @@ function PoisonItem({ poison }: Props) {
     setTelegraph(slamTelegraphRef.current, false, 0);
     setTelegraph(shockwaveTelegraphRef.current, false, 0);
     setTelegraph(explodeTelegraphRef.current, false, 0);
+    setWindupGlow(false);
 
     if (poison.mechanics.includes("charge")) {
       const charge = chargeState.current;
@@ -94,6 +105,7 @@ function PoisonItem({ poison }: Props) {
 
         if (state.phase === "windup") {
           setTelegraph(chargeTelegraphRef.current, true, 0.18 + Math.sin(elapsed * 0.018) * 0.08);
+          setWindupGlow(true, "#ff7048", 0.18 + Math.sin(elapsed * 0.016) * 0.08, 0.75 + elapsed / 1300);
           if (elapsed > 520) chargeState.current = { ...state, phase: "dash", startedAt: now };
         } else if (state.phase === "dash") {
           const speed = poison.speed * 4.95 * phaseScale;
@@ -161,6 +173,7 @@ function PoisonItem({ poison }: Props) {
       if (slamWindup.current) {
         const elapsed = now - slamWindup.current;
         setTelegraph(slamTelegraphRef.current, true, 0.16 + Math.min(0.28, elapsed / 2200), 0.55 + Math.min(0.65, elapsed / 780));
+        setWindupGlow(true, "#ff3f50", 0.18 + Math.min(0.22, elapsed / 1800), 0.8 + Math.min(0.35, elapsed / 1200));
         if (elapsed > 780) {
           if (dist < slamRange) store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
           enemyContactTimers[`${poison.id}:slam`] = now;
@@ -179,6 +192,7 @@ function PoisonItem({ poison }: Props) {
       if (shockwaveWindup.current) {
         const elapsed = now - shockwaveWindup.current;
         setTelegraph(shockwaveTelegraphRef.current, true, 0.16 + Math.min(0.28, elapsed / 2600), 0.45 + Math.min(0.85, elapsed / 920));
+        setWindupGlow(true, "#ffb05e", 0.2 + Math.min(0.18, elapsed / 2400), 1 + Math.min(0.5, elapsed / 1500));
         if (elapsed > 920) {
           if (dist < shockRange) store.damagePlayer(poison.damage * 1.25, posRef.current[0], posRef.current[1]);
           enemyContactTimers[`${poison.id}:shockwave`] = now;
@@ -198,6 +212,7 @@ function PoisonItem({ poison }: Props) {
         if (meleeWindup.current) {
           const elapsed = now - meleeWindup.current;
           setTelegraph(meleeTelegraphRef.current, true, 0.2 + Math.sin(elapsed * 0.02) * 0.08, poison.type === "grunt" ? 0.96 : 1.08);
+          setWindupGlow(true, "#ff4d5d", 0.16 + Math.min(0.18, elapsed / 1300), 0.72 + Math.min(0.22, elapsed / 1100));
           if (elapsed > 420) {
             if (dist < meleeRange + 0.25) store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
             enemyContactTimers[poison.id] = now;
@@ -221,6 +236,7 @@ function PoisonItem({ poison }: Props) {
           const elapsed = now - shootWindup.current.startedAt;
           group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(shootWindup.current.dirX, shootWindup.current.dirZ), 14, delta);
           setTelegraph(shootTelegraphRef.current, true, 0.14 + Math.sin(elapsed * 0.017) * 0.06);
+          setWindupGlow(true, "#b06cff", 0.16 + Math.sin(elapsed * 0.018) * 0.08, 0.66 + Math.min(0.3, elapsed / 1400));
           if (elapsed > 620) {
             enemyFireTimers[poison.id] = now;
             store.fireEnemyProjectile(posRef.current[0], posRef.current[1], playerRuntime.x, playerRuntime.z, poison.damage);
@@ -239,6 +255,7 @@ function PoisonItem({ poison }: Props) {
         const elapsed = now - creeperCountdownStart[poison.id];
         const countdownMs = isBoss ? 2600 : 1850;
         setTelegraph(explodeTelegraphRef.current, true, 0.18 + Math.min(0.24, elapsed / countdownMs * 0.24), 0.72 + Math.min(0.42, elapsed / countdownMs));
+        setWindupGlow(true, "#ffb84a", 0.18 + Math.min(0.28, elapsed / countdownMs), 0.9 + Math.min(0.48, elapsed / countdownMs));
         if (flashRef.current) {
           const flash = Math.sin((elapsed / countdownMs) * Math.PI * 10) > 0;
           flashRef.current.color.set(flash ? "#fff6b0" : poison.type === "boss20" ? "#5d29ff" : "#4eff5a");
@@ -307,6 +324,11 @@ function PoisonItem({ poison }: Props) {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.15, 0]}>
         <ringGeometry args={[0.74, 0.92, 24]} />
         <meshBasicMaterial color={ENEMY_RING_COLOR[poison.type]} transparent opacity={0.34} />
+      </mesh>
+
+      <mesh ref={windupGlowRef} visible={false} position={[0, isBoss ? 1.1 : 0.58, 0]}>
+        <sphereGeometry args={[isBoss ? 0.92 : 0.52, 18, 12]} />
+        <meshBasicMaterial color={ENEMY_RING_COLOR[poison.type]} transparent opacity={0} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
 
       {poison.assetPath ? (
@@ -457,27 +479,27 @@ function PoisonItem({ poison }: Props) {
 
       <mesh ref={meleeTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, -Math.PI * 0.22]} position={[0, -1.14, 0]}>
         <ringGeometry args={[0.38, 2.08, 28, 1, 0, Math.PI * 0.44]} />
-        <meshBasicMaterial color="#ff4d5d" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ff4d5d" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh ref={chargeTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.16, 4.1]}>
         <planeGeometry args={[0.54, 8.2]} />
-        <meshBasicMaterial color="#ff3f50" transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ff3f50" transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh ref={shootTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.15, 4.8]}>
         <planeGeometry args={[0.34, 9.6]} />
-        <meshBasicMaterial color="#b06cff" transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#b06cff" transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh ref={slamTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.13, 0]}>
         <ringGeometry args={[2.18, 2.7, 42]} />
-        <meshBasicMaterial color="#ff3f50" transparent opacity={0.24} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ff3f50" transparent opacity={0.24} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh ref={shockwaveTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.12, 0]}>
         <ringGeometry args={[3.4, 6.4, 64]} />
-        <meshBasicMaterial color="#ff7048" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ff7048" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh ref={explodeTelegraphRef} visible={false} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.12, 0]}>
         <ringGeometry args={[2.18, 2.68, 36]} />
-        <meshBasicMaterial color="#ffb84a" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ffb84a" transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
     </group>
   );

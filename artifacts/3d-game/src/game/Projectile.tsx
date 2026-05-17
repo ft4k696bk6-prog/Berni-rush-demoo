@@ -9,14 +9,18 @@ interface Props {
 
 function Trail({ color, length, width, hot = false }: { color: string; length: number; width: number; hot?: boolean }) {
   return (
-    <group position={[0, 0, -length * 0.72]}>
-      <mesh>
+    <group position={[0, 0, -length * 0.56]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.04, 0]}>
         <planeGeometry args={[width, length]} />
-        <meshBasicMaterial color={color} transparent opacity={hot ? 0.38 : 0.26} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={color} transparent opacity={hot ? 0.34 : 0.2} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
-      <mesh position={[0, 0.01, -length * 0.08]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.035, length * 0.04]}>
         <planeGeometry args={[width * 0.42, length * 0.72]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.18 : 0.1} depthWrite={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.16 : 0.08} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+      </mesh>
+      <mesh position={[0, 0.02, length * 0.18]}>
+        <boxGeometry args={[width * 0.22, width * 0.22, length * 0.5]} />
+        <meshBasicMaterial color={color} transparent opacity={hot ? 0.24 : 0.13} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
     </group>
   );
@@ -193,10 +197,19 @@ function Projectile({ projectile }: Props) {
           width={style === "heavy_cone" ? radius * 1.05 : style === "magic_orb" ? radius * 0.92 : radius * 0.55}
           hot={style === "magic_orb" || projectile.critical}
         />
+        {(style === "magic_orb" || projectile.critical) && (
+          <pointLight color={projectile.color} intensity={style === "magic_orb" ? 1.7 : 1.15} distance={style === "magic_orb" ? 5.5 : 3.6} />
+        )}
+        {style === "rapid_projectile" && (
+          <mesh position={[0, 0.01, -0.28]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[radius * 0.38, radius * 0.018, 6, 20]} />
+            <meshBasicMaterial color="#d8fff3" transparent opacity={0.42} depthWrite={false} />
+          </mesh>
+        )}
         {style === "heavy_cone" && (
           <mesh position={[0, 0, -length * 0.68]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[radius * 0.78, radius * 0.035, 5, 22]} />
-            <meshBasicMaterial color={projectile.color} transparent opacity={0.32} depthWrite={false} />
+            <meshBasicMaterial color={projectile.color} transparent opacity={0.42} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
         )}
         {style === "magic_orb" && (

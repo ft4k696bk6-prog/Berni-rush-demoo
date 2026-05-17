@@ -517,13 +517,14 @@ export default function Arena() {
   const theme = BIOME_THEMES[biome];
   const groundGeom = useMemo(() => new THREE.PlaneGeometry(SIZE + 20, SIZE + 20, 32, 32), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
-  const treeCount = 0;
-  const rockCount = 0;
-  const flowerCount = 0;
-  const grassCount = 0;
-  const bushCount = 0;
-  const ruinCount = 0;
-  const assetCount = quality === "low" ? 30 : quality === "medium" ? 62 : DECOR.assets.length;
+  const treeCount = quality === "low" ? 8 : quality === "medium" ? 16 : 26;
+  const rockCount = quality === "low" ? 14 : quality === "medium" ? 28 : 44;
+  const flowerCount = quality === "low" ? 8 : quality === "medium" ? 18 : 34;
+  const grassCount = quality === "low" ? 36 : quality === "medium" ? 74 : 126;
+  const bushCount = quality === "low" ? 8 : quality === "medium" ? 16 : 26;
+  const ruinCount = quality === "low" ? 4 : quality === "medium" ? 9 : 15;
+  const assetCount = quality === "low" ? 14 : quality === "medium" ? 30 : 44;
+  const scuffCount = quality === "low" ? 14 : quality === "medium" ? 28 : DECOR.roadScuffs.length;
   const pondCount = quality === "low" ? 2 : quality === "medium" ? 5 : DECOR.ponds.length;
   const crystalCount = quality === "low" ? 5 : quality === "medium" ? 10 : DECOR.crystals.length;
 
@@ -533,7 +534,11 @@ export default function Arena() {
   const biomeGrass = DECOR.grass.filter(item => item.biomes.includes(biome)).slice(0, grassCount);
   const biomeBushes = DECOR.bushes.filter(item => item.biomes.includes(biome)).slice(0, bushCount);
   const biomeRuins = DECOR.ruins.filter(item => item.biomes.includes(biome)).slice(0, ruinCount);
-  const biomeAssets = DECOR.assets.filter(item => item.biomes.includes(biome)).slice(0, assetCount);
+  const biomeAssets = DECOR.assets
+    .filter(item => item.biomes.includes(biome))
+    .filter(item => !(item.path.includes("tree_") || item.path.includes("grass_") || item.path.includes("flower_") || item.path.includes("hedge")))
+    .slice(0, assetCount);
+  const roadScuffs = DECOR.roadScuffs.slice(0, scuffCount);
   const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);
   const biomeCrystals = DECOR.crystals.filter(item => item.biomes.includes(biome)).slice(0, crystalCount);
 
@@ -550,6 +555,16 @@ export default function Arena() {
           metalness={0.01}
         />
       </mesh>
+
+      <RoadRibbon color={theme.road} />
+      <RoadRibbon vertical color={theme.roadDark} />
+
+      {roadScuffs.map((scuff, i) => (
+        <mesh key={`scuff-${i}`} rotation={[-Math.PI / 2, 0, scuff.rot]} position={[scuff.x, 0.041 + i * 0.0002, scuff.z]} receiveShadow>
+          <planeGeometry args={[scuff.w, scuff.d]} />
+          <meshBasicMaterial color={i % 3 === 0 ? theme.moss : theme.roadDark} transparent opacity={scuff.opacity * (biome === "mine" ? 0.82 : 1)} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
 
       {biomePonds.map((pond, i) => (
         <mesh key={`pond-${i}`} rotation={[-Math.PI / 2, 0, pond.rot]} position={[pond.x, 0.024 + i * 0.0003, pond.z]} scale={[pond.rx, pond.rz, 1]}>
@@ -587,22 +602,26 @@ export default function Arena() {
 
       {biomeTrees.map((tree, i) => (
         <group key={`tree-${i}`} position={[tree.x, 0, tree.z]}>
+          <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <circleGeometry args={[0.86 + tree.h * 0.09, 30]} />
+            <meshBasicMaterial color={theme.baseDark} transparent opacity={0.18} depthWrite={false} />
+          </mesh>
           <mesh position={[0, tree.h * 0.34, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.2, 0.34, tree.h * 0.68, 24]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#4b3e2c" : "#5c432d"} roughness={0.86} />
+            <cylinderGeometry args={[0.18, 0.34, tree.h * 0.68, 28]} />
+            <meshStandardMaterial color={biome === "marsh" ? "#43382b" : "#604a34"} roughness={0.88} />
           </mesh>
           <mesh position={[0, tree.h * 0.75, 0]} scale={[1.18, 0.78, 1.05]} castShadow>
-            <sphereGeometry args={[0.84 + tree.h * 0.14, 36, 24]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#315f57" : tree.hue > 0.5 ? "#3e7048" : "#355f40"} roughness={0.82} />
+            <sphereGeometry args={[0.84 + tree.h * 0.14, 44, 28]} />
+            <meshStandardMaterial color={biome === "marsh" ? "#315f57" : tree.hue > 0.5 ? "#436f4a" : "#385f40"} roughness={0.86} />
           </mesh>
           {quality === "high" && (
             <>
               <mesh position={[0.2, tree.h * 1.0, -0.1]} scale={[0.94, 0.64, 0.86]} castShadow>
-                <sphereGeometry args={[0.7 + tree.h * 0.08, 34, 22]} />
+                <sphereGeometry args={[0.7 + tree.h * 0.08, 40, 24]} />
                 <meshStandardMaterial color={biome === "marsh" ? "#3a7465" : "#4f7953"} roughness={0.82} />
               </mesh>
               <mesh position={[-0.28, tree.h * 0.9, 0.18]} scale={[0.72, 0.54, 0.78]} castShadow>
-                <sphereGeometry args={[0.58 + tree.h * 0.06, 30, 20]} />
+                <sphereGeometry args={[0.58 + tree.h * 0.06, 36, 22]} />
                 <meshStandardMaterial color={biome === "marsh" ? "#2f5a52" : "#315a3c"} roughness={0.84} />
               </mesh>
             </>
