@@ -171,7 +171,7 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const compactViewport = useCompactViewport();
   const theme = BIOME_THEMES[getBiomeForStage(stage)];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
-  const enemyAssetBudget = profile.worldQuality === "high" ? 8 : profile.worldQuality === "medium" ? 4 : 0;
+  const enemyAssetBudget = 0;
   let enemyAssetCount = 0;
 
   return (

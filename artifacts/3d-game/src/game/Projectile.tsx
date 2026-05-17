@@ -148,21 +148,82 @@ function MinerShard({ color, radius }: { color: string; radius: number }) {
   );
 }
 
+function LaserBolt({ color, radius }: { color: string; radius: number }) {
+  return (
+    <group>
+      <mesh position={[0, 0, 0.2]}>
+        <boxGeometry args={[radius * 0.18, radius * 0.18, 1.55]} />
+        <meshStandardMaterial color="#ffe8ff" emissive={color} emissiveIntensity={2.6} roughness={0.08} metalness={0.45} />
+      </mesh>
+      <mesh position={[0, 0, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[radius * 0.38, radius * 0.025, 6, 24]} />
+        <meshBasicMaterial color={color} transparent opacity={0.62} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+    </group>
+  );
+}
+
+function ShotgunShard({ color, radius }: { color: string; radius: number }) {
+  return (
+    <group>
+      {[0, 1, 2].map(index => (
+        <mesh key={index} position={[(index - 1) * radius * 0.28, 0, 0.12 + index * 0.06]} rotation={[0.22, index * 0.42, -0.16 + index * 0.16]}>
+          <dodecahedronGeometry args={[radius * (0.42 - index * 0.04), 0]} />
+          <meshStandardMaterial color="#7a4b26" emissive={color} emissiveIntensity={1.25} roughness={0.44} metalness={0.12} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0, -0.3]} rotation={[Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[radius * 0.58, radius * 0.8, 6]} />
+        <meshBasicMaterial color={color} transparent opacity={0.32} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+    </group>
+  );
+}
+
+function ArcanePrism({ color, radius }: { color: string; radius: number }) {
+  return (
+    <group>
+      <mesh rotation={[0.45, 0.2, Math.PI / 4]}>
+        <octahedronGeometry args={[radius * 0.76, 1]} />
+        <meshStandardMaterial color="#eadcff" emissive={color} emissiveIntensity={2.2} roughness={0.1} metalness={0.22} transparent opacity={0.94} />
+      </mesh>
+      {[0, 1, 2].map(index => {
+        const angle = index * (Math.PI * 2 / 3);
+        return (
+          <mesh key={index} position={[Math.sin(angle) * radius * 0.52, Math.cos(angle) * radius * 0.18, -radius * 0.42]} rotation={[Math.PI / 2, 0, angle]}>
+            <torusGeometry args={[radius * 0.22, radius * 0.018, 5, 16]} />
+            <meshBasicMaterial color={color} transparent opacity={0.58} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
 function Projectile({ projectile, renderQuality }: Props) {
   const meshRef = useRef<THREE.Group>(null);
   const trailRef = useRef<THREE.Group>(null);
   const style = projectile.attackStyle ?? "melee_arc";
+  const weaponVisual = projectile.weaponId;
   const angle = Math.atan2(projectile.direction[0], projectile.direction[1]);
   const radius = Math.max(0.28, projectile.radius * 1.72);
-  const length = (style === "rapid_projectile" ? 1.72
+  const length = (weaponVisual === "laser" ? 2.35
+    : weaponVisual === "shotgun" ? 1.42
+    : weaponVisual === "arcane" ? 1.68
+    : weaponVisual === "rapid" ? 1.88
+    : style === "rapid_projectile" ? 1.72
     : style === "magic_orb" ? 1.34
     : style === "dash_strike" ? 1.2
     : style === "heavy_cone" ? 1.28
     : style === "pickaxe_throw" ? 1.2
     : 1.3) * 1.14;
   const visualScale = projectile.critical ? 1.86 : 1.62;
-  const lightEnabled = renderQuality === "high" || (renderQuality === "medium" && style === "magic_orb");
-  const trailWidth = style === "heavy_cone" ? radius * 1.72 : style === "magic_orb" ? radius * 1.56 : radius * 1.18;
+  const lightEnabled = renderQuality === "high" || (renderQuality === "medium" && (style === "magic_orb" || weaponVisual === "nova" || weaponVisual === "laser"));
+  const trailWidth = weaponVisual === "shotgun" ? radius * 1.84
+    : weaponVisual === "laser" ? radius * 0.82
+    : style === "heavy_cone" ? radius * 1.72
+    : style === "magic_orb" || weaponVisual === "nova" || weaponVisual === "arcane" ? radius * 1.56
+    : radius * 1.18;
 
   useFrame((_, delta) => {
     if (meshRef.current) {
@@ -179,7 +240,15 @@ function Projectile({ projectile, renderQuality }: Props) {
   return (
     <group position={projectile.position} rotation={[0, angle, 0]} scale={visualScale}>
       <group ref={meshRef}>
-        {style === "rapid_projectile" ? (
+        {weaponVisual === "laser" ? (
+          <LaserBolt color={projectile.color} radius={radius} />
+        ) : weaponVisual === "shotgun" ? (
+          <ShotgunShard color={projectile.color} radius={radius} />
+        ) : weaponVisual === "nova" ? (
+          <MageOrb color={projectile.color} radius={radius} />
+        ) : weaponVisual === "arcane" ? (
+          <ArcanePrism color={projectile.color} radius={radius} />
+        ) : weaponVisual === "rapid" || style === "rapid_projectile" ? (
           <RangerArrow color={projectile.color} radius={radius} />
         ) : style === "magic_orb" || projectile.weaponId === "nova" ? (
           <MageOrb color={projectile.color} radius={radius} />
@@ -199,13 +268,13 @@ function Projectile({ projectile, renderQuality }: Props) {
           color={projectile.color}
           length={length}
           width={trailWidth}
-          hot={style === "magic_orb" || projectile.critical}
+          hot={style === "magic_orb" || projectile.critical || weaponVisual === "laser" || weaponVisual === "nova" || weaponVisual === "arcane"}
         />
-        {lightEnabled && (style === "magic_orb" || projectile.critical) && (
+        {lightEnabled && (style === "magic_orb" || projectile.critical || weaponVisual === "laser" || weaponVisual === "nova" || weaponVisual === "arcane") && (
           <pointLight
             color={projectile.color}
-            intensity={style === "magic_orb" ? (renderQuality === "high" ? 1.55 : 0.8) : 0.9}
-            distance={style === "magic_orb" ? 4.8 : 3.2}
+            intensity={style === "magic_orb" || weaponVisual === "nova" ? (renderQuality === "high" ? 1.55 : 0.8) : 0.72}
+            distance={style === "magic_orb" || weaponVisual === "nova" ? 4.8 : 3.1}
           />
         )}
         {style === "rapid_projectile" && (

@@ -338,19 +338,19 @@ function PoisonItem({ poison, compactViewport, renderQuality, assetModelAllowed 
       {useAssetModel ? (
         <Suspense fallback={
           <group>
-            <mesh castShadow position={[0, 0.18, 0]}>
-              <capsuleGeometry args={[0.42, isBoss ? 1.2 : 0.72, 5, 10]} />
-              <meshStandardMaterial ref={flashRef} color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={0.2} roughness={0.46} />
+            <mesh castShadow position={[0, isBoss ? 0.42 : 0.16, 0]} rotation={[0.2, 0.4, -0.1]} scale={[1.15, isBoss ? 1.28 : 0.88, 1]}>
+              <dodecahedronGeometry args={[isBoss ? 0.92 : 0.48, 1]} />
+              <meshStandardMaterial ref={flashRef} color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={0.24} roughness={0.52} />
             </mesh>
-            <mesh castShadow position={[0, isBoss ? 1.08 : 0.78, 0]}>
-              <sphereGeometry args={[isBoss ? 0.48 : 0.32, 12, 8]} />
+            <mesh castShadow position={[0, isBoss ? 1.3 : 0.72, 0.12]}>
+              <sphereGeometry args={[isBoss ? 0.46 : 0.28, 14, 9]} />
               <meshStandardMaterial color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={0.18} roughness={0.44} />
             </mesh>
           </group>
         }>
           <EnemyAssetModel type={poison.type} />
         </Suspense>
-      ) : poison.type === "ghost" || poison.type === "shooter" ? (
+      ) : poison.type === "ghost" || poison.type === "shooter" || poison.type === "ranged_enemy" ? (
         <group>
           <mesh castShadow position={[0, 0.1, 0]}>
             <octahedronGeometry args={[0.56, 1]} />
@@ -367,7 +367,7 @@ function PoisonItem({ poison, compactViewport, renderQuality, assetModelAllowed 
         </group>
       ) : (
         <group>
-          {poison.type === "zombie" || poison.type === "grunt" ? (
+          {poison.type === "zombie" || poison.type === "grunt" || poison.type === "basic_melee" || poison.type === "tank_enemy" ? (
             <>
               <mesh castShadow position={[0, 0.06, 0]} scale={[1.15, 0.72, 1.05]}>
                 <sphereGeometry args={[0.58, 14, 10]} />
@@ -378,7 +378,7 @@ function PoisonItem({ poison, compactViewport, renderQuality, assetModelAllowed 
                 <meshStandardMaterial color="#7cff92" roughness={0.45} />
               </mesh>
             </>
-          ) : poison.type === "creeper" || poison.type === "charger" ? (
+          ) : poison.type === "creeper" || poison.type === "charger" || poison.type === "fast_melee" || poison.type === "exploder_enemy" ? (
             <>
               <mesh castShadow position={[0, 0.2, 0]}>
                 <dodecahedronGeometry args={[0.56, 0]} />
@@ -397,8 +397,8 @@ function PoisonItem({ poison, compactViewport, renderQuality, assetModelAllowed 
             </>
           ) : (
             <>
-              <mesh castShadow position={[0, 0.18, 0]}>
-                <capsuleGeometry args={[0.46, isBoss ? 1.12 : 0.82, 5, 10]} />
+              <mesh castShadow position={[0, isBoss ? 0.42 : 0.18, 0]} rotation={[0.16, 0.42, -0.08]} scale={[1.15, isBoss ? 1.25 : 0.88, 1]}>
+                <dodecahedronGeometry args={[isBoss ? 0.76 : 0.48, 1]} />
                 <meshStandardMaterial ref={flashRef} color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={0.12} roughness={0.46} metalness={isBoss ? 0.24 : 0.04} />
               </mesh>
               <mesh castShadow position={[0, isBoss ? 1.14 : 0.88, 0]}>

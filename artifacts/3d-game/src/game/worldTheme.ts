@@ -111,7 +111,7 @@ export const BIOME_THEMES: Record<BiomeId, BiomeTheme> = {
 export function getBiomeForStage(stage: number): BiomeId {
   if (stage > 0 && stage % 10 === 0) return "crystal_arena";
   if (stage > 0 && stage % 5 === 0) return "boss_arena";
-  const chapter = Math.floor(Math.max(0, stage - 1) / 3) % 3;
+  const chapter = Math.floor(Math.max(0, stage - 1) / 5) % 3;
   if (chapter === 1) return "marsh";
   if (chapter === 2) return "mine";
   return "ruins";

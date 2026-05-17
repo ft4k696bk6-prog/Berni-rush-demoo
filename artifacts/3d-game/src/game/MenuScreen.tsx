@@ -35,6 +35,7 @@ import {
 import { useGameStore } from "./useGameStore";
 import { hasSavedGame } from "./saveSystem";
 import { useFullscreenStatus } from "./fullscreen";
+import { useCompactViewport } from "./useCompactViewport";
 import { QualityLevel, SkinId } from "./types";
 
 type MenuView = "home" | "class" | "skins" | "upgrades" | "settings";
@@ -98,6 +99,7 @@ export default function MenuScreen() {
   const [hasSave, setHasSave] = useState(false);
   const [previewSkinId, setPreviewSkinId] = useState(selectedSkinId);
   const { isFullscreen, toggleFullscreen } = useFullscreenStatus();
+  const compactViewport = useCompactViewport();
 
   useEffect(() => {
     setHasSave(hasSavedGame());
@@ -185,10 +187,12 @@ export default function MenuScreen() {
                 {isGameOver ? <RotateCcw size={20} /> : <Play size={20} />}
                 {isGameOver ? "PLAY AGAIN" : "PLAY"}
               </button>
-              <button type="button" onClick={toggleFullscreen}>
-                {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-                {isFullscreen ? "WINDOW" : "FULL SCREEN"}
-              </button>
+              {!compactViewport && (
+                <button type="button" onClick={toggleFullscreen}>
+                  {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                  {isFullscreen ? "WINDOW" : "FULL SCREEN"}
+                </button>
+              )}
               {hasSave && !isGameOver && (
                 <button type="button" onClick={loadGame}>
                   <Save size={20} />
@@ -309,13 +313,15 @@ export default function MenuScreen() {
                 ))}
               </div>
             </section>
-            <section>
-              <span>Desktop display</span>
-              <button className="settings-fullscreen-button" type="button" onClick={toggleFullscreen}>
-                {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
-                {isFullscreen ? "Exit full screen" : "Full screen"}
-              </button>
-            </section>
+            {!compactViewport && (
+              <section>
+                <span>Desktop display</span>
+                <button className="settings-fullscreen-button" type="button" onClick={toggleFullscreen}>
+                  {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                  {isFullscreen ? "Exit full screen" : "Full screen"}
+                </button>
+              </section>
+            )}
             <section className="mobile-controls-block mobile-settings-card">
               <strong><Smartphone size={15} /> Camera controls</strong>
               <p>Recommended for arena combat: landscape orientation, left thumb to move, right thumb to aim and fire.</p>

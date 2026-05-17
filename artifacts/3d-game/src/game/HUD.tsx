@@ -7,6 +7,7 @@ import { WEAPON_CONFIG } from "./weapons";
 import { poisonCurrentPos } from "./poisonPositions";
 import { playerRuntime } from "./gameRuntime";
 import { useFullscreenStatus } from "./fullscreen";
+import { useCompactViewport } from "./useCompactViewport";
 
 const STAT_ORDER: StatKey[] = ["strength", "superpower", "vitality", "luck", "dodge", "speed"];
 
@@ -51,6 +52,7 @@ export default function HUD() {
   const boss = useGameStore(s => s.poisons.find(enemy => enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20"));
   const upgradeStat = useGameStore(s => s.upgradeStat);
   const pauseGame = useGameStore(s => s.pauseGame);
+  const compactViewport = useCompactViewport();
 
   const [now, setNow] = useState(() => Date.now());
   const [hudMode, setHudMode] = useState<"minimal" | "full">(() => (
@@ -250,7 +252,7 @@ export default function HUD() {
         </button>
       )}
 
-      {phase === "playing" && (
+      {phase === "playing" && !compactViewport && (
         <button
           className="desktop-fullscreen-button"
           type="button"

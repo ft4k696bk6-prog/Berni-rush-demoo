@@ -5,6 +5,7 @@ import { QualityLevel, STAT_LABELS, StatKey } from "./types";
 import { SHOP_CATEGORIES, SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
 import { WEAPON_CONFIG, WEAPON_ORDER } from "./weapons";
 import { useFullscreenStatus } from "./fullscreen";
+import { useCompactViewport } from "./useCompactViewport";
 
 type PauseTab = "stats" | "shop" | "records";
 
@@ -49,6 +50,7 @@ export default function PauseMenu() {
   const setMobileLookDeadzone = useGameStore(s => s.setMobileLookDeadzone);
   const setMobileLeftHanded = useGameStore(s => s.setMobileLeftHanded);
   const { isFullscreen, toggleFullscreen } = useFullscreenStatus();
+  const compactViewport = useCompactViewport();
 
   useEffect(() => {
     if (phase === "paused") refreshRecords();
@@ -77,7 +79,9 @@ export default function PauseMenu() {
           <button type="button" onClick={() => setTab("stats")} className={tab === "stats" ? "active" : ""}><BarChart3 size={18} /> Statystyki</button>
           <button type="button" onClick={() => setTab("shop")} className={tab === "shop" ? "active" : ""}><ShoppingBag size={18} /> Sklep</button>
           <button type="button" onClick={() => setTab("records")} className={tab === "records" ? "active" : ""}><Trophy size={18} /> Rekordy</button>
-          <button type="button" onClick={toggleFullscreen}>{isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />} Pelny ekran</button>
+          {!compactViewport && (
+            <button type="button" onClick={toggleFullscreen}>{isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />} Pelny ekran</button>
+          )}
           <button type="button" onClick={exitToMenu}><X size={18} /> Wyjdz</button>
         </nav>
 
