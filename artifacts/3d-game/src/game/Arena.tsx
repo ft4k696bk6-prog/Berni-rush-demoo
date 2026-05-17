@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import * as THREE from "three";
+import { useTexture } from "@react-three/drei";
 import { ARENA_BOUND } from "./balance";
 import { EnvironmentAssetModel } from "./AssetModels";
 import { useGameStore } from "./useGameStore";
@@ -10,6 +11,7 @@ const VISUAL_MARGIN = 64;
 const VISUAL_BOUND = ARENA_BOUND + VISUAL_MARGIN;
 const VISUAL_SIZE = VISUAL_BOUND * 2;
 const KENNEY = "/assets/kenney/";
+const TERRAIN_DETAIL_TEXTURE = "/assets/textures/ambientcg/Ground076_PREVIEW.png";
 const natureAsset = (name: string) => `${KENNEY}nature/${name}`;
 const townAsset = (name: string) => `${KENNEY}fantasy-town/${name}`;
 const dungeonAsset = (name: string) => `${KENNEY}dungeon/${name}`;
@@ -44,6 +46,7 @@ const DECOR = (() => {
   const ponds: Array<{ x: number; z: number; rx: number; rz: number; rot: number; biomes: BiomeId[] }> = [];
   const crystals: Array<{ x: number; z: number; s: number; rot: number; biomes: BiomeId[] }> = [];
   const horizonTrees: Array<{ x: number; z: number; h: number; hue: number; rot: number; biomes: BiomeId[] }> = [];
+  const ridges: Array<{ x: number; z: number; w: number; h: number; d: number; rot: number; tone: number; biomes: BiomeId[] }> = [];
   const assets: AssetProp[] = [];
 
   const colors = ["#e8c96a", "#d8e0b8", "#d39d79", "#f0e3bc"];
@@ -289,7 +292,22 @@ const DECOR = (() => {
     });
   }
 
-  return { trees, rocks, flowers, grass, bushes, roadScuffs, ruins, ponds, crystals, horizonTrees, assets };
+  for (let i = 0; i < 54; i++) {
+    const angle = (i / 54) * Math.PI * 2 + (rand() - 0.5) * 0.08;
+    const radius = ARENA_BOUND + 33 + rand() * (VISUAL_MARGIN - 38);
+    ridges.push({
+      x: Math.cos(angle) * radius,
+      z: Math.sin(angle) * radius,
+      w: 4.2 + rand() * 8.5,
+      h: 1.8 + rand() * 5.8,
+      d: 3.6 + rand() * 7.4,
+      rot: -angle + Math.PI * 0.5 + (rand() - 0.5) * 0.65,
+      tone: rand(),
+      biomes: rand() > 0.18 ? ["ruins", "boss_arena", "marsh", "crystal_arena", "mine"] : ["mine", "crystal_arena"],
+    });
+  }
+
+  return { trees, rocks, flowers, grass, bushes, roadScuffs, ruins, ponds, crystals, horizonTrees, ridges, assets };
 })();
 
 function makeTerrainGeometry(size: number) {
@@ -368,6 +386,46 @@ function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnT
     ctx.beginPath();
     ctx.ellipse(x, y, w, h, rand() * Math.PI, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  const fibreStrokes = quality === "high" ? 720 : quality === "medium" ? 420 : 180;
+  ctx.save();
+  ctx.lineCap = "round";
+  for (let i = 0; i < fibreStrokes; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const length = 14 + rand() * (quality === "high" ? 98 : 64);
+    const angle = rand() * Math.PI * 2;
+    const bend = (rand() - 0.5) * 0.9;
+    const colorRoll = rand();
+    ctx.strokeStyle = colorRoll > 0.72
+      ? hexToRgba(theme.baseLight, 0.035 + rand() * 0.035)
+      : colorRoll > 0.38
+        ? hexToRgba(theme.roadDark, 0.03 + rand() * 0.045)
+        : hexToRgba(theme.moss, 0.03 + rand() * 0.04);
+    ctx.lineWidth = 0.7 + rand() * (quality === "high" ? 2.6 : 1.7);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(
+      x + Math.cos(angle + bend) * length * 0.45,
+      y + Math.sin(angle + bend) * length * 0.45,
+      x + Math.cos(angle) * length,
+      y + Math.sin(angle) * length,
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const softStains = quality === "high" ? 42 : quality === "medium" ? 28 : 14;
+  for (let i = 0; i < softStains; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const radius = size * (0.026 + rand() * 0.085);
+    const stain = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    stain.addColorStop(0, hexToRgba(rand() > 0.45 ? theme.baseDark : theme.moss, 0.05 + rand() * 0.055));
+    stain.addColorStop(1, hexToRgba(theme.baseDark, 0));
+    ctx.fillStyle = stain;
+    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   }
 
   const drawRoad = (points: Array<[number, number]>, width: number) => {
@@ -457,6 +515,38 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function makeSkyTexture(theme: typeof BIOME_THEMES[BiomeId]) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 8;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, theme.sky);
+  gradient.addColorStop(0.34, theme.fog);
+  gradient.addColorStop(0.72, hexToRgba(theme.baseDark, 0.94));
+  gradient.addColorStop(1, hexToRgba(theme.base, 0.96));
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const glow = ctx.createRadialGradient(canvas.width * 0.5, canvas.height * 0.36, 0, canvas.width * 0.5, canvas.height * 0.36, canvas.height * 0.58);
+  glow.addColorStop(0, hexToRgba(theme.accentSoft, 0.18));
+  glow.addColorStop(0.5, hexToRgba(theme.fog, 0.04));
+  glow.addColorStop(1, hexToRgba(theme.sky, 0));
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
 function RuinCluster({ x, z, s, rot, broken, color, dark }: { x: number; z: number; s: number; rot: number; broken: number; color: string; dark: string }) {
   return (
     <group position={[x, 0, z]} rotation={[0, rot, 0]} scale={s}>
@@ -495,14 +585,45 @@ function CrystalCluster({ x, z, s, rot, color }: { x: number; z: number; s: numb
   );
 }
 
+function HorizonRidge({ x, z, w, h, d, rot, tone, color, dark }: { x: number; z: number; w: number; h: number; d: number; rot: number; tone: number; color: string; dark: string }) {
+  return (
+    <group position={[x, h * 0.36 - 0.08, z]} rotation={[0, rot, 0]}>
+      <mesh scale={[w, h, d]} castShadow receiveShadow>
+        <dodecahedronGeometry args={[0.64, 1]} />
+        <meshStandardMaterial color={tone > 0.52 ? color : dark} roughness={0.96} metalness={0.01} />
+      </mesh>
+      <mesh position={[w * 0.08, h * 0.3, -d * 0.12]} scale={[w * 0.58, h * 0.72, d * 0.48]} castShadow receiveShadow>
+        <dodecahedronGeometry args={[0.62, 1]} />
+        <meshStandardMaterial color={tone > 0.72 ? color : dark} roughness={0.98} metalness={0.01} />
+      </mesh>
+    </group>
+  );
+}
+
 export default function Arena({ qualityOverride }: { qualityOverride?: QualityLevel }) {
   const storedQuality = useGameStore(s => s.quality);
   const quality = qualityOverride ?? storedQuality;
   const stage = useGameStore(s => s.stage);
   const biome = getBiomeForStage(stage);
   const theme = BIOME_THEMES[biome];
+  const terrainDetailTexture = useTexture(TERRAIN_DETAIL_TEXTURE);
   const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
+  const skyTexture = useMemo(() => makeSkyTexture(theme), [theme]);
+  const configuredTerrainDetail = useMemo(() => {
+    terrainDetailTexture.wrapS = THREE.RepeatWrapping;
+    terrainDetailTexture.wrapT = THREE.RepeatWrapping;
+    const repeat = quality === "high" ? 16 : quality === "medium" ? 12 : 8;
+    terrainDetailTexture.repeat.set(repeat, repeat);
+    terrainDetailTexture.offset.set(biome === "marsh" ? 0.17 : biome === "mine" ? 0.34 : 0.08, biome === "crystal_arena" ? 0.26 : 0.11);
+    terrainDetailTexture.colorSpace = THREE.SRGBColorSpace;
+    terrainDetailTexture.anisotropy = quality === "high" ? 8 : quality === "medium" ? 6 : 3;
+    terrainDetailTexture.generateMipmaps = true;
+    terrainDetailTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    terrainDetailTexture.magFilter = THREE.LinearFilter;
+    terrainDetailTexture.needsUpdate = true;
+    return terrainDetailTexture;
+  }, [terrainDetailTexture, quality, biome]);
   const treeCount = quality === "low" ? 6 : quality === "medium" ? 13 : 22;
   const rockCount = quality === "low" ? 10 : quality === "medium" ? 22 : 36;
   const flowerCount = quality === "low" ? 5 : quality === "medium" ? 13 : 24;
@@ -514,6 +635,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const pondCount = quality === "low" ? 1 : quality === "medium" ? 3 : 5;
   const crystalCount = quality === "low" ? 3 : quality === "medium" ? 7 : 10;
   const horizonTreeCount = quality === "low" ? 8 : quality === "medium" ? 18 : 34;
+  const ridgeCount = quality === "low" ? 8 : quality === "medium" ? 18 : 30;
 
   const biomeTrees = DECOR.trees.filter(item => item.biomes.includes(biome)).slice(0, treeCount);
   const biomeRocks = DECOR.rocks.filter(item => item.biomes.includes(biome)).slice(0, rockCount);
@@ -529,9 +651,18 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);
   const biomeCrystals = DECOR.crystals.filter(item => item.biomes.includes(biome)).slice(0, crystalCount);
   const biomeHorizonTrees = DECOR.horizonTrees.filter(item => item.biomes.includes(biome)).slice(0, horizonTreeCount);
+  const biomeRidges = DECOR.ridges.filter(item => item.biomes.includes(biome)).slice(0, ridgeCount);
+  const edgeVeilOpacity = quality === "low" ? 0.1 : quality === "medium" ? 0.13 : 0.16;
 
   return (
     <group>
+      {skyTexture && (
+        <mesh position={[0, 42, 0]} scale={[VISUAL_BOUND * 1.62, VISUAL_BOUND * 0.62, VISUAL_BOUND * 1.62]} renderOrder={-10}>
+          <sphereGeometry args={[1, 48, 20]} />
+          <meshBasicMaterial map={skyTexture} side={THREE.BackSide} depthWrite={false} fog={false} />
+        </mesh>
+      )}
+
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <primitive object={groundGeom} />
         <meshStandardMaterial
@@ -543,6 +674,38 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           metalness={0.01}
         />
       </mesh>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]} receiveShadow>
+        <planeGeometry args={[VISUAL_SIZE, VISUAL_SIZE]} />
+        <meshBasicMaterial
+          map={configuredTerrainDetail}
+          color={biome === "mine" ? "#8c806d" : biome === "marsh" ? "#6b907d" : "#8b9676"}
+          transparent
+          opacity={quality === "low" ? 0.075 : quality === "medium" ? 0.1 : 0.12}
+          depthWrite={false}
+          blending={THREE.MultiplyBlending}
+        />
+      </mesh>
+
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.122, 0]}>
+        <ringGeometry args={[ARENA_BOUND * 0.88, VISUAL_BOUND - 4, 128]} />
+        <meshBasicMaterial color={theme.baseDark} transparent opacity={edgeVeilOpacity} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+
+      {biomeRidges.map((ridge, i) => (
+        <HorizonRidge
+          key={`ridge-${i}`}
+          x={ridge.x}
+          z={ridge.z}
+          w={ridge.w}
+          h={ridge.h}
+          d={ridge.d}
+          rot={ridge.rot}
+          tone={ridge.tone}
+          color={biome === "marsh" ? "#3f6255" : theme.stone}
+          dark={biome === "mine" ? "#3e3932" : theme.stoneDark}
+        />
+      ))}
 
       {roadScuffs.map((scuff, i) => (
         <mesh key={`scuff-${i}`} rotation={[-Math.PI / 2, 0, scuff.rot]} position={[scuff.x, 0.041 + i * 0.0002, scuff.z]} receiveShadow>

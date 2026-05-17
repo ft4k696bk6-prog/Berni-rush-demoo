@@ -1,0 +1,8 @@
+Ground076 terrain detail texture
+
+Source: https://ambientcg.com/view?id=Ground076
+Preview file source: https://commons.wikimedia.org/wiki/File:Ground076_PREVIEW.png
+License: Creative Commons CC0 1.0 Universal / public domain dedication
+License information: https://docs.ambientcg.com/license/
+
+Used in Berni Rush as a lightweight terrain detail overlay.
