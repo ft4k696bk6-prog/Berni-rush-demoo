@@ -1,63 +1,91 @@
 # Berni Rush
 
-Berni Rush is a browser-based 3D arena game built with React, TypeScript, Three.js, and Zustand. It plays like a compact survival action game: pick a class, enter the arena, survive waves of enemies, collect coins, unlock skins, and tune the run through upgrades and perks.
+Berni Rush is a playable browser-based 3D arena game prototype built with React, TypeScript, Three.js and Zustand. It is a side project for real-time interaction, game state, rendering and browser deployment.
 
-Live demo: https://bernirushdemooo.vercel.app
+PL: Berni Rush to interaktywny projekt game web. Nie jest prezentowany jako aplikacja biznesowa ani dopracowany produkt komercyjny.
 
-## What It Does
+## Live demo
 
-- Runs a real-time 3D combat arena in the browser with keyboard and touch controls.
-- Offers six playable class styles: Knight, Ranger, Mage, Assassin, Tank, and Miner.
-- Spawns staged enemy waves with scaling health, damage, speed, rewards, elite enemies, and boss encounters.
-- Includes projectiles, melee arcs, dash moves, power attacks, enemy projectiles, pickups, floating combat text, and impact effects.
-- Saves profile progress, records, wallet coins, selected class, selected skin, and unlocks.
-- Provides a skin shop, permanent upgrades, run perks, and weapon choices.
-- Adapts rendering quality for mobile-like devices so the game stays playable outside a desktop setup.
+https://bernirushdemooo.vercel.app
 
-## Why This Project Matters
+## Screenshots
 
-The interesting part of Berni Rush is the amount of gameplay logic behind a small browser game. Combat rules, progression, balancing, save data, rendering quality, and UI state are separated from the Three.js scene, which makes the project easier to extend without turning every change into a full rewrite.
+Screenshots should be added to `docs/screenshots/`. Placeholder links are intentionally not included.
 
-Recent work focused on making the game feel more stable and readable: clearer enemy models, better world visuals, mobile combat tuning, safer spawning, record keeping, and tester-friendly economy tools.
+## Features
 
-## Tech Stack
+- Real-time 3D arena gameplay in the browser.
+- Keyboard and touch controls.
+- Playable class styles, skins and loadout choices.
+- Enemy waves, elites and boss encounters.
+- Projectiles, melee effects, pickups and floating combat text.
+- Saved local progress for profile, records, wallet coins, class and skins.
+- Mobile-aware rendering quality adjustments.
 
-- React 19 and TypeScript
+## Tech stack
+
+- React
+- TypeScript
 - Vite
-- Three.js with @react-three/fiber and @react-three/drei
-- Zustand for game state
-- lucide-react for UI icons
-- Vercel deployment
+- Three.js
+- `@react-three/fiber`
+- `@react-three/drei`
+- Zustand
+- PNPM workspace
+- Vercel
 
-## Repository Structure
+## Project structure
 
-```text
-artifacts/3d-game/
-  src/game/       Game state, combat systems, 3D scene, UI, balancing, saves
-  public/assets/  Character, enemy, environment, and license files
-lib/              Shared API, database, and generated client packages
-scripts/          Workspace utility scripts
-```
+- `artifacts/3d-game/` — deployed browser game.
+- `artifacts/3d-game/src/game/` — gameplay state, combat systems, scene and UI.
+- `artifacts/3d-game/public/assets/` — character, enemy and environment assets.
+- `lib/` — generated/shared API packages from the workspace template.
+- `scripts/` — utility scripts.
+- `docs/` — roadmap, changelog, issue backlog and screenshots folder.
 
-## Running Locally
+## Getting started
 
 ```bash
+git clone https://github.com/ft4k696bk6-prog/Berni-rush-demoo.git
+cd Berni-rush-demoo
 pnpm install
 pnpm --filter @workspace/3d-game run dev
 ```
 
-Build the deployed game:
-
-```bash
-pnpm --filter @workspace/3d-game run build
-```
-
-Run the workspace type checks:
+Quality checks:
 
 ```bash
 pnpm run typecheck
+pnpm run build
 ```
 
-## Current Status
+## Game mechanics
 
-Berni Rush is a playable portfolio prototype. The core loop, class system, enemies, upgrades, saves, and browser deployment are in place. The next useful improvements would be more level variety, sound design, richer enemy behaviors, and a short onboarding pass for first-time players.
+- Choose a class and enter an arena.
+- Survive enemy waves while collecting coins and pickups.
+- Upgrade run perks, weapons and persistent progress.
+- Avoid enemy attacks and use class movement/combat tools to stay alive.
+
+## What I learned
+
+- Managing game state separately from 3D rendering.
+- Working with Three.js through React components.
+- Balancing a small combat loop for browser play.
+- Persisting local game progress.
+- Deploying and documenting a non-business interactive project honestly.
+
+## Roadmap
+
+- Add onboarding for first-time players.
+- Improve sound design and feedback.
+- Add more enemy behavior variety.
+- Add screenshots and short gameplay clips.
+- Add focused tests around pure balancing/save helpers where practical.
+
+## Status
+
+Playable prototype / Side project.
+
+## License
+
+MIT.
