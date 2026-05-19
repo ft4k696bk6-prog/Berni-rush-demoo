@@ -312,6 +312,8 @@ export default function Player() {
 
     const [nextPlayerX, nextPlayerZ] = clampPlayerToProgress(
       store.mapId,
+      playerRuntime.x,
+      playerRuntime.z,
       playerRuntime.x + (velocity.current.x + dashBoostX) * delta,
       playerRuntime.z + (velocity.current.y + dashBoostZ) * delta,
       store.clearedZoneIds,

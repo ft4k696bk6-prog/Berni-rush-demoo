@@ -330,11 +330,56 @@ function HorizonRidge({ x, z, w, h, d, rot, tone, color, dark }: { x: number; z:
   );
 }
 
+function ExpeditionWall({ x, z, w, d, h, tint, theme }: { x: number; z: number; w: number; d: number; h: number; tint?: string; theme: typeof BIOME_THEMES[BiomeId] }) {
+  const horizontal = w >= d;
+  const length = horizontal ? w : d;
+  const pillarCount = Math.max(2, Math.min(10, Math.floor(length / 11)));
+  const pillarSpacing = pillarCount > 1 ? length / (pillarCount - 1) : length;
+  const capSize: [number, number, number] = horizontal ? [w + 0.36, 0.34, d + 0.42] : [w + 0.42, 0.34, d + 0.36];
+  const pillarSize: [number, number, number] = horizontal ? [1.05, h * 0.94, d + 0.78] : [w + 0.78, h * 0.94, 1.05];
+
+  return (
+    <group position={[x, h * 0.5, z]}>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={tint ?? theme.stoneDark} roughness={0.92} metalness={0.02} />
+      </mesh>
+      <mesh position={[0, h * 0.03, 0]} scale={[0.98, 0.92, 0.98]}>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color={theme.stone} roughness={0.98} metalness={0.01} transparent opacity={0.28} />
+      </mesh>
+      <mesh position={[0, h * 0.5 + 0.16, 0]} castShadow receiveShadow>
+        <boxGeometry args={capSize} />
+        <meshStandardMaterial color={theme.stoneDark} roughness={0.94} metalness={0.01} />
+      </mesh>
+      {Array.from({ length: pillarCount }).map((_, index) => {
+        const offset = -length * 0.5 + index * pillarSpacing;
+        return (
+          <mesh key={`pillar-${index}`} position={horizontal ? [offset, -0.04, 0] : [0, -0.04, offset]} castShadow receiveShadow>
+            <boxGeometry args={pillarSize} />
+            <meshStandardMaterial color={theme.stoneDark} roughness={0.96} metalness={0.01} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+function RoomCeiling({ x, z, w, d, theme }: { x: number; z: number; w: number; d: number; theme: typeof BIOME_THEMES[BiomeId] }) {
+  return (
+      <mesh position={[x, 6.95, z]} receiveShadow>
+        <boxGeometry args={[w, 0.22, d]} />
+      <meshStandardMaterial color={theme.baseDark} roughness={0.96} metalness={0.01} transparent opacity={0.3} depthWrite={false} />
+    </mesh>
+  );
+}
+
 export default function Arena({ qualityOverride }: { qualityOverride?: QualityLevel }) {
   const storedQuality = useGameStore(s => s.quality);
   const quality = qualityOverride ?? storedQuality;
   const mapId = useGameStore(s => s.mapId);
-  const biome = getMapDefinition(mapId).biome;
+  const map = getMapDefinition(mapId);
+  const biome = map.biome;
   const theme = BIOME_THEMES[biome];
   const terrainDetailTexture = useTexture(TERRAIN_DETAIL_TEXTURE);
   const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
@@ -440,6 +485,30 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           rotation={[0, asset.rotation, 0]}
           scale={asset.scale}
           tint={asset.tint}
+        />
+      ))}
+
+      {map.wallSegments.map(segment => (
+        <ExpeditionWall
+          key={`wall-${segment.id}`}
+          x={segment.center[0]}
+          z={segment.center[1]}
+          w={segment.size[0]}
+          d={segment.size[1]}
+          h={segment.height}
+          tint={segment.tint}
+          theme={theme}
+        />
+      ))}
+
+      {map.rooms.map(room => (
+        <RoomCeiling
+          key={`ceiling-${room.id}`}
+          x={room.center[0]}
+          z={room.center[1]}
+          w={room.halfSize[0] * 2.06}
+          d={room.halfSize[1] * 2.06}
+          theme={theme}
         />
       ))}
     </group>

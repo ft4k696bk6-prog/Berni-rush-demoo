@@ -11,6 +11,38 @@ export interface MapBounds {
   maxZ: number;
 }
 
+export interface RoomDefinition {
+  id: string;
+  label: string;
+  center: [number, number];
+  halfSize: [number, number];
+}
+
+export interface MapWallSegment {
+  id: string;
+  center: [number, number];
+  size: [number, number];
+  height: number;
+  y?: number;
+  tint?: string;
+}
+
+export type CollisionShape =
+  | { id: string; type: "rect"; center: [number, number]; halfSize: [number, number] }
+  | { id: string; type: "circle"; center: [number, number]; radius: number };
+
+export interface MapHazardDefinition {
+  id: string;
+  type: "hostile_tree";
+  position: [number, number];
+  radius: number;
+  triggerRadius: number;
+  damage: number;
+  cooldownMs: number;
+  windupMs: number;
+  scale: number;
+}
+
 export interface MapSceneryPlacement {
   id: string;
   x: number;
@@ -40,29 +72,80 @@ export interface MapDefinition {
   startAngle: number;
   exit: { position: [number, number]; radius: number };
   bounds: MapBounds;
+  rooms: RoomDefinition[];
+  wallSegments: MapWallSegment[];
+  collisions: CollisionShape[];
+  hazards: MapHazardDefinition[];
   zones: EncounterZoneDefinition[];
   scenery: MapSceneryPlacement[];
 }
 
 const deg = (value: number) => value * Math.PI / 180;
+const WALL_HEIGHT = 6.4;
+const WALL_THICKNESS = 2.2;
 
-const wallRun = (id: string, z: number, xs: number[], scale = 2.25): MapSceneryPlacement[] => (
-  xs.map((x, index) => ({
-    id,
-    x,
-    z,
-    scale: scale * (0.94 + (index % 3) * 0.05),
-    rotation: deg(index % 2 === 0 ? 90 : -90),
-    mount: "ground" as const,
+const room = (id: string, label: string, x: number, z: number, hx: number, hz: number): RoomDefinition => ({
+  id,
+  label,
+  center: [x, z],
+  halfSize: [hx, hz],
+});
+
+const wall = (id: string, x: number, z: number, width: number, depth: number, height = WALL_HEIGHT, tint?: string): MapWallSegment => ({
+  id,
+  center: [x, z],
+  size: [width, depth],
+  height,
+  tint,
+});
+
+const closedWalls = (
+  prefix: string,
+  bounds: MapBounds,
+  partitionZ: number[] = [],
+  doorWidth = 11,
+  tint?: string,
+): MapWallSegment[] => {
+  const width = bounds.maxX - bounds.minX;
+  const depth = bounds.maxZ - bounds.minZ;
+  const cx = (bounds.minX + bounds.maxX) * 0.5;
+  const cz = (bounds.minZ + bounds.maxZ) * 0.5;
+  const leftX = bounds.minX - WALL_THICKNESS * 0.5;
+  const rightX = bounds.maxX + WALL_THICKNESS * 0.5;
+  const sideLength = Math.max(1, (width - doorWidth) * 0.5);
+  const leftPartitionX = bounds.minX + sideLength * 0.5;
+  const rightPartitionX = bounds.maxX - sideLength * 0.5;
+
+  return [
+    wall(`${prefix}-west`, leftX, cz, WALL_THICKNESS, depth + WALL_THICKNESS * 2, WALL_HEIGHT, tint),
+    wall(`${prefix}-east`, rightX, cz, WALL_THICKNESS, depth + WALL_THICKNESS * 2, WALL_HEIGHT, tint),
+    wall(`${prefix}-north`, cx, bounds.maxZ + WALL_THICKNESS * 0.5, width + WALL_THICKNESS * 2, WALL_THICKNESS, WALL_HEIGHT, tint),
+    wall(`${prefix}-south`, cx, bounds.minZ - WALL_THICKNESS * 0.5, width + WALL_THICKNESS * 2, WALL_THICKNESS, WALL_HEIGHT, tint),
+    ...partitionZ.flatMap((z, index) => [
+      wall(`${prefix}-partition-${index}-l`, leftPartitionX, z, sideLength, WALL_THICKNESS, WALL_HEIGHT, tint),
+      wall(`${prefix}-partition-${index}-r`, rightPartitionX, z, sideLength, WALL_THICKNESS, WALL_HEIGHT, tint),
+    ]),
+  ];
+};
+
+const wallCollisions = (walls: MapWallSegment[]): CollisionShape[] => (
+  walls.map(segment => ({
+    id: `wall-${segment.id}`,
+    type: "rect" as const,
+    center: segment.center,
+    halfSize: [segment.size[0] * 0.5, segment.size[1] * 0.5] as [number, number],
   }))
 );
 
-const sideWalls = (zValues: number[], left = -34, right = 34, id = "quaternius-uneven-wall", scale = 2.0): MapSceneryPlacement[] => (
-  zValues.flatMap((z, index) => [
-    { id, x: left, z, scale: scale * (0.95 + (index % 3) * 0.04), rotation: deg(0), mount: "ground" as const },
-    { id, x: right, z: z + (index % 2 ? 2 : -2), scale: scale * (0.95 + ((index + 1) % 3) * 0.04), rotation: deg(180), mount: "ground" as const },
-  ])
-);
+const wallRun = (id: string, z: number, xs: number[], scale = 2.25): MapSceneryPlacement[] => {
+  void id; void z; void xs; void scale;
+  return [];
+};
+
+const sideWalls = (zValues: number[], left = -34, right = 34, id = "quaternius-uneven-wall", scale = 2.0): MapSceneryPlacement[] => {
+  void zValues; void left; void right; void id; void scale;
+  return [];
+};
 
 const groundDetails = (points: Array<[string, number, number, number?, number?]>): MapSceneryPlacement[] => (
   points.map(([id, x, z, scale = 1, rot = 0]) => ({ id, x, z, scale, rotation: deg(rot), mount: "ground" }))
@@ -70,41 +153,68 @@ const groundDetails = (points: Array<[string, number, number, number?, number?]>
 
 export const MAP_SEQUENCE: MapId[] = ["ruins_path", "marsh_trail", "mine_passage", "crystal_gate"];
 
+const ruinsBounds: MapBounds = { minX: -28, maxX: 28, minZ: -78, maxZ: 84 };
+const marshBounds: MapBounds = { minX: -30, maxX: 30, minZ: -78, maxZ: 82 };
+const mineBounds: MapBounds = { minX: -26, maxX: 26, minZ: -78, maxZ: 84 };
+const crystalBounds: MapBounds = { minX: -30, maxX: 30, minZ: -80, maxZ: 82 };
+const bossBounds: MapBounds = { minX: -42, maxX: 42, minZ: -52, maxZ: 58 };
+
+const ruinsWalls = closedWalls("ruins", ruinsBounds, [34, -24], 12, "#53614f");
+const marshWalls = closedWalls("marsh", marshBounds, [30, -22], 13, "#425c52");
+const mineWalls = closedWalls("mine", mineBounds, [34, -22], 12, "#5b5045");
+const crystalWalls = closedWalls("crystal", crystalBounds, [30, -24], 12, "#5b6178");
+const bossWalls = closedWalls("boss", bossBounds, [], 16, "#6b5a52");
+
 export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
   ruins_path: {
     id: "ruins_path",
     label: "Elderwood Road",
     biome: "ruins_forest",
-    start: [0, 86],
+    start: [0, 72],
     startAngle: Math.PI,
-    exit: { position: [0, -88], radius: 8 },
-    bounds: { minX: -46, maxX: 46, minZ: -100, maxZ: 96 },
+    exit: { position: [0, -70], radius: 7 },
+    bounds: ruinsBounds,
+    rooms: [
+      room("ruins-entry", "Entry Hall", 0, 58, 22, 20),
+      room("ruins-court", "Broken Court", 0, 4, 24, 28),
+      room("ruins-sanctum", "Old Arch", 0, -54, 23, 22),
+    ],
+    wallSegments: ruinsWalls,
+    collisions: [
+      ...wallCollisions(ruinsWalls),
+      { id: "ruins-crate-block", type: "circle", center: [-22, 58], radius: 2.2 },
+      { id: "ruins-chest-block", type: "circle", center: [21, -58], radius: 2.1 },
+    ],
+    hazards: [
+      { id: "ruins-tree-ambush-a", type: "hostile_tree", position: [-21, 38], radius: 4.2, triggerRadius: 8.6, damage: 18, cooldownMs: 3600, windupMs: 780, scale: 0.42 },
+      { id: "ruins-tree-ambush-b", type: "hostile_tree", position: [21, -30], radius: 4.6, triggerRadius: 9.2, damage: 21, cooldownMs: 4100, windupMs: 820, scale: 0.46 },
+    ],
     zones: [
       {
         id: "outer-gate",
         label: "Outer Gate",
-        center: [0, 50],
+        center: [0, 58],
         radius: 18,
         enemyTypes: ["basic_melee", "basic_melee", "ranged_enemy"],
-        spawnPoints: [[-12, 45], [12, 42], [0, 33]],
+        spawnPoints: [[-15, 48], [15, 47], [0, 41]],
       },
       {
         id: "broken-court",
         label: "Broken Court",
-        center: [0, 8],
-        radius: 20,
+        center: [0, 4],
+        radius: 22,
         unlockAfter: "outer-gate",
         enemyTypes: ["basic_melee", "fast_melee", "ranged_enemy"],
-        spawnPoints: [[-18, 4], [17, 1], [-5, -10]],
+        spawnPoints: [[-18, -6], [18, -7], [0, -16]],
       },
       {
         id: "old-arch",
         label: "Old Arch",
-        center: [0, -45],
-        radius: 22,
+        center: [0, -54],
+        radius: 21,
         unlockAfter: "broken-court",
         enemyTypes: ["tank_enemy", "basic_melee", "fast_melee", "ranged_enemy"],
-        spawnPoints: [[-18, -48], [18, -50], [0, -64], [-8, -35]],
+        spawnPoints: [[-18, -58], [18, -59], [0, -69], [-10, -43]],
       },
     ],
     scenery: [
@@ -132,36 +242,51 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     id: "marsh_trail",
     label: "Moonveil Marsh Trail",
     biome: "marsh",
-    start: [-12, 84],
+    start: [-12, 70],
     startAngle: Math.PI,
-    exit: { position: [18, -86], radius: 8 },
-    bounds: { minX: -54, maxX: 54, minZ: -98, maxZ: 96 },
+    exit: { position: [14, -70], radius: 7 },
+    bounds: marshBounds,
+    rooms: [
+      room("marsh-entry", "Reed Bed", -8, 56, 22, 20),
+      room("marsh-shrine", "Sunken Shrine", 8, 5, 24, 26),
+      room("marsh-gate", "Bog Gate", 12, -52, 23, 22),
+    ],
+    wallSegments: marshWalls,
+    collisions: [
+      ...wallCollisions(marshWalls),
+      { id: "marsh-cauldron-block", type: "circle", center: [-22, -4], radius: 2.2 },
+      { id: "marsh-rock-block", type: "circle", center: [-24, -66], radius: 2.4 },
+    ],
+    hazards: [
+      { id: "marsh-tree-ambush-a", type: "hostile_tree", position: [-23, 31], radius: 4.4, triggerRadius: 9.5, damage: 20, cooldownMs: 3900, windupMs: 860, scale: 0.4 },
+      { id: "marsh-tree-ambush-b", type: "hostile_tree", position: [24, -32], radius: 4.8, triggerRadius: 9.4, damage: 22, cooldownMs: 4300, windupMs: 900, scale: 0.43 },
+    ],
     zones: [
       {
         id: "reed-bed",
         label: "Reed Bed",
-        center: [-12, 46],
+        center: [-8, 56],
         radius: 19,
         enemyTypes: ["fast_melee", "basic_melee", "ranged_enemy"],
-        spawnPoints: [[-27, 42], [0, 40], [-13, 28]],
+        spawnPoints: [[-22, 49], [7, 46], [-10, 37]],
       },
       {
         id: "sunken-shrine",
         label: "Sunken Shrine",
-        center: [12, 2],
+        center: [8, 5],
         radius: 22,
         unlockAfter: "reed-bed",
         enemyTypes: ["ranged_enemy", "fast_melee", "exploder_enemy"],
-        spawnPoints: [[-3, 4], [25, 8], [13, -15]],
+        spawnPoints: [[-9, -3], [23, -1], [8, -17]],
       },
       {
         id: "bog-gate",
         label: "Bog Gate",
-        center: [18, -48],
+        center: [12, -52],
         radius: 22,
         unlockAfter: "sunken-shrine",
         enemyTypes: ["tank_enemy", "ranged_enemy", "fast_melee", "basic_melee"],
-        spawnPoints: [[1, -43], [31, -45], [17, -66], [28, -31]],
+        spawnPoints: [[-5, -51], [26, -54], [12, -67], [23, -39]],
       },
     ],
     scenery: [
@@ -188,36 +313,48 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     id: "mine_passage",
     label: "Ember Quarry Passage",
     biome: "mine_quarry",
-    start: [0, 88],
+    start: [0, 72],
     startAngle: Math.PI,
-    exit: { position: [0, -88], radius: 8 },
-    bounds: { minX: -40, maxX: 40, minZ: -100, maxZ: 98 },
+    exit: { position: [0, -70], radius: 7 },
+    bounds: mineBounds,
+    rooms: [
+      room("mine-entry", "Timber Entry", 0, 58, 20, 20),
+      room("mine-yard", "Ore Yard", 0, 5, 22, 26),
+      room("mine-deep", "Deep Gate", 0, -53, 21, 22),
+    ],
+    wallSegments: mineWalls,
+    collisions: [
+      ...wallCollisions(mineWalls),
+      { id: "mine-workbench-block", type: "circle", center: [-19, 25], radius: 2.2 },
+      { id: "mine-weapon-stand-block", type: "circle", center: [20, -18], radius: 1.9 },
+    ],
+    hazards: [],
     zones: [
       {
         id: "timber-entry",
         label: "Timber Entry",
-        center: [0, 48],
+        center: [0, 58],
         radius: 17,
         enemyTypes: ["basic_melee", "tank_enemy", "ranged_enemy"],
-        spawnPoints: [[-13, 42], [13, 42], [0, 30]],
+        spawnPoints: [[-15, 49], [15, 48], [0, 39]],
       },
       {
         id: "ore-yard",
         label: "Ore Yard",
-        center: [0, 3],
+        center: [0, 5],
         radius: 20,
         unlockAfter: "timber-entry",
         enemyTypes: ["tank_enemy", "fast_melee", "exploder_enemy"],
-        spawnPoints: [[-18, 1], [18, 0], [0, -14]],
+        spawnPoints: [[-17, -3], [17, -4], [0, -17]],
       },
       {
         id: "deep-gate",
         label: "Deep Gate",
-        center: [0, -50],
+        center: [0, -53],
         radius: 22,
         unlockAfter: "ore-yard",
         enemyTypes: ["tank_enemy", "ranged_enemy", "fast_melee", "exploder_enemy"],
-        spawnPoints: [[-19, -47], [19, -49], [0, -68], [-9, -34]],
+        spawnPoints: [[-17, -55], [17, -56], [0, -68], [-9, -40]],
       },
     ],
     scenery: [
@@ -244,36 +381,48 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     id: "crystal_gate",
     label: "Crystal Gate",
     biome: "crystal_gate",
-    start: [0, 86],
+    start: [0, 72],
     startAngle: Math.PI,
-    exit: { position: [0, -88], radius: 8 },
-    bounds: { minX: -50, maxX: 50, minZ: -100, maxZ: 96 },
+    exit: { position: [0, -72], radius: 7 },
+    bounds: crystalBounds,
+    rooms: [
+      room("crystal-entry", "Blue Steps", 0, 55, 24, 21),
+      room("crystal-crossing", "Rune Crossing", 0, 3, 25, 27),
+      room("crystal-mouth", "Gate Mouth", 0, -56, 24, 22),
+    ],
+    wallSegments: crystalWalls,
+    collisions: [
+      ...wallCollisions(crystalWalls),
+      { id: "crystal-cauldron-left", type: "circle", center: [-22, -10], radius: 2.1 },
+      { id: "crystal-cauldron-right", type: "circle", center: [22, -10], radius: 2.1 },
+    ],
+    hazards: [],
     zones: [
       {
         id: "blue-steps",
         label: "Blue Steps",
-        center: [0, 42],
+        center: [0, 55],
         radius: 20,
         enemyTypes: ["ranged_enemy", "basic_melee", "fast_melee"],
-        spawnPoints: [[-18, 36], [18, 36], [0, 24]],
+        spawnPoints: [[-19, 47], [19, 47], [0, 37]],
       },
       {
         id: "rune-crossing",
         label: "Rune Crossing",
-        center: [0, -6],
+        center: [0, 3],
         radius: 22,
         unlockAfter: "blue-steps",
         enemyTypes: ["ranged_enemy", "tank_enemy", "exploder_enemy"],
-        spawnPoints: [[-19, -7], [19, -7], [0, -24]],
+        spawnPoints: [[-19, -5], [19, -6], [0, -18]],
       },
       {
         id: "gate-mouth",
         label: "Gate Mouth",
-        center: [0, -55],
+        center: [0, -56],
         radius: 23,
         unlockAfter: "rune-crossing",
         enemyTypes: ["tank_enemy", "ranged_enemy", "fast_melee", "exploder_enemy"],
-        spawnPoints: [[-20, -50], [20, -50], [0, -72], [-8, -39]],
+        spawnPoints: [[-20, -58], [20, -58], [0, -72], [-8, -42]],
       },
     ],
     scenery: [
@@ -299,18 +448,28 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     id: "boss_courtyard",
     label: "Sunken Boss Courtyard",
     biome: "boss_courtyard",
-    start: [0, 62],
+    start: [0, 42],
     startAngle: Math.PI,
-    exit: { position: [0, -62], radius: 9 },
-    bounds: { minX: -64, maxX: 64, minZ: -76, maxZ: 76 },
+    exit: { position: [0, -45], radius: 8 },
+    bounds: bossBounds,
+    rooms: [
+      room("boss-arena", "Dragon Ring", 0, 2, 36, 45),
+    ],
+    wallSegments: bossWalls,
+    collisions: [
+      ...wallCollisions(bossWalls),
+      { id: "boss-left-arch-block", type: "circle", center: [-35, 0], radius: 3.2 },
+      { id: "boss-right-arch-block", type: "circle", center: [35, 0], radius: 3.2 },
+    ],
+    hazards: [],
     zones: [
       {
         id: "dragon-ring",
         label: "Dragon Ring",
         center: [0, 0],
-        radius: 48,
+        radius: 36,
         enemyTypes: ["boss_dragon", "ranged_enemy", "fast_melee", "basic_melee", "tank_enemy"],
-        spawnPoints: [[0, -10], [-26, 12], [26, 12], [-18, -28], [18, -28]],
+        spawnPoints: [[0, -14], [-26, 14], [26, 14], [-18, -28], [18, -28]],
       },
     ],
     scenery: [
@@ -358,13 +517,95 @@ export function clampPointToMap(mapId: MapId, x: number, z: number, margin = 1):
   ];
 }
 
-export function clampPlayerToProgress(mapId: MapId, x: number, z: number, clearedZoneIds: string[], margin = 1): [number, number] {
-  const [clampedX, clampedZ] = clampPointToMap(mapId, x, z, margin);
+export function getMapCollisionShapes(mapId: MapId) {
+  return getMapDefinition(mapId).collisions;
+}
+
+export function pointCollidesWithMap(mapId: MapId, x: number, z: number, radius = 0.8) {
+  const shapes = getMapCollisionShapes(mapId);
+  return shapes.some(shape => {
+    if (shape.type === "circle") {
+      const dx = x - shape.center[0];
+      const dz = z - shape.center[1];
+      return dx * dx + dz * dz < (shape.radius + radius) ** 2;
+    }
+
+    return (
+      x > shape.center[0] - shape.halfSize[0] - radius &&
+      x < shape.center[0] + shape.halfSize[0] + radius &&
+      z > shape.center[1] - shape.halfSize[1] - radius &&
+      z < shape.center[1] + shape.halfSize[1] + radius
+    );
+  });
+}
+
+function pushOutOfShape(shape: CollisionShape, x: number, z: number, radius: number): [number, number] {
+  if (shape.type === "circle") {
+    const dx = x - shape.center[0];
+    const dz = z - shape.center[1];
+    const minDist = shape.radius + radius;
+    const dist = Math.max(0.0001, Math.hypot(dx, dz));
+    if (dist >= minDist) return [x, z];
+    return [shape.center[0] + (dx / dist) * minDist, shape.center[1] + (dz / dist) * minDist];
+  }
+
+  const minX = shape.center[0] - shape.halfSize[0] - radius;
+  const maxX = shape.center[0] + shape.halfSize[0] + radius;
+  const minZ = shape.center[1] - shape.halfSize[1] - radius;
+  const maxZ = shape.center[1] + shape.halfSize[1] + radius;
+  if (x <= minX || x >= maxX || z <= minZ || z >= maxZ) return [x, z];
+
+  const left = Math.abs(x - minX);
+  const right = Math.abs(maxX - x);
+  const bottom = Math.abs(z - minZ);
+  const top = Math.abs(maxZ - z);
+  const smallest = Math.min(left, right, bottom, top);
+  if (smallest === left) return [minX, z];
+  if (smallest === right) return [maxX, z];
+  if (smallest === bottom) return [x, minZ];
+  return [x, maxZ];
+}
+
+export function resolveMapMovement(mapId: MapId, fromX: number, fromZ: number, toX: number, toZ: number, radius = 0.8): [number, number] {
+  const [boundedX, boundedZ] = clampPointToMap(mapId, toX, toZ, radius);
+  if (!pointCollidesWithMap(mapId, boundedX, boundedZ, radius)) return [boundedX, boundedZ];
+
+  const [xOnly] = clampPointToMap(mapId, boundedX, fromZ, radius);
+  if (!pointCollidesWithMap(mapId, xOnly, fromZ, radius)) return [xOnly, fromZ];
+
+  const [, zOnly] = clampPointToMap(mapId, fromX, boundedZ, radius);
+  if (!pointCollidesWithMap(mapId, fromX, zOnly, radius)) return [fromX, zOnly];
+
+  let x = boundedX;
+  let z = boundedZ;
+  for (let i = 0; i < 4; i++) {
+    for (const shape of getMapCollisionShapes(mapId)) {
+      [x, z] = pushOutOfShape(shape, x, z, radius);
+    }
+    [x, z] = clampPointToMap(mapId, x, z, radius);
+  }
+
+  return pointCollidesWithMap(mapId, x, z, radius) ? clampPointToMap(mapId, fromX, fromZ, radius) : [x, z];
+}
+
+export function clampPlayerToProgress(mapId: MapId, fromX: number, fromZ: number, x: number, z: number, clearedZoneIds: string[], margin = 1): [number, number] {
+  const [clampedX, clampedZ] = resolveMapMovement(mapId, fromX, fromZ, x, z, margin);
   const nextZone = getNextUnlockedZone(mapId, clearedZoneIds);
   if (!nextZone) return [clampedX, clampedZ];
 
   const forwardGateZ = nextZone.center[1] - nextZone.radius - 8;
   return [clampedX, Math.max(forwardGateZ, clampedZ)];
+}
+
+export function segmentHitsMapCollision(mapId: MapId, ax: number, az: number, bx: number, bz: number, radius = 0.22) {
+  const steps = Math.max(2, Math.ceil(Math.hypot(bx - ax, bz - az) / 1.2));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const x = ax + (bx - ax) * t;
+    const z = az + (bz - az) * t;
+    if (pointCollidesWithMap(mapId, x, z, radius)) return true;
+  }
+  return false;
 }
 
 export function getZoneEnemyTypes(stage: number, mapId: MapId, zoneId: string) {

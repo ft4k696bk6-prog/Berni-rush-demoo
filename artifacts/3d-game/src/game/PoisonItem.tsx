@@ -1,7 +1,7 @@
 import { memo, Suspense, useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { clampPointToMap } from "./mapDefinitions";
+import { resolveMapMovement } from "./mapDefinitions";
 import { playerRuntime } from "./gameRuntime";
 import { EnemyAssetModel } from "./AssetModels";
 import { PoisonItem as EnemyType, QualityLevel } from "./types";
@@ -75,6 +75,8 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
     const delta = Math.min(rawDelta, 1 / 30);
     const now = Date.now();
     const store = useGameStore.getState();
+    const previousX = posRef.current[0];
+    const previousZ = posRef.current[1];
     t.current += delta * (poison.type === "ghost" ? 2.35 : isBoss ? 1.28 : 2.15);
 
     const slow = store.activeEffects.some(e => e.type === "time_slow" && e.expiresAt > now);
@@ -155,7 +157,7 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
       posRef.current[1] += (moveZ / moveLen) * speed * delta;
     }
 
-    const [clampedX, clampedZ] = clampPointToMap(store.mapId, posRef.current[0], posRef.current[1], 1.4);
+    const [clampedX, clampedZ] = resolveMapMovement(store.mapId, previousX, previousZ, posRef.current[0], posRef.current[1], 1.4);
     posRef.current[0] = clampedX;
     posRef.current[1] = clampedZ;
     poisonCurrentPos[poison.id] = [posRef.current[0], posRef.current[1]];

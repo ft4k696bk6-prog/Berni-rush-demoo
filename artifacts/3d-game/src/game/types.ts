@@ -289,6 +289,7 @@ export interface GameState {
   activeEffects: ActiveEffect[];
   drugs: DrugItem[];
   poisons: PoisonItem[];
+  enemyPool: PoisonItem[];
   projectiles: Projectile[];
   enemyProjectiles: EnemyProjectile[];
   meleeSwings: MeleeSwing[];

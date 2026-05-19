@@ -10,6 +10,7 @@ import Projectile from "./Projectile";
 import EnemyProjectile from "./EnemyProjectile";
 import MeleeEffect from "./MeleeEffect";
 import ImpactEffect from "./ImpactEffect";
+import MapHazards from "./MapHazards";
 import CameraRig from "./CameraRig";
 import CoinItem from "./CoinItem";
 import FloatingText from "./FloatingText";
@@ -177,6 +178,7 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
       {inRun && (
         <>
           <Player />
+          <MapHazards />
           {drugs.map(d => <DrugItem key={d.id} drug={d} />)}
           {poisons.map(p => {
             const assetModelAllowed = Boolean(p.assetPath);
