@@ -56,22 +56,6 @@ function detectMobileLikeViewport() {
   return window.matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) <= 900;
 }
 
-function lowerQuality(quality: QualityLevel): QualityLevel {
-  if (quality === "high") return "medium";
-  if (quality === "medium") return "low";
-  return "low";
-}
-
-function qualityAfterTier(quality: QualityLevel, renderTier: number) {
-  let next = quality;
-  for (let i = 0; i < renderTier; i++) next = lowerQuality(next);
-  return next;
-}
-
-function getStableWorldQuality(quality: QualityLevel, mobileLike: boolean): QualityLevel {
-  return mobileLike && quality === "high" ? "medium" : quality;
-}
-
 function getEnemyAssetBudget(quality: QualityLevel, compactViewport: boolean) {
   if (compactViewport) {
     if (quality === "low") return 14;
@@ -81,55 +65,20 @@ function getEnemyAssetBudget(quality: QualityLevel, compactViewport: boolean) {
   return 24;
 }
 
-function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
-  const stableWorldQuality = getStableWorldQuality(quality, mobileLike);
-  const effectiveQuality = qualityAfterTier(
-    mobileLike && quality === "high" ? "medium" : quality,
-    Math.min(2, renderTier),
-  );
+function getSceneProfile(_quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
   const mobileDprScale = mobileLike ? (renderTier === 0 ? 1 : renderTier === 1 ? 0.84 : 0.7) : 1;
 
-  if (effectiveQuality === "low") {
-    return {
-      dpr: mobileLike ? Math.max(0.64, 0.86 * mobileDprScale) : [0.82, 1],
-      antialias: false,
-      powerPreference: mobileLike ? "default" : "high-performance",
-      shadows: false,
-      contactShadows: false,
-      shadowMapSize: mobileLike ? [512, 512] : [1024, 1024],
-      contactShadowResolution: mobileLike ? 192 : 384,
-      performanceMin: mobileLike ? 0.38 : 0.55,
-      toneMappingExposure: 0.97,
-      worldQuality: stableWorldQuality,
-    };
-  }
-
-  if (effectiveQuality === "high") {
-    return {
-      dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.55],
-      antialias: !mobileLike,
-      powerPreference: mobileLike ? "default" : "high-performance",
-      shadows: mobileLike ? renderTier === 0 : true,
-      contactShadows: mobileLike ? false : true,
-      shadowMapSize: mobileLike ? [1024, 1024] : [2048, 2048],
-      contactShadowResolution: mobileLike ? 256 : 512,
-      performanceMin: mobileLike ? 0.42 : 0.58,
-      toneMappingExposure: mobileLike ? 1 : 1.02,
-      worldQuality: stableWorldQuality,
-    };
-  }
-
   return {
-    dpr: mobileLike ? [Math.max(0.72, 0.88 * mobileDprScale), Math.max(0.9, 1.02 * mobileDprScale)] : [0.9, 1.25],
+    dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.55],
     antialias: !mobileLike,
     powerPreference: mobileLike ? "default" : "high-performance",
     shadows: mobileLike ? renderTier === 0 : true,
-    contactShadows: false,
-    shadowMapSize: mobileLike ? [768, 768] : [1024, 1024],
-    contactShadowResolution: mobileLike ? 224 : 512,
-    performanceMin: mobileLike ? 0.42 : 0.56,
-    toneMappingExposure: 0.98,
-    worldQuality: stableWorldQuality,
+    contactShadows: mobileLike ? false : true,
+    shadowMapSize: mobileLike ? [1024, 1024] : [2048, 2048],
+    contactShadowResolution: mobileLike ? 256 : 512,
+    performanceMin: mobileLike ? 0.42 : 0.58,
+    toneMappingExposure: mobileLike ? 1 : 1.02,
+    worldQuality: "high",
   };
 }
 

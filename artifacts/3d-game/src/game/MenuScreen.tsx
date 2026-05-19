@@ -36,7 +36,7 @@ import { useGameStore } from "./useGameStore";
 import { hasSavedGame } from "./saveSystem";
 import { useFullscreenStatus } from "./fullscreen";
 import { useCompactViewport } from "./useCompactViewport";
-import { QualityLevel, SkinId } from "./types";
+import { SkinId } from "./types";
 
 type MenuView = "home" | "class" | "skins" | "upgrades" | "settings";
 type SkinFilter = "available" | "locked";
@@ -80,7 +80,6 @@ export default function MenuScreen() {
   const selectedClassId = useGameStore(s => s.selectedClassId);
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const unlockedSkinIds = useGameStore(s => s.unlockedSkinIds);
-  const quality = useGameStore(s => s.quality);
   const mobileLookSensitivity = useGameStore(s => s.mobileLookSensitivity);
   const mobileLookDeadzone = useGameStore(s => s.mobileLookDeadzone);
   const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
@@ -90,7 +89,6 @@ export default function MenuScreen() {
   const selectClass = useGameStore(s => s.selectClass);
   const selectSkin = useGameStore(s => s.selectSkin);
   const buySkin = useGameStore(s => s.buySkin);
-  const setQuality = useGameStore(s => s.setQuality);
   const setMobileLookSensitivity = useGameStore(s => s.setMobileLookSensitivity);
   const setMobileLookDeadzone = useGameStore(s => s.setMobileLookDeadzone);
   const setMobileLeftHanded = useGameStore(s => s.setMobileLeftHanded);
@@ -123,7 +121,6 @@ export default function MenuScreen() {
     ? previewSkinId
     : compatibleAvailableSkinIds[0] ?? compatibleLockedSkinIds[0] ?? selectedSkinId;
   const previewSkin = SKIN_DEFINITIONS[fallbackPreviewSkinId] ?? selectedSkin;
-  const qualityOptions: QualityLevel[] = ["low", "medium", "high"];
   const newRecord = isGameOver && score > 0 && score >= records.bestScore;
 
   return (
@@ -303,16 +300,6 @@ export default function MenuScreen() {
 
         {view === "settings" && (
           <main className="settings-view">
-            <section>
-              <span>Effects quality</span>
-              <div className="quality-pills">
-                {qualityOptions.map(option => (
-                  <button key={option} type="button" className={quality === option ? "active" : ""} onClick={() => setQuality(option)}>
-                    {option.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </section>
             {!compactViewport && (
               <section>
                 <span>Desktop display</span>

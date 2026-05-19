@@ -72,7 +72,7 @@ export const defaultProfile = (): ProfileData => ({
   highestWave: 1,
   bossesDefeated: 0,
   settings: {
-    quality: "medium",
+    quality: "high",
     cameraViewMode: "third_person",
     mobileControls: {
       lookSensitivity: 0.72,
@@ -138,6 +138,7 @@ export function loadProfile(): ProfileData {
     settings: {
       ...base.settings,
       ...(saved.settings ?? {}),
+      quality: "high",
       cameraViewMode: "third_person",
       mobileControls: clampMobileControls(saved.settings?.mobileControls),
     },
@@ -161,7 +162,7 @@ export function updateProfile(patch: Partial<ProfileData> | ((profile: ProfileDa
     highestWave: Math.max(1, next.highestWave),
     bossesDefeated: Math.max(0, next.bossesDefeated),
     settings: {
-      quality: next.settings?.quality ?? "medium",
+      quality: "high",
       cameraViewMode: "third_person",
       mobileControls: clampMobileControls(next.settings?.mobileControls),
     },
@@ -215,7 +216,7 @@ export function toSaveData(state: GameState): SaveData {
     selectedClassId: state.selectedClassId,
     selectedSkinId: state.selectedSkinId,
     bossesDefeated: state.bossesDefeated,
-    quality: state.quality,
+    quality: "high",
   };
 }
 
@@ -230,7 +231,7 @@ export function saveGameState(state: GameState) {
     bestScore: Math.max(profile.bestScore, state.score),
     highestWave: Math.max(profile.highestWave, state.stage),
     settings: {
-      quality: state.quality,
+      quality: "high",
       cameraViewMode: state.cameraViewMode,
       mobileControls: {
         lookSensitivity: state.mobileLookSensitivity,

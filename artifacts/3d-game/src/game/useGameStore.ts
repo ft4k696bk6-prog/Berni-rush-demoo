@@ -234,7 +234,7 @@ function initialEnemies(stage: number, quality: QualityLevel) {
   });
 }
 
-function fresh(quality: QualityLevel = "medium", records: GameRecords = loadRecords()): GameState {
+function fresh(quality: QualityLevel = "high", records: GameRecords = loadRecords()): GameState {
   const profile = loadProfile();
   const loadout = normalizeLoadout({
     selectedClassId: profile.selectedClassId,
@@ -291,7 +291,7 @@ function fresh(quality: QualityLevel = "medium", records: GameRecords = loadReco
     perkChoices: [],
     pendingLevelUps: 0,
     records,
-    quality,
+    quality: "high",
     cameraViewMode: "third_person",
     mobileLookSensitivity: clampMobileSensitivity(profile.settings.mobileControls.lookSensitivity),
     mobileLookDeadzone: clampMobileDeadzone(profile.settings.mobileControls.lookDeadzone),
@@ -470,10 +470,10 @@ interface GameStore extends GameState {
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
-  ...fresh(readSavedGame()?.quality ?? loadProfile().settings.quality ?? "medium"),
+  ...fresh("high"),
 
   startGame: () => {
-    const quality = get().quality;
+    const quality: QualityLevel = "high";
     const runId = get().runId + 1;
     const now = Date.now();
     resetPlayerRuntime();
@@ -483,7 +483,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ...fresh(quality, loadRecords()),
       runId,
       phase: "playing",
-      drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
+      drugs: Array.from({ length: 5 }, spawnMushroom),
       poisons,
       spawnedThisStage: poisons.length,
       activeEffects: [{ type: "invincibility", expiresAt: now + START_GRACE_MS }],
@@ -517,7 +517,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     if (state.phase !== "menu") saveGameState(state);
     clearAllEnemyRuntime();
-    set({ ...fresh(state.quality, loadRecords()), phase: "menu" });
+    set({ ...fresh("high", loadRecords()), phase: "menu" });
   },
 
   loadGame: () => {
@@ -533,7 +533,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const stage = Math.max(1, saved.stage);
     const killsRequired = getStageKillTarget(stage);
     const killsThisStage = Math.min(killsRequired - 1, saved.killsThisStage ?? 0);
-    const quality = saved.quality ?? "medium";
+    const quality: QualityLevel = "high";
     const runId = get().runId + 1;
     const savedPlayerPos: [number, number] = saved.playerPos ?? [0, 0];
     const savedPlayerAngle = saved.playerAngle ?? Math.PI;
@@ -586,7 +586,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedSkinId: loadout.selectedSkinId,
       unlockedSkinIds: profile.unlockedSkinIds,
       poisons,
-      drugs: Array.from({ length: quality === "low" ? 3 : 5 }, spawnMushroom),
+      drugs: Array.from({ length: 5 }, spawnMushroom),
       activeEffects: [{ type: "invincibility", expiresAt: now + RESUME_GRACE_MS }],
       centerMessage: centerMessage("SAVE LOADED", `LEVEL ${stage} - brief shield`, "save", 2200),
     });
@@ -1353,9 +1353,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  setQuality: (quality) => {
-    updateProfile(profile => ({ ...profile, settings: { ...profile.settings, quality } }));
-    set({ quality });
+  setQuality: () => {
+    updateProfile(profile => ({ ...profile, settings: { ...profile.settings, quality: "high" } }));
+    set({ quality: "high" });
   },
 
   setMobileLookSensitivity: (value) => {

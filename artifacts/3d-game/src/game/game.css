@@ -114,7 +114,7 @@ button {
 .wave-strip,
 .upgrade-title,
 .shop-balance,
-.quality-row,
+.pause-tuning-row,
 .record-row {
   display: flex;
   align-items: center;
@@ -850,7 +850,6 @@ button {
 
 .pause-actions button,
 .weapon-card button,
-.quality-row button,
 .menu-actions button,
 .settings-fullscreen-button,
 .mobile-controls-block button {
@@ -871,8 +870,6 @@ button {
 
 .pause-actions button:hover,
 .pause-actions button.active,
-.quality-row button:hover,
-.quality-row button.active,
 .menu-actions button:hover,
 .settings-fullscreen-button:hover,
 .mobile-controls-block button:hover,
@@ -1110,7 +1107,7 @@ button {
   font-size: 20px;
 }
 
-.quality-row {
+.pause-tuning-row {
   align-items: flex-start;
   gap: 16px;
   justify-content: space-between;
@@ -1118,28 +1115,6 @@ button {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   color: #c9e8ef;
   font-weight: 900;
-}
-
-.quality-block {
-  display: grid;
-  gap: 8px;
-}
-
-.quality-block > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.quality-block > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.quality-row button {
-  min-height: 34px;
-  padding: 0 12px;
 }
 
 .mobile-controls-block {
@@ -2917,7 +2892,7 @@ button {
     display: none;
   }
 
-  .quality-row {
+  .pause-tuning-row {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;

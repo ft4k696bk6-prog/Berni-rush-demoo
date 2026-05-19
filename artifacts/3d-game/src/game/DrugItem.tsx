@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { DrugItem as PickupItemType, DRUG_CONFIG } from "./types";
 import { useGameStore } from "./useGameStore";
+import { EnvironmentAssetModel } from "./AssetModels";
 
 interface Props {
   drug: PickupItemType;
@@ -189,7 +190,18 @@ function DrugItem({ drug }: Props) {
         <meshBasicMaterial color={color} transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
-      <MagicMushroom type={drug.type} color={color} />
+      <group position={[0, -0.36, 0]} scale={0.82}>
+        <EnvironmentAssetModel
+          path="/assets/quaternius/stylized-nature/gltf/Mushroom_Common.gltf"
+          position={[0, 0, 0]}
+          scale={0.9}
+        />
+      </group>
+
+      <mesh position={[0, -0.02, 0]} scale={[0.92, 0.44, 0.92]}>
+        <sphereGeometry args={[0.52, 24, 14]} />
+        <meshBasicMaterial color={color} transparent opacity={0.16} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
 
       <mesh ref={haloRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.18, 0]}>
         <torusGeometry args={[0.66, 0.02, 8, 42]} />

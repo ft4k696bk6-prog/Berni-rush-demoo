@@ -4,9 +4,10 @@ import { useFrame } from "@react-three/fiber";
 import { useAnimations, useFBX, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
-import { ENEMY_CONFIG, EnemySubType, SkinId } from "./types";
-import { getSkinDefinition } from "./loadout";
+import { ClassId, ENEMY_CONFIG, EnemySubType, SkinId } from "./types";
+import { getClassDefinition, getSkinDefinition } from "./loadout";
 import { playerRuntime } from "./gameRuntime";
+import { useGameStore } from "./useGameStore";
 
 function cloneScene(scene: THREE.Object3D) {
   return SkeletonUtils.clone(scene) as THREE.Object3D;
@@ -18,9 +19,20 @@ function prepModel(root: THREE.Object3D) {
     if (!mesh.isMesh) return;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    const material = mesh.material as THREE.Material | THREE.Material[];
-    if (Array.isArray(material)) material.forEach(m => { m.needsUpdate = true; });
-    else if (material) material.needsUpdate = true;
+    const sourceMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const materials = sourceMaterials.map(source => {
+      const base = source as THREE.MeshStandardMaterial;
+      const material = base?.isMeshStandardMaterial
+        ? base.clone()
+        : new THREE.MeshStandardMaterial({ color: base?.color ?? "#d9c4a3" });
+      material.roughness = Math.max(material.roughness ?? 0.54, 0.5);
+      material.metalness = Math.min(material.metalness ?? 0.04, 0.18);
+      material.envMapIntensity = 0.46;
+      material.color?.lerp(new THREE.Color("#fff0d4"), 0.035);
+      material.needsUpdate = true;
+      return material;
+    });
+    mesh.material = Array.isArray(mesh.material) ? materials : materials[0];
   });
 }
 
@@ -111,6 +123,21 @@ function playAction(actions: Record<string, THREE.AnimationAction | null>, curre
   current.current = name;
 }
 
+const CLASS_ANIMATION: Record<ClassId, {
+  runScale: number;
+  shootScale: number;
+  slashScale: number;
+  moveLean: number;
+  attackLean: number;
+}> = {
+  knight: { runScale: 0.96, shootScale: 0.95, slashScale: 0.92, moveLean: 0.065, attackLean: 0.13 },
+  ranger: { runScale: 1.12, shootScale: 1.28, slashScale: 1.08, moveLean: 0.085, attackLean: 0.08 },
+  mage: { runScale: 0.92, shootScale: 0.88, slashScale: 0.9, moveLean: 0.055, attackLean: 0.07 },
+  assassin: { runScale: 1.24, shootScale: 1.34, slashScale: 1.45, moveLean: 0.11, attackLean: 0.16 },
+  tank: { runScale: 0.82, shootScale: 0.82, slashScale: 0.74, moveLean: 0.045, attackLean: 0.19 },
+  miner: { runScale: 0.98, shootScale: 0.96, slashScale: 0.88, moveLean: 0.07, attackLean: 0.12 },
+};
+
 interface CharacterAssetModelProps {
   skinId: SkinId;
   preview?: boolean;
@@ -119,6 +146,9 @@ interface CharacterAssetModelProps {
 
 export function CharacterAssetModel({ skinId, preview = false, rotatePreview = false }: CharacterAssetModelProps) {
   const skin = getSkinDefinition(skinId);
+  const selectedClassId = useGameStore(s => s.selectedClassId);
+  const classDef = getClassDefinition(selectedClassId);
+  const anim = CLASS_ANIMATION[selectedClassId];
   const groupRef = useRef<THREE.Group>(null);
   const currentAction = useRef("");
   const gltf = useGLTF(skin.prefab);
@@ -135,6 +165,7 @@ export function CharacterAssetModel({ skinId, preview = false, rotatePreview = f
 
     if (rotatePreview) group.rotation.y += delta * 0.55;
 
+    const now = Date.now();
     const speed = Math.hypot(playerRuntime.velocityX, playerRuntime.velocityZ);
     const attacking = Date.now() < playerRuntime.attackAnimUntil;
     const actionName = preview
@@ -145,6 +176,28 @@ export function CharacterAssetModel({ skinId, preview = false, rotatePreview = f
           ? findActionName(names, ["run", "walk"])
           : findActionName(names, ["idle"]);
     playAction(actions, currentAction, actionName);
+    const action = actionName ? actions[actionName] : null;
+    if (action) {
+      action.timeScale = preview ? 1 : attacking
+        ? playerRuntime.attackAnimType === "shoot" ? anim.shootScale : anim.slashScale
+        : speed > 0.7 ? anim.runScale : 1;
+    }
+
+    if (!preview) {
+      const forward = speed > 0.05
+        ? (playerRuntime.velocityX * Math.sin(playerRuntime.angle) + playerRuntime.velocityZ * Math.cos(playerRuntime.angle)) / Math.max(0.001, speed)
+        : 0;
+      const side = speed > 0.05
+        ? (playerRuntime.velocityX * Math.cos(playerRuntime.angle) - playerRuntime.velocityZ * Math.sin(playerRuntime.angle)) / Math.max(0.001, speed)
+        : 0;
+      const attackT = THREE.MathUtils.clamp((playerRuntime.attackAnimUntil - now) / (playerRuntime.attackAnimType === "shoot" ? 260 : 520), 0, 1);
+      const attackPulse = Math.sin(attackT * Math.PI);
+      const classWeight = classDef.attackType === "heavy_cone" ? 1.18 : classDef.attackType === "dash_strike" ? 0.86 : 1;
+      group.rotation.x = THREE.MathUtils.damp(group.rotation.x, forward * anim.moveLean - attackPulse * anim.attackLean * classWeight, 12, delta);
+      group.rotation.z = THREE.MathUtils.damp(group.rotation.z, -side * anim.moveLean * 0.85, 12, delta);
+      group.position.y = THREE.MathUtils.damp(group.position.y, attackPulse * (playerRuntime.attackAnimType === "slash" ? 0.045 : 0.018), 14, delta);
+      group.position.z = THREE.MathUtils.damp(group.position.z, -attackPulse * (playerRuntime.attackAnimType === "shoot" ? 0.08 : 0.03), 14, delta);
+    }
   });
 
   return (
@@ -167,6 +220,7 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
   const cfg = ENEMY_CONFIG[type];
   const groupRef = useRef<THREE.Group>(null);
   const currentAction = useRef("");
+  const phase = useRef(Math.random() * Math.PI * 2);
   const fbx = useFBX(cfg.assetPath ?? "/assets/enemies/Skeleton.fbx");
   const scene = useMemo(() => cloneScene(fbx), [fbx, cfg.assetPath]);
   const { actions, names } = useAnimations((fbx as THREE.Group & { animations?: THREE.AnimationClip[] }).animations ?? [], groupRef);
@@ -178,8 +232,13 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
   useFrame((_, delta) => {
     const group = groupRef.current;
     if (!group) return;
+    phase.current += delta * Math.max(1.2, cfg.speed * 0.72);
     const actionName = findActionName(names, ["walk", "run", "idle", "attack"]);
     playAction(actions, currentAction, actionName);
+    const action = actionName ? actions[actionName] : null;
+    if (action) action.timeScale = type === "boss_dragon" ? 0.82 : cfg.speed > 4.4 ? 1.28 : cfg.speed < 2.4 ? 0.78 : 1;
+    group.position.y = THREE.MathUtils.damp(group.position.y, (type === "ranged_enemy" ? Math.sin(phase.current * 1.4) * 0.05 : Math.abs(Math.sin(phase.current)) * 0.025), 8, delta);
+    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, type === "tank_enemy" || type === "boss_dragon" ? 0.025 : Math.sin(phase.current * 0.72) * 0.018, 8, delta);
     if (names.length === 0) group.rotation.y += Math.sin(Date.now() * 0.002) * delta * 0.08;
   });
 

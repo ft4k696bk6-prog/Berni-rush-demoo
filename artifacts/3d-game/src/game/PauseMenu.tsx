@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Coins, Crosshair, Gauge, Hand, Maximize, Minimize, Play, Save, Settings, ShoppingBag, SlidersHorizontal, Smartphone, Swords, Trophy, X } from "lucide-react";
+import { BarChart3, Coins, Crosshair, Gauge, Hand, Maximize, Minimize, Play, Save, ShoppingBag, SlidersHorizontal, Smartphone, Swords, Trophy, X } from "lucide-react";
 import { useGameStore } from "./useGameStore";
-import { QualityLevel, STAT_LABELS, StatKey } from "./types";
+import { STAT_LABELS, StatKey } from "./types";
 import { SHOP_CATEGORIES, SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
 import { WEAPON_CONFIG, WEAPON_ORDER } from "./weapons";
 import { useFullscreenStatus } from "./fullscreen";
@@ -27,7 +27,6 @@ export default function PauseMenu() {
   const buyWeapon = useGameStore(s => s.buyWeapon);
   const buyShopUpgrade = useGameStore(s => s.buyShopUpgrade);
   const equipWeapon = useGameStore(s => s.equipWeapon);
-  const setQuality = useGameStore(s => s.setQuality);
   const score = useGameStore(s => s.score);
   const stage = useGameStore(s => s.stage);
   const playerLevel = useGameStore(s => s.playerLevel);
@@ -42,7 +41,6 @@ export default function PauseMenu() {
   const currentWeapon = useGameStore(s => s.currentWeapon);
   const shopUpgrades = useGameStore(s => s.shopUpgrades);
   const records = useGameStore(s => s.records);
-  const quality = useGameStore(s => s.quality);
   const mobileLookSensitivity = useGameStore(s => s.mobileLookSensitivity);
   const mobileLookDeadzone = useGameStore(s => s.mobileLookDeadzone);
   const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
@@ -57,8 +55,6 @@ export default function PauseMenu() {
   }, [phase, refreshRecords]);
 
   if (phase !== "paused") return null;
-
-  const qualityOptions: QualityLevel[] = ["low", "medium", "high"];
 
   return (
     <div className="pause-overlay">
@@ -185,18 +181,7 @@ export default function PauseMenu() {
           )}
         </main>
 
-        <footer className="quality-row">
-          <div className="quality-block">
-            <span><Settings size={16} /> Quality</span>
-            <div>
-              {qualityOptions.map(option => (
-                <button key={option} type="button" className={quality === option ? "active" : ""} onClick={() => setQuality(option)}>
-                  {option.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-
+        <footer className="pause-tuning-row">
           <div className="mobile-controls-block">
             <strong><Smartphone size={15} /> Camera Aim</strong>
             <label>

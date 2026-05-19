@@ -2,10 +2,11 @@ import type { QualityLevel } from "./types";
 import type { BiomeId } from "./worldTheme";
 
 const QUATERNIUS_NATURE = "/assets/quaternius/stylized-nature/gltf/";
-const KENNEY = "/assets/kenney/";
+const QUATERNIUS_MEDIEVAL = "/assets/quaternius/medieval-village/gltf/";
+const QUATERNIUS_PROPS = "/assets/quaternius/fantasy-props/gltf/";
 const quaterniusNatureAsset = (name: string) => `${QUATERNIUS_NATURE}${name}`;
-const townAsset = (name: string) => `${KENNEY}fantasy-town/${name}`;
-const dungeonAsset = (name: string) => `${KENNEY}dungeon/${name}`;
+const quaterniusMedievalAsset = (name: string) => `${QUATERNIUS_MEDIEVAL}${name}`;
+const quaterniusPropAsset = (name: string) => `${QUATERNIUS_PROPS}${name}`;
 
 export type WorldAssetRole =
   | "canopy"
@@ -200,74 +201,175 @@ export const worldAssetCatalog: WorldAssetDefinition[] = [
     mobileLOD: "keep",
   },
   {
-    id: "broken-arch",
-    path: townAsset("wall-arch.glb"),
+    id: "quaternius-ruin-arch",
+    path: quaterniusMedievalAsset("Wall_Arch.gltf"),
     biomes: ["ruins_forest", "boss_courtyard", "crystal_gate"],
     role: "ruin",
-    scaleRange: [1.1, 1.85],
-    density: 8,
+    scaleRange: [1.65, 2.4],
+    density: 7,
     mobileLOD: "reduce",
-    tint: "#8a8678",
   },
   {
-    id: "stone-pillar",
-    path: townAsset("pillar-stone.glb"),
+    id: "quaternius-uneven-wall",
+    path: quaterniusMedievalAsset("Wall_UnevenBrick_Straight.gltf"),
     biomes: ["ruins_forest", "boss_courtyard", "crystal_gate", "mine_quarry"],
-    role: "landmark",
-    scaleRange: [1.15, 2.0],
-    density: 5,
-    mobileLOD: "reduce",
-    tint: "#8f8a7c",
-  },
-  {
-    id: "fountain-ritual",
-    path: townAsset("fountain-round.glb"),
-    biomes: ["boss_courtyard", "crystal_gate"],
-    role: "landmark",
-    scaleRange: [1.2, 1.85],
-    density: 3,
-    mobileLOD: "desktop",
-    tint: "#948f82",
-  },
-  {
-    id: "lantern-warm",
-    path: townAsset("lantern.glb"),
-    biomes: ["ruins_forest", "boss_courtyard", "mine_quarry"],
-    role: "prop",
-    scaleRange: [0.85, 1.2],
-    density: 8,
-    mobileLOD: "reduce",
-    tint: "#d8b56d",
-  },
-  {
-    id: "wooden-cart",
-    path: townAsset("cart.glb"),
-    biomes: ["ruins_forest", "boss_courtyard", "mine_quarry"],
-    role: "prop",
-    scaleRange: [0.9, 1.25],
-    density: 4,
-    mobileLOD: "desktop",
-    tint: "#9a704e",
-  },
-  {
-    id: "mine-gate",
-    path: dungeonAsset("gate-metal-bars.glb"),
-    biomes: ["mine_quarry"],
-    role: "mine",
-    scaleRange: [1.25, 1.9],
-    density: 5,
-    mobileLOD: "reduce",
-    tint: "#71695f",
-  },
-  {
-    id: "mine-wall",
-    path: dungeonAsset("template-wall-detail-a.glb"),
-    biomes: ["mine_quarry", "crystal_gate"],
-    role: "mine",
-    scaleRange: [1.35, 2.1],
+    role: "ruin",
+    scaleRange: [1.45, 2.15],
     density: 9,
     mobileLOD: "reduce",
-    tint: "#706b63",
+  },
+  {
+    id: "quaternius-ruin-door",
+    path: quaterniusMedievalAsset("Wall_UnevenBrick_Door_Round.gltf"),
+    biomes: ["boss_courtyard", "crystal_gate"],
+    role: "ruin",
+    scaleRange: [1.5, 2.25],
+    density: 6,
+    mobileLOD: "reduce",
+  },
+  {
+    id: "quaternius-plaster-wall",
+    path: quaterniusMedievalAsset("Wall_Plaster_WoodGrid.gltf"),
+    biomes: ["ruins_forest", "boss_courtyard"],
+    role: "ruin",
+    scaleRange: [1.35, 1.95],
+    density: 5,
+    mobileLOD: "desktop",
+  },
+  {
+    id: "quaternius-stairs",
+    path: quaterniusMedievalAsset("Stairs_Exterior_Straight.gltf"),
+    biomes: ["ruins_forest", "boss_courtyard", "crystal_gate", "mine_quarry"],
+    role: "landmark",
+    scaleRange: [1.15, 1.7],
+    density: 4,
+    mobileLOD: "reduce",
+  },
+  {
+    id: "quaternius-stone-floor",
+    path: quaterniusMedievalAsset("Floor_UnevenBrick.gltf"),
+    biomes: ["boss_courtyard", "crystal_gate", "mine_quarry"],
+    role: "prop",
+    scaleRange: [2.8, 4.4],
+    density: 9,
+    mobileLOD: "reduce",
+  },
+  {
+    id: "quaternius-wood-fence",
+    path: quaterniusMedievalAsset("Prop_WoodenFence_Single.gltf"),
+    biomes: ["ruins_forest", "marsh", "boss_courtyard"],
+    role: "prop",
+    scaleRange: [1.1, 1.65],
+    density: 7,
+    mobileLOD: "reduce",
+  },
+  {
+    id: "quaternius-metal-fence",
+    path: quaterniusMedievalAsset("Prop_MetalFence_Simple.gltf"),
+    biomes: ["boss_courtyard", "crystal_gate"],
+    role: "prop",
+    scaleRange: [1.25, 1.9],
+    density: 5,
+    mobileLOD: "desktop",
+  },
+  {
+    id: "quaternius-vines",
+    path: quaterniusMedievalAsset("Prop_Vine5.gltf"),
+    biomes: ["ruins_forest", "marsh", "crystal_gate"],
+    role: "prop",
+    scaleRange: [1.3, 2.2],
+    density: 7,
+    mobileLOD: "desktop",
+  },
+  {
+    id: "quaternius-wagon",
+    path: quaterniusMedievalAsset("Prop_Wagon.gltf"),
+    biomes: ["ruins_forest", "boss_courtyard", "mine_quarry"],
+    role: "prop",
+    scaleRange: [1.05, 1.45],
+    density: 3,
+    mobileLOD: "desktop",
+  },
+  {
+    id: "quaternius-lantern",
+    path: quaterniusPropAsset("Lantern_Wall.gltf"),
+    biomes: ["ruins_forest", "boss_courtyard", "mine_quarry"],
+    role: "prop",
+    scaleRange: [1.1, 1.65],
+    density: 7,
+    mobileLOD: "reduce",
+  },
+  {
+    id: "quaternius-crate",
+    path: quaterniusPropAsset("Crate_Wooden.gltf"),
+    biomes: ["ruins_forest", "boss_courtyard", "mine_quarry"],
+    role: "prop",
+    scaleRange: [0.95, 1.35],
+    density: 7,
+    mobileLOD: "keep",
+  },
+  {
+    id: "quaternius-barrel",
+    path: quaterniusPropAsset("Barrel.gltf"),
+    biomes: ["ruins_forest", "boss_courtyard", "mine_quarry"],
+    role: "prop",
+    scaleRange: [0.95, 1.35],
+    density: 6,
+    mobileLOD: "keep",
+  },
+  {
+    id: "quaternius-cauldron",
+    path: quaterniusPropAsset("Cauldron.gltf"),
+    biomes: ["marsh", "crystal_gate"],
+    role: "landmark",
+    scaleRange: [1.05, 1.6],
+    density: 4,
+    mobileLOD: "reduce",
+  },
+  {
+    id: "quaternius-coin-cache",
+    path: quaterniusPropAsset("Coin_Pile.gltf"),
+    biomes: ["boss_courtyard", "mine_quarry"],
+    role: "prop",
+    scaleRange: [1.0, 1.6],
+    density: 5,
+    mobileLOD: "desktop",
+  },
+  {
+    id: "quaternius-stall",
+    path: quaterniusPropAsset("Stall_Empty.gltf"),
+    biomes: ["ruins_forest", "boss_courtyard"],
+    role: "landmark",
+    scaleRange: [1.0, 1.35],
+    density: 3,
+    mobileLOD: "desktop",
+  },
+  {
+    id: "quaternius-anvil",
+    path: quaterniusPropAsset("Anvil_Log.gltf"),
+    biomes: ["mine_quarry"],
+    role: "mine",
+    scaleRange: [1.0, 1.45],
+    density: 5,
+    mobileLOD: "reduce",
+  },
+  {
+    id: "quaternius-workbench",
+    path: quaterniusPropAsset("Workbench.gltf"),
+    biomes: ["mine_quarry", "boss_courtyard"],
+    role: "mine",
+    scaleRange: [1.0, 1.45],
+    density: 4,
+    mobileLOD: "desktop",
+  },
+  {
+    id: "quaternius-rubble-vase",
+    path: quaterniusPropAsset("Vase_Rubble_Medium.gltf"),
+    biomes: ["mine_quarry", "crystal_gate"],
+    role: "mine",
+    scaleRange: [1.0, 1.55],
+    density: 7,
+    mobileLOD: "reduce",
   },
 ];
 
@@ -284,13 +386,12 @@ function seedForBiome(biome: BiomeId) {
 }
 
 function countForQuality(def: WorldAssetDefinition, quality: QualityLevel) {
-  const base = quality === "high" ? def.density : quality === "medium" ? Math.ceil(def.density * 0.62) : Math.ceil(def.density * 0.36);
-  if (def.mobileLOD === "desktop" && quality !== "high") return Math.max(0, Math.floor(base * 0.35));
-  return base;
+  void quality;
+  return def.density;
 }
 
 export function buildWorldAssetInstances(biome: BiomeId, quality: QualityLevel, arenaBound: number) {
-  const rand = lcg(seedForBiome(biome) + (quality === "high" ? 1000 : quality === "medium" ? 500 : 100));
+  const rand = lcg(seedForBiome(biome) + 1000);
   const margin = 7;
   const instances: WorldAssetInstance[] = [];
 

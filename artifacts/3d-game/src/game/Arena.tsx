@@ -11,11 +11,7 @@ import type { QualityLevel } from "./types";
 const VISUAL_MARGIN = 64;
 const VISUAL_BOUND = ARENA_BOUND + VISUAL_MARGIN;
 const VISUAL_SIZE = VISUAL_BOUND * 2;
-const KENNEY = "/assets/kenney/";
 const TERRAIN_DETAIL_TEXTURE = "/assets/textures/ambientcg/Ground076_PREVIEW.png";
-const natureAsset = (name: string) => `${KENNEY}nature/${name}`;
-const townAsset = (name: string) => `${KENNEY}fantasy-town/${name}`;
-const dungeonAsset = (name: string) => `${KENNEY}dungeon/${name}`;
 
 function lcg(seed: number) {
   let value = seed;
@@ -25,155 +21,11 @@ function lcg(seed: number) {
   };
 }
 
-type AssetProp = {
-  path: string;
-  x: number;
-  z: number;
-  scale: number;
-  rot: number;
-  biomes: BiomeId[];
-  tint?: string;
-};
-
 const DECOR = (() => {
   const rand = lcg(177);
-  const trees: Array<{ x: number; z: number; h: number; hue: number; biomes: BiomeId[] }> = [];
-  const rocks: Array<{ x: number; z: number; s: number; rot: number; biomes: BiomeId[] }> = [];
-  const flowers: Array<{ x: number; z: number; color: string; biomes: BiomeId[] }> = [];
-  const grass: Array<{ x: number; z: number; s: number; rot: number; color: string; biomes: BiomeId[] }> = [];
-  const bushes: Array<{ x: number; z: number; s: number; hue: number; biomes: BiomeId[] }> = [];
   const roadScuffs: Array<{ x: number; z: number; w: number; d: number; rot: number; opacity: number }> = [];
-  const ruins: Array<{ x: number; z: number; s: number; rot: number; broken: number; biomes: BiomeId[] }> = [];
   const ponds: Array<{ x: number; z: number; rx: number; rz: number; rot: number; biomes: BiomeId[] }> = [];
-  const crystals: Array<{ x: number; z: number; s: number; rot: number; biomes: BiomeId[] }> = [];
-  const horizonTrees: Array<{ x: number; z: number; h: number; hue: number; rot: number; biomes: BiomeId[] }> = [];
   const ridges: Array<{ x: number; z: number; w: number; h: number; d: number; rot: number; tone: number; biomes: BiomeId[] }> = [];
-  const assets: AssetProp[] = [];
-
-  const colors = ["#e8c96a", "#d8e0b8", "#d39d79", "#f0e3bc"];
-  const grassColors = ["#426f47", "#4b7d50", "#51744a", "#3f6545"];
-  const treeAssets = [
-    natureAsset("tree_detailed.glb"),
-    natureAsset("tree_oak.glb"),
-    natureAsset("tree_pineRoundA.glb"),
-    natureAsset("tree_pineRoundB.glb"),
-    natureAsset("tree_pineRoundC.glb"),
-    natureAsset("tree_pineRoundD.glb"),
-    natureAsset("tree_pineTallA_detailed.glb"),
-    natureAsset("tree_pineTallB_detailed.glb"),
-  ];
-  const bushAssets = [
-    natureAsset("plant_bush.glb"),
-    natureAsset("plant_bushDetailed.glb"),
-    natureAsset("plant_bushLarge.glb"),
-    natureAsset("plant_bushSmall.glb"),
-    townAsset("hedge.glb"),
-    townAsset("hedge-large.glb"),
-  ];
-  const rockAssets = [
-    natureAsset("rock_largeA.glb"),
-    natureAsset("rock_largeB.glb"),
-    natureAsset("rock_largeC.glb"),
-    natureAsset("rock_largeD.glb"),
-    natureAsset("rock_smallA.glb"),
-    natureAsset("rock_smallB.glb"),
-    natureAsset("stone_largeA.glb"),
-    natureAsset("stone_largeB.glb"),
-    townAsset("rock-large.glb"),
-    townAsset("rock-small.glb"),
-  ];
-  const plantAssets = [
-    natureAsset("grass_leafs.glb"),
-    natureAsset("grass_leafsLarge.glb"),
-    natureAsset("flower_yellowA.glb"),
-    natureAsset("flower_yellowB.glb"),
-    natureAsset("flower_yellowC.glb"),
-  ];
-  const ruinAssets = [
-    townAsset("wall-broken.glb"),
-    townAsset("wall-wood-broken.glb"),
-    townAsset("wall-arch.glb"),
-    townAsset("wall-arch-top.glb"),
-    townAsset("wall-corner.glb"),
-    townAsset("wall-corner-detail.glb"),
-    townAsset("pillar-stone.glb"),
-    townAsset("stairs-stone.glb"),
-    townAsset("fountain-round.glb"),
-    natureAsset("statue_block.glb"),
-    natureAsset("statue_column.glb"),
-    natureAsset("statue_columnDamaged.glb"),
-    natureAsset("statue_head.glb"),
-    natureAsset("statue_ring.glb"),
-  ];
-  const mineAssets = [
-    dungeonAsset("template-wall.glb"),
-    dungeonAsset("template-wall-corner.glb"),
-    dungeonAsset("template-wall-detail-a.glb"),
-    dungeonAsset("template-floor-detail.glb"),
-    dungeonAsset("gate.glb"),
-    dungeonAsset("gate-metal-bars.glb"),
-    natureAsset("log_large.glb"),
-    natureAsset("log_stack.glb"),
-  ];
-
-  for (let i = 0; i < 42; i++) {
-    const x = (rand() * 2 - 1) * (ARENA_BOUND - 4);
-    const z = (rand() * 2 - 1) * (ARENA_BOUND - 4);
-    if (Math.hypot(x, z) < 19) continue;
-    const nearEdge = Math.abs(x) > ARENA_BOUND - 12 || Math.abs(z) > ARENA_BOUND - 12;
-    trees.push({
-      x,
-      z,
-      h: 2.15 + rand() * 1.75,
-      hue: rand(),
-      biomes: nearEdge ? ["ruins_forest", "marsh"] : ["ruins_forest"],
-    });
-  }
-
-  for (let i = 0; i < 58; i++) {
-    const x = (rand() * 2 - 1) * (ARENA_BOUND - 5);
-    const z = (rand() * 2 - 1) * (ARENA_BOUND - 5);
-    rocks.push({
-      x,
-      z,
-      s: 0.38 + rand() * 0.92,
-      rot: rand() * Math.PI,
-      biomes: rand() > 0.5 ? ["ruins_forest", "boss_courtyard", "crystal_gate", "mine_quarry"] : ["mine_quarry", "marsh"],
-    });
-  }
-
-  for (let i = 0; i < 46; i++) {
-    const x = (rand() * 2 - 1) * (ARENA_BOUND - 5);
-    const z = (rand() * 2 - 1) * (ARENA_BOUND - 5);
-    if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
-    flowers.push({
-      x,
-      z,
-      color: colors[Math.floor(rand() * colors.length)],
-      biomes: ["ruins_forest", "marsh"],
-    });
-  }
-
-  for (let i = 0; i < 180; i++) {
-    const x = (rand() * 2 - 1) * (ARENA_BOUND - 4);
-    const z = (rand() * 2 - 1) * (ARENA_BOUND - 4);
-    if (Math.abs(x) < 4 && Math.abs(z) < 4) continue;
-    grass.push({
-      x,
-      z,
-      s: 0.34 + rand() * 0.75,
-      rot: rand() * Math.PI,
-      color: grassColors[Math.floor(rand() * grassColors.length)],
-      biomes: rand() > 0.16 ? ["ruins_forest", "marsh"] : ["boss_courtyard"],
-    });
-  }
-
-  for (let i = 0; i < 30; i++) {
-    const x = (rand() * 2 - 1) * (ARENA_BOUND - 7);
-    const z = (rand() * 2 - 1) * (ARENA_BOUND - 7);
-    if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
-    bushes.push({ x, z, s: 0.5 + rand() * 0.9, hue: rand(), biomes: ["ruins_forest", "marsh"] });
-  }
 
   const roadScuffSteps = Math.ceil((ARENA_BOUND - 3) / 3.1);
   for (let i = -roadScuffSteps; i <= roadScuffSteps; i++) {
@@ -196,20 +48,6 @@ const DECOR = (() => {
     });
   }
 
-  for (let i = 0; i < 18; i++) {
-    const x = (rand() * 2 - 1) * (ARENA_BOUND - 10);
-    const z = (rand() * 2 - 1) * (ARENA_BOUND - 10);
-    if (Math.abs(x) < 10 && Math.abs(z) < 10) continue;
-    ruins.push({
-      x,
-      z,
-      s: 0.74 + rand() * 1.45,
-      rot: rand() * Math.PI,
-      broken: rand(),
-      biomes: rand() > 0.35 ? ["ruins_forest", "boss_courtyard", "crystal_gate"] : ["mine_quarry"],
-    });
-  }
-
   for (let i = 0; i < 8; i++) {
     ponds.push({
       x: (rand() * 2 - 1) * (ARENA_BOUND - 11),
@@ -218,78 +56,6 @@ const DECOR = (() => {
       rz: 0.7 + rand() * 1.4,
       rot: rand() * Math.PI,
       biomes: ["marsh"],
-    });
-  }
-
-  for (let i = 0; i < 16; i++) {
-    const angle = (i / 16) * Math.PI * 2;
-    crystals.push({
-      x: Math.cos(angle) * (11 + rand() * 19),
-      z: Math.sin(angle) * (11 + rand() * 19),
-      s: 0.6 + rand() * 1.35,
-      rot: angle,
-      biomes: ["crystal_gate", "boss_courtyard", "mine_quarry"],
-    });
-  }
-
-  for (let i = 0; i < 64; i++) {
-    const angle = rand() * Math.PI * 2;
-    const radius = 13 + rand() * (ARENA_BOUND - 17);
-    const x = Math.cos(angle) * radius + (rand() - 0.5) * 3.5;
-    const z = Math.sin(angle) * radius + (rand() - 0.5) * 3.5;
-    const groupRoll = rand();
-    const path = groupRoll > 0.76
-      ? treeAssets[Math.floor(rand() * treeAssets.length)]
-      : groupRoll > 0.5
-        ? bushAssets[Math.floor(rand() * bushAssets.length)]
-        : groupRoll > 0.2
-          ? rockAssets[Math.floor(rand() * rockAssets.length)]
-          : plantAssets[Math.floor(rand() * plantAssets.length)];
-    assets.push({
-      path,
-      x,
-      z,
-      scale: path.includes("tree_") ? 1.2 + rand() * 0.55 : path.includes("rock") || path.includes("stone") ? 0.8 + rand() * 0.55 : 0.75 + rand() * 0.42,
-      rot: rand() * Math.PI * 2,
-      biomes: path.includes("tree_") || path.includes("plant_") || path.includes("grass_") || path.includes("flower_") || path.includes("hedge")
-        ? ["ruins_forest", "marsh"]
-        : ["ruins_forest", "boss_courtyard", "marsh", "crystal_gate", "mine_quarry"],
-      tint: path.includes("tree_") ? "#4a8756" : path.includes("plant_") || path.includes("grass_") || path.includes("flower_") || path.includes("hedge") ? "#58a66a" : path.includes("rock") || path.includes("stone") ? "#858b7d" : undefined,
-    });
-  }
-
-  for (let i = 0; i < 34; i++) {
-    const bossArena = i % 5 === 0;
-    const mine = i % 4 === 0;
-    const path = mine ? mineAssets[Math.floor(rand() * mineAssets.length)] : ruinAssets[Math.floor(rand() * ruinAssets.length)];
-    let x = 0;
-    let z = 0;
-    for (let tries = 0; tries < 8; tries++) {
-      x = (rand() * 2 - 1) * (ARENA_BOUND - 12);
-      z = (rand() * 2 - 1) * (ARENA_BOUND - 12);
-      if (Math.hypot(x, z) > (bossArena ? 8 : 13)) break;
-    }
-    assets.push({
-      path,
-      x,
-      z,
-      scale: path.includes("dungeon") ? 1.45 + rand() * 0.35 : path.includes("fountain") ? 1.05 + rand() * 0.28 : 0.9 + rand() * 0.4,
-      rot: rand() * Math.PI * 2,
-      biomes: mine ? ["mine_quarry"] : bossArena ? ["boss_courtyard", "crystal_gate"] : ["ruins_forest", "boss_courtyard", "crystal_gate", "mine_quarry"],
-      tint: mine ? "#796f63" : path.includes("wood") || path.includes("planks") ? "#9a6b46" : "#868479",
-    });
-  }
-
-  for (let i = 0; i < 78; i++) {
-    const angle = rand() * Math.PI * 2;
-    const radius = ARENA_BOUND + 10 + rand() * (VISUAL_MARGIN - 18);
-    horizonTrees.push({
-      x: Math.cos(angle) * radius + (rand() - 0.5) * 8,
-      z: Math.sin(angle) * radius + (rand() - 0.5) * 8,
-      h: 3.4 + rand() * 3.8,
-      hue: rand(),
-      rot: rand() * Math.PI * 2,
-      biomes: rand() > 0.16 ? ["ruins_forest", "marsh"] : ["boss_courtyard", "crystal_gate", "mine_quarry"],
     });
   }
 
@@ -308,7 +74,7 @@ const DECOR = (() => {
     });
   }
 
-  return { trees, rocks, flowers, grass, bushes, roadScuffs, ruins, ponds, crystals, horizonTrees, ridges, assets };
+  return { roadScuffs, ponds, ridges };
 })();
 
 function makeTerrainGeometry(size: number) {
@@ -548,44 +314,6 @@ function makeSkyTexture(theme: typeof BIOME_THEMES[BiomeId]) {
   return texture;
 }
 
-function RuinCluster({ x, z, s, rot, broken, color, dark }: { x: number; z: number; s: number; rot: number; broken: number; color: string; dark: string }) {
-  return (
-    <group position={[x, 0, z]} rotation={[0, rot, 0]} scale={s}>
-      <mesh position={[0, 0.1, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.88, 1.02, 0.2, 18]} />
-        <meshStandardMaterial color={dark} roughness={0.86} metalness={0.03} />
-      </mesh>
-      {[0, 1, 2].map(i => {
-        const angle = rot + i * 2.05;
-        const height = 0.72 + ((i + broken) % 1) * 0.78;
-        return (
-          <mesh key={i} position={[Math.cos(angle) * 0.68, height * 0.5 + 0.12, Math.sin(angle) * 0.68]} rotation={[0.02 * i, angle, 0.08 - i * 0.03]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.14, 0.19, height, 12]} />
-            <meshStandardMaterial color={i === 1 ? color : dark} roughness={0.88} metalness={0.02} />
-          </mesh>
-        );
-      })}
-      <mesh position={[0.18, 0.38, -0.24]} rotation={[0.12, 0.45, -0.16]} castShadow receiveShadow>
-        <dodecahedronGeometry args={[0.4, 1]} />
-        <meshStandardMaterial color={color} roughness={0.92} metalness={0.02} />
-      </mesh>
-    </group>
-  );
-}
-
-function CrystalCluster({ x, z, s, rot, color }: { x: number; z: number; s: number; rot: number; color: string }) {
-  return (
-    <group position={[x, 0, z]} rotation={[0, rot, 0]} scale={s}>
-      {[0, 1, 2].map(i => (
-        <mesh key={i} position={[(i - 1) * 0.22, 0.42 + i * 0.12, i === 1 ? -0.08 : 0.06]} rotation={[0.1, i * 0.4, -0.08 + i * 0.08]} castShadow>
-          <coneGeometry args={[0.16 + i * 0.03, 0.9 + i * 0.18, 6]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.18} roughness={0.4} metalness={0.08} transparent opacity={0.9} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
 function HorizonRidge({ x, z, w, h, d, rot, tone, color, dark }: { x: number; z: number; w: number; h: number; d: number; rot: number; tone: number; color: string; dark: string }) {
   return (
     <group position={[x, h * 0.36 - 0.08, z]} rotation={[0, rot, 0]}>
@@ -631,33 +359,12 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
     terrainDetailTexture.needsUpdate = true;
     return terrainDetailTexture;
   }, [terrainDetailTexture, quality, biome]);
-  const treeCount = 0;
-  const rockCount = quality === "low" ? 3 : quality === "medium" ? 5 : 7;
-  const flowerCount = quality === "low" ? 2 : quality === "medium" ? 5 : 8;
-  const grassCount = quality === "low" ? 0 : quality === "medium" ? 6 : 10;
-  const bushCount = 0;
-  const ruinCount = quality === "low" ? 2 : quality === "medium" ? 5 : 8;
-  const assetCount = 0;
-  const scuffCount = quality === "low" ? 12 : quality === "medium" ? 24 : 38;
-  const pondCount = quality === "low" ? 1 : quality === "medium" ? 3 : 5;
-  const crystalCount = quality === "low" ? 3 : quality === "medium" ? 7 : 10;
-  const horizonTreeCount = 0;
-  const ridgeCount = quality === "low" ? 8 : quality === "medium" ? 18 : 30;
+  const scuffCount = 42;
+  const pondCount = biome === "marsh" ? 5 : 0;
+  const ridgeCount = 34;
 
-  const biomeTrees = DECOR.trees.filter(item => item.biomes.includes(biome)).slice(0, treeCount);
-  const biomeRocks = DECOR.rocks.filter(item => item.biomes.includes(biome)).slice(0, rockCount);
-  const biomeFlowers = DECOR.flowers.filter(item => item.biomes.includes(biome)).slice(0, flowerCount);
-  const biomeGrass = DECOR.grass.filter(item => item.biomes.includes(biome)).slice(0, grassCount);
-  const biomeBushes = DECOR.bushes.filter(item => item.biomes.includes(biome)).slice(0, bushCount);
-  const biomeRuins = DECOR.ruins.filter(item => item.biomes.includes(biome)).slice(0, ruinCount);
-  const biomeAssets = DECOR.assets
-    .filter(item => item.biomes.includes(biome))
-    .filter(item => !(item.path.includes("tree_") || item.path.includes("grass_") || item.path.includes("flower_") || item.path.includes("hedge")))
-    .slice(0, assetCount);
   const roadScuffs = DECOR.roadScuffs.slice(0, scuffCount);
   const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);
-  const biomeCrystals = DECOR.crystals.filter(item => item.biomes.includes(biome)).slice(0, crystalCount);
-  const biomeHorizonTrees = DECOR.horizonTrees.filter(item => item.biomes.includes(biome)).slice(0, horizonTreeCount);
   const biomeRidges = DECOR.ridges.filter(item => item.biomes.includes(biome)).slice(0, ridgeCount);
   const edgeVeilOpacity = quality === "low" ? 0.1 : quality === "medium" ? 0.13 : 0.16;
 
@@ -727,115 +434,6 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           <circleGeometry args={[1, 48]} />
           <meshStandardMaterial color="#284f52" emissive="#173538" emissiveIntensity={0.16} roughness={0.22} metalness={0.02} transparent opacity={0.62} />
         </mesh>
-      ))}
-
-      {biomeHorizonTrees.map((tree, i) => (
-        <group key={`horizon-tree-${i}`} position={[tree.x, 0, tree.z]} rotation={[0, tree.rot, 0]}>
-          <mesh position={[0, tree.h * 0.32, 0]} castShadow={quality === "high"} receiveShadow>
-            <cylinderGeometry args={[0.24, 0.48, tree.h * 0.64, 18]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#3d3329" : "#5b4633"} roughness={0.9} />
-          </mesh>
-          <mesh position={[0, tree.h * 0.77, 0]} scale={[1.15, 0.8, 1.04]} castShadow={quality !== "low"}>
-            <sphereGeometry args={[1.08 + tree.h * 0.13, 36, 22]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#2f6258" : tree.hue > 0.5 ? "#3f6f4b" : "#335a42"} roughness={0.88} />
-          </mesh>
-          <mesh position={[0.34, tree.h * 0.95, -0.12]} scale={[0.78, 0.56, 0.72]} castShadow={quality === "high"}>
-            <sphereGeometry args={[0.82 + tree.h * 0.08, 28, 18]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#3b7567" : "#4f8257"} roughness={0.86} />
-          </mesh>
-        </group>
-      ))}
-
-      {biomeRuins.map((ruin, i) => (
-        <RuinCluster key={`pillar-${i}`} x={ruin.x} z={ruin.z} s={ruin.s} rot={ruin.rot} broken={ruin.broken} color={theme.stone} dark={theme.stoneDark} />
-      ))}
-
-      {biomeTrees.map((tree, i) => (
-        <group key={`tree-${i}`} position={[tree.x, 0, tree.z]}>
-          <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-            <circleGeometry args={[0.86 + tree.h * 0.09, 30]} />
-            <meshBasicMaterial color={theme.baseDark} transparent opacity={0.18} depthWrite={false} />
-          </mesh>
-          <mesh position={[0, tree.h * 0.34, 0]} castShadow receiveShadow>
-            <cylinderGeometry args={[0.18, 0.34, tree.h * 0.68, 28]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#43382b" : "#604a34"} roughness={0.88} />
-          </mesh>
-          <mesh position={[0, tree.h * 0.75, 0]} scale={[1.18, 0.78, 1.05]} castShadow>
-            <sphereGeometry args={[0.84 + tree.h * 0.14, 44, 28]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#315f57" : tree.hue > 0.5 ? "#436f4a" : "#385f40"} roughness={0.86} />
-          </mesh>
-          {quality === "high" && (
-            <>
-              <mesh position={[0.2, tree.h * 1.0, -0.1]} scale={[0.94, 0.64, 0.86]} castShadow>
-                <sphereGeometry args={[0.7 + tree.h * 0.08, 40, 24]} />
-                <meshStandardMaterial color={biome === "marsh" ? "#3a7465" : "#4f7953"} roughness={0.82} />
-              </mesh>
-              <mesh position={[-0.28, tree.h * 0.9, 0.18]} scale={[0.72, 0.54, 0.78]} castShadow>
-                <sphereGeometry args={[0.58 + tree.h * 0.06, 36, 22]} />
-                <meshStandardMaterial color={biome === "marsh" ? "#2f5a52" : "#315a3c"} roughness={0.84} />
-              </mesh>
-            </>
-          )}
-        </group>
-      ))}
-
-      {biomeRocks.map((rock, i) => (
-        <mesh key={`rock-${i}`} position={[rock.x, rock.s * 0.28, rock.z]} rotation={[0.18, rock.rot, 0.1]} scale={[1.28, 0.6, 0.94]} castShadow receiveShadow>
-          <sphereGeometry args={[rock.s, 24, 16]} />
-          <meshStandardMaterial color={i % 3 === 0 ? theme.stone : theme.stoneDark} roughness={0.86} metalness={0.03} />
-        </mesh>
-      ))}
-
-      {biomeBushes.map((bush, i) => (
-        <group key={`bush-${i}`} position={[bush.x, 0, bush.z]}>
-          <mesh position={[0, bush.s * 0.34, 0]} scale={[1.16, 0.7, 0.96]} castShadow receiveShadow>
-            <sphereGeometry args={[bush.s, 28, 18]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#317764" : bush.hue > 0.5 ? "#438f57" : "#376f4b"} roughness={0.78} />
-          </mesh>
-          <mesh position={[bush.s * 0.38, bush.s * 0.27, -bush.s * 0.18]} scale={[0.74, 0.54, 0.72]} castShadow>
-            <sphereGeometry args={[bush.s * 0.74, 24, 16]} />
-            <meshStandardMaterial color={biome === "marsh" ? "#429178" : "#4f9c64"} roughness={0.78} />
-          </mesh>
-        </group>
-      ))}
-
-      {biomeGrass.map((tuft, i) => (
-        <group key={`grass-${i}`} position={[tuft.x, 0, tuft.z]} rotation={[0, tuft.rot, 0]}>
-          {[0, 1, 2, 3].map(blade => (
-            <mesh key={blade} position={[(blade - 1.5) * 0.07 * tuft.s, 0.15 * tuft.s, 0]} rotation={[0.1 + blade * 0.03, blade * 0.72, (blade - 1.5) * 0.16]}>
-              <coneGeometry args={[0.035 * tuft.s, 0.38 * tuft.s, 8]} />
-              <meshBasicMaterial color={biome === "marsh" ? "#3f806b" : tuft.color} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-
-      {biomeFlowers.map((flower, i) => (
-        <group key={`flower-${i}`} position={[flower.x, 0, flower.z]}>
-          <mesh position={[0, 0.19, 0]}>
-            <cylinderGeometry args={[0.018, 0.024, 0.36, 8]} />
-            <meshBasicMaterial color="#237a4d" />
-          </mesh>
-          <mesh position={[0, 0.4, 0]}>
-            <sphereGeometry args={[0.12, 12, 8]} />
-            <meshStandardMaterial color={flower.color} roughness={0.7} />
-          </mesh>
-        </group>
-      ))}
-
-      {biomeCrystals.map((crystal, i) => (
-        <CrystalCluster key={`crystal-${i}`} x={crystal.x} z={crystal.z} s={crystal.s} rot={crystal.rot} color={theme.accent} />
-      ))}
-
-      {biomeAssets.map((asset, i) => (
-        <EnvironmentAssetModel
-          key={`${asset.path}-${i}`}
-          path={asset.path}
-          position={[asset.x, 0, asset.z]}
-          rotation={[0, asset.rot, 0]}
-          scale={asset.scale}
-          tint={asset.tint ?? (biome === "marsh" ? theme.moss : undefined)}
-        />
       ))}
 
       {premiumAssets.map(asset => (
