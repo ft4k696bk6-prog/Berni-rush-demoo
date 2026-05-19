@@ -45,7 +45,7 @@ function PoisonItem({ poison, compactViewport, renderQuality, assetModelAllowed 
   const quality = renderQuality;
   const hpRatio = Math.max(0, poison.hp / poison.maxHp);
   const isBoss = poison.type === "boss10" || poison.type === "boss20" || poison.type === "boss_dragon";
-  const useAssetModel = Boolean(poison.assetPath) && assetModelAllowed && (isBoss || (!compactViewport && quality !== "low"));
+  const useAssetModel = Boolean(poison.assetPath) && assetModelAllowed && (isBoss || quality !== "low" || (!compactViewport && quality === "low"));
 
   useEffect(() => {
     if (poison.hp < previousHp.current) hitPulse.current = 1;

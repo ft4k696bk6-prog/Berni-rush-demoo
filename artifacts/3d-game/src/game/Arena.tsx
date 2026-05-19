@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useTexture } from "@react-three/drei";
 import { ARENA_BOUND } from "./balance";
 import { EnvironmentAssetModel } from "./AssetModels";
 import { useGameStore } from "./useGameStore";
+import { buildWorldAssetInstances } from "./worldAssetCatalog";
 import { BIOME_THEMES, BiomeId, getBiomeForStage, getTextureSize } from "./worldTheme";
 import type { QualityLevel } from "./types";
 
@@ -125,7 +126,7 @@ const DECOR = (() => {
       z,
       h: 2.15 + rand() * 1.75,
       hue: rand(),
-      biomes: nearEdge ? ["ruins", "marsh"] : ["ruins"],
+      biomes: nearEdge ? ["ruins_forest", "marsh"] : ["ruins_forest"],
     });
   }
 
@@ -137,7 +138,7 @@ const DECOR = (() => {
       z,
       s: 0.38 + rand() * 0.92,
       rot: rand() * Math.PI,
-      biomes: rand() > 0.5 ? ["ruins", "boss_arena", "crystal_arena", "mine"] : ["mine", "marsh"],
+      biomes: rand() > 0.5 ? ["ruins_forest", "boss_courtyard", "crystal_gate", "mine_quarry"] : ["mine_quarry", "marsh"],
     });
   }
 
@@ -149,7 +150,7 @@ const DECOR = (() => {
       x,
       z,
       color: colors[Math.floor(rand() * colors.length)],
-      biomes: ["ruins", "marsh"],
+      biomes: ["ruins_forest", "marsh"],
     });
   }
 
@@ -163,7 +164,7 @@ const DECOR = (() => {
       s: 0.34 + rand() * 0.75,
       rot: rand() * Math.PI,
       color: grassColors[Math.floor(rand() * grassColors.length)],
-      biomes: rand() > 0.16 ? ["ruins", "marsh"] : ["boss_arena"],
+      biomes: rand() > 0.16 ? ["ruins_forest", "marsh"] : ["boss_courtyard"],
     });
   }
 
@@ -171,7 +172,7 @@ const DECOR = (() => {
     const x = (rand() * 2 - 1) * (ARENA_BOUND - 7);
     const z = (rand() * 2 - 1) * (ARENA_BOUND - 7);
     if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
-    bushes.push({ x, z, s: 0.5 + rand() * 0.9, hue: rand(), biomes: ["ruins", "marsh"] });
+    bushes.push({ x, z, s: 0.5 + rand() * 0.9, hue: rand(), biomes: ["ruins_forest", "marsh"] });
   }
 
   const roadScuffSteps = Math.ceil((ARENA_BOUND - 3) / 3.1);
@@ -205,7 +206,7 @@ const DECOR = (() => {
       s: 0.74 + rand() * 1.45,
       rot: rand() * Math.PI,
       broken: rand(),
-      biomes: rand() > 0.35 ? ["ruins", "boss_arena", "crystal_arena"] : ["mine"],
+      biomes: rand() > 0.35 ? ["ruins_forest", "boss_courtyard", "crystal_gate"] : ["mine_quarry"],
     });
   }
 
@@ -227,7 +228,7 @@ const DECOR = (() => {
       z: Math.sin(angle) * (11 + rand() * 19),
       s: 0.6 + rand() * 1.35,
       rot: angle,
-      biomes: ["crystal_arena", "boss_arena", "mine"],
+      biomes: ["crystal_gate", "boss_courtyard", "mine_quarry"],
     });
   }
 
@@ -251,8 +252,8 @@ const DECOR = (() => {
       scale: path.includes("tree_") ? 1.2 + rand() * 0.55 : path.includes("rock") || path.includes("stone") ? 0.8 + rand() * 0.55 : 0.75 + rand() * 0.42,
       rot: rand() * Math.PI * 2,
       biomes: path.includes("tree_") || path.includes("plant_") || path.includes("grass_") || path.includes("flower_") || path.includes("hedge")
-        ? ["ruins", "marsh"]
-        : ["ruins", "boss_arena", "marsh", "crystal_arena", "mine"],
+        ? ["ruins_forest", "marsh"]
+        : ["ruins_forest", "boss_courtyard", "marsh", "crystal_gate", "mine_quarry"],
       tint: path.includes("tree_") ? "#4a8756" : path.includes("plant_") || path.includes("grass_") || path.includes("flower_") || path.includes("hedge") ? "#58a66a" : path.includes("rock") || path.includes("stone") ? "#858b7d" : undefined,
     });
   }
@@ -274,7 +275,7 @@ const DECOR = (() => {
       z,
       scale: path.includes("dungeon") ? 1.45 + rand() * 0.35 : path.includes("fountain") ? 1.05 + rand() * 0.28 : 0.9 + rand() * 0.4,
       rot: rand() * Math.PI * 2,
-      biomes: mine ? ["mine"] : bossArena ? ["boss_arena", "crystal_arena"] : ["ruins", "boss_arena", "crystal_arena", "mine"],
+      biomes: mine ? ["mine_quarry"] : bossArena ? ["boss_courtyard", "crystal_gate"] : ["ruins_forest", "boss_courtyard", "crystal_gate", "mine_quarry"],
       tint: mine ? "#796f63" : path.includes("wood") || path.includes("planks") ? "#9a6b46" : "#868479",
     });
   }
@@ -288,7 +289,7 @@ const DECOR = (() => {
       h: 3.4 + rand() * 3.8,
       hue: rand(),
       rot: rand() * Math.PI * 2,
-      biomes: rand() > 0.16 ? ["ruins", "marsh"] : ["boss_arena", "crystal_arena", "mine"],
+      biomes: rand() > 0.16 ? ["ruins_forest", "marsh"] : ["boss_courtyard", "crystal_gate", "mine_quarry"],
     });
   }
 
@@ -303,7 +304,7 @@ const DECOR = (() => {
       d: 3.6 + rand() * 7.4,
       rot: -angle + Math.PI * 0.5 + (rand() - 0.5) * 0.65,
       tone: rand(),
-      biomes: rand() > 0.18 ? ["ruins", "boss_arena", "marsh", "crystal_arena", "mine"] : ["mine", "crystal_arena"],
+      biomes: rand() > 0.18 ? ["ruins_forest", "boss_courtyard", "marsh", "crystal_gate", "mine_quarry"] : ["mine_quarry", "crystal_gate"],
     });
   }
 
@@ -329,7 +330,7 @@ function makeTerrainGeometry(size: number) {
 }
 
 function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnType<typeof useGameStore.getState>["quality"]) {
-  const rand = lcg(theme.id === "marsh" ? 1731 : theme.id === "mine" ? 1439 : theme.id === "crystal_arena" ? 1221 : 912);
+  const rand = lcg(theme.id === "marsh" ? 1731 : theme.id === "mine_quarry" ? 1439 : theme.id === "crystal_gate" ? 1221 : 912);
   const size = getTextureSize(quality);
   const extent = VISUAL_BOUND;
   const point = (x: number, z: number) => [
@@ -457,7 +458,7 @@ function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnT
   drawRoad([[-extent, 4], [-29, 2.8], [-17, 5.6], [-5, 1.4], [9, 3.4], [24, -2.6], [extent, -1.4]], roadWidth);
   drawRoad([[-2.6, -extent], [0.4, -31], [-3.6, -18], [2.4, -6], [-1.2, 9], [3.4, 24], [1.4, extent]], roadWidth * 0.92);
 
-  if (theme.id === "boss_arena" || theme.id === "crystal_arena") {
+  if (theme.id === "boss_courtyard" || theme.id === "crystal_gate") {
     const [cx, cy] = point(0, 0);
     ctx.save();
     ctx.strokeStyle = hexToRgba(theme.accent, 0.24);
@@ -482,7 +483,7 @@ function makeGroundTexture(theme: typeof BIOME_THEMES[BiomeId], quality: ReturnT
     }
   }
 
-  if (theme.id === "mine") {
+  if (theme.id === "mine_quarry") {
     for (let i = 0; i < 120; i++) {
       const x = rand() * size;
       const y = rand() * size;
@@ -604,18 +605,24 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const storedQuality = useGameStore(s => s.quality);
   const quality = qualityOverride ?? storedQuality;
   const stage = useGameStore(s => s.stage);
-  const biome = getBiomeForStage(stage);
+  const runId = useGameStore(s => s.runId);
+  const lockedBiomeRef = useRef<{ runId: number; biome: BiomeId } | null>(null);
+  if (!lockedBiomeRef.current || lockedBiomeRef.current.runId !== runId) {
+    lockedBiomeRef.current = { runId, biome: getBiomeForStage(stage) };
+  }
+  const biome = lockedBiomeRef.current.biome;
   const theme = BIOME_THEMES[biome];
   const terrainDetailTexture = useTexture(TERRAIN_DETAIL_TEXTURE);
   const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
   const skyTexture = useMemo(() => makeSkyTexture(theme), [theme]);
+  const premiumAssets = useMemo(() => buildWorldAssetInstances(biome, quality, ARENA_BOUND), [biome, quality]);
   const configuredTerrainDetail = useMemo(() => {
     terrainDetailTexture.wrapS = THREE.RepeatWrapping;
     terrainDetailTexture.wrapT = THREE.RepeatWrapping;
     const repeat = quality === "high" ? 16 : quality === "medium" ? 12 : 8;
     terrainDetailTexture.repeat.set(repeat, repeat);
-    terrainDetailTexture.offset.set(biome === "marsh" ? 0.17 : biome === "mine" ? 0.34 : 0.08, biome === "crystal_arena" ? 0.26 : 0.11);
+    terrainDetailTexture.offset.set(biome === "marsh" ? 0.17 : biome === "mine_quarry" ? 0.34 : 0.08, biome === "crystal_gate" ? 0.26 : 0.11);
     terrainDetailTexture.colorSpace = THREE.SRGBColorSpace;
     terrainDetailTexture.anisotropy = quality === "high" ? 8 : quality === "medium" ? 6 : 3;
     terrainDetailTexture.generateMipmaps = true;
@@ -679,7 +686,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
         <planeGeometry args={[VISUAL_SIZE, VISUAL_SIZE]} />
         <meshBasicMaterial
           map={configuredTerrainDetail}
-          color={biome === "mine" ? "#8c806d" : biome === "marsh" ? "#6b907d" : "#8b9676"}
+          color={theme.detailTint}
           transparent
           opacity={quality === "low" ? 0.075 : quality === "medium" ? 0.1 : 0.12}
           depthWrite={false}
@@ -704,14 +711,14 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           rot={ridge.rot}
           tone={ridge.tone}
           color={biome === "marsh" ? "#3f6255" : theme.stone}
-          dark={biome === "mine" ? "#3e3932" : theme.stoneDark}
+          dark={biome === "mine_quarry" ? "#3e3932" : theme.stoneDark}
         />
       ))}
 
       {roadScuffs.map((scuff, i) => (
         <mesh key={`scuff-${i}`} rotation={[-Math.PI / 2, 0, scuff.rot]} position={[scuff.x, 0.041 + i * 0.0002, scuff.z]} receiveShadow>
           <planeGeometry args={[scuff.w, scuff.d]} />
-          <meshBasicMaterial color={i % 3 === 0 ? theme.moss : theme.roadDark} transparent opacity={scuff.opacity * (biome === "mine" ? 0.82 : 1)} depthWrite={false} side={THREE.DoubleSide} />
+          <meshBasicMaterial color={i % 3 === 0 ? theme.moss : theme.road} transparent opacity={scuff.opacity * (biome === "mine_quarry" ? 0.32 : 0.42)} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
 
@@ -828,6 +835,17 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           rotation={[0, asset.rot, 0]}
           scale={asset.scale}
           tint={asset.tint ?? (biome === "marsh" ? theme.moss : undefined)}
+        />
+      ))}
+
+      {premiumAssets.map(asset => (
+        <EnvironmentAssetModel
+          key={`premium-${asset.id}-${asset.x.toFixed(1)}-${asset.z.toFixed(1)}`}
+          path={asset.path}
+          position={[asset.x, asset.y, asset.z]}
+          rotation={[0, asset.rotation, 0]}
+          scale={asset.scale}
+          tint={asset.tint ?? theme.accentSoft}
         />
       ))}
     </group>

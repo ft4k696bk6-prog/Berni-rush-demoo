@@ -66,6 +66,10 @@ function ImpactEffect({ burst }: Props) {
 
   return (
     <group ref={groupRef} position={burst.position}>
+      {burst.kind !== "hit" && (
+        <pointLight color={burst.color} intensity={burst.kind === "death" ? 1.5 : 0.9} distance={burst.kind === "heavy" ? 5.2 : 3.8} />
+      )}
+
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.96, 0]}>
         <ringGeometry args={[ringRadius, ringRadius + 0.08, 40]} />
         <meshBasicMaterial color={burst.color} transparent opacity={0.34} depthWrite={false} side={THREE.DoubleSide} />

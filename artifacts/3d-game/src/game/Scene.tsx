@@ -170,6 +170,16 @@ function AdaptiveFrameBudget({ mobileLike, onTierChange }: { mobileLike: boolean
   return null;
 }
 
+function SceneColorGrade({ exposure }: { exposure: number }) {
+  const { gl } = useThree();
+
+  useEffect(() => {
+    gl.toneMappingExposure = exposure;
+  }, [exposure, gl]);
+
+  return null;
+}
+
 function SceneContent({ profile }: { profile: SceneProfile }) {
   const drugs = useGameStore(s => s.drugs);
   const poisons = useGameStore(s => s.poisons);
@@ -182,18 +192,24 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const phase = useGameStore(s => s.phase);
   const quality = useGameStore(s => s.quality);
   const stage = useGameStore(s => s.stage);
+  const runId = useGameStore(s => s.runId);
   const compactViewport = useCompactViewport();
-  const theme = BIOME_THEMES[getBiomeForStage(stage)];
+  const lockedBiomeRef = useRef<{ runId: number; biome: ReturnType<typeof getBiomeForStage> } | null>(null);
+  if (!lockedBiomeRef.current || lockedBiomeRef.current.runId !== runId) {
+    lockedBiomeRef.current = { runId, biome: getBiomeForStage(stage) };
+  }
+  const theme = BIOME_THEMES[lockedBiomeRef.current.biome];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
   const enemyAssetBudget = getEnemyAssetBudget(profile.worldQuality, compactViewport);
   let enemyAssetCount = 0;
 
   return (
     <>
-      <ambientLight intensity={quality === "low" ? 0.58 : 0.5} color="#f0ead8" />
+      <SceneColorGrade exposure={profile.toneMappingExposure * theme.exposure} />
+      <ambientLight intensity={quality === "low" ? theme.ambientIntensity + 0.16 : theme.ambientIntensity} color="#efe6d6" />
       <directionalLight
-        position={[14, 26, 16]}
-        intensity={quality === "low" ? 1.75 : 2.65}
+        position={[16, 28, 12]}
+        intensity={quality === "low" ? 1.55 : 2.45}
         castShadow={profile.shadows}
         shadow-mapSize={profile.shadowMapSize}
         shadow-camera-far={245}
@@ -201,20 +217,25 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
         shadow-camera-right={138}
         shadow-camera-top={138}
         shadow-camera-bottom={-138}
-        color="#ffe1a8"
+        color={theme.keyLight}
       />
-      {quality !== "low" && <hemisphereLight args={["#d8f4ff", theme.hemiGround, 0.52]} />}
+      {quality !== "low" && (
+        <>
+          <directionalLight position={[-18, 11, -24]} intensity={0.68} color={theme.rimLight} />
+          <hemisphereLight args={["#d8f4ff", theme.hemiGround, theme.hemiIntensity]} />
+        </>
+      )}
 
-      <fog attach="fog" args={[theme.fog, 86, 255]} />
+      <fog attach="fog" args={[theme.fog, theme.fogNear, theme.fogFar]} />
       <color attach="background" args={[theme.sky]} />
 
       <Arena qualityOverride={profile.worldQuality} />
       {profile.contactShadows && (
         <ContactShadows
           position={[0, 0.045, 0]}
-          opacity={0.5}
+          opacity={quality === "high" ? 0.34 : 0.26}
           scale={240}
-          blur={2.25}
+          blur={3.4}
           far={18}
           resolution={profile.contactShadowResolution}
           color={theme.baseDark}

@@ -27,6 +27,21 @@ function Trail({ color, length, width, hot = false }: { color: string; length: n
   );
 }
 
+function ProjectileAura({ color, radius, hot }: { color: string; radius: number; hot: boolean }) {
+  return (
+    <group>
+      <mesh>
+        <sphereGeometry args={[radius * (hot ? 1.28 : 1.04), 18, 12]} />
+        <meshBasicMaterial color={color} transparent opacity={hot ? 0.16 : 0.08} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[radius * (hot ? 1.5 : 1.22), radius * 0.026, 6, 32]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.22 : 0.1} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+    </group>
+  );
+}
+
 function RangerArrow({ color, radius }: { color: string; radius: number }) {
   return (
     <group>
@@ -224,6 +239,7 @@ function Projectile({ projectile, renderQuality }: Props) {
     : style === "heavy_cone" ? radius * 1.72
     : style === "magic_orb" || weaponVisual === "nova" || weaponVisual === "arcane" ? radius * 1.56
     : radius * 1.18;
+  const hotProjectile = style === "magic_orb" || projectile.critical || weaponVisual === "laser" || weaponVisual === "nova" || weaponVisual === "arcane";
 
   useFrame((_, delta) => {
     if (meshRef.current) {
@@ -240,6 +256,7 @@ function Projectile({ projectile, renderQuality }: Props) {
   return (
     <group position={projectile.position} rotation={[0, angle, 0]} scale={visualScale}>
       <group ref={meshRef}>
+        <ProjectileAura color={projectile.color} radius={radius} hot={hotProjectile} />
         {weaponVisual === "laser" ? (
           <LaserBolt color={projectile.color} radius={radius} />
         ) : weaponVisual === "shotgun" ? (
@@ -268,9 +285,9 @@ function Projectile({ projectile, renderQuality }: Props) {
           color={projectile.color}
           length={length}
           width={trailWidth}
-          hot={style === "magic_orb" || projectile.critical || weaponVisual === "laser" || weaponVisual === "nova" || weaponVisual === "arcane"}
+          hot={hotProjectile}
         />
-        {lightEnabled && (style === "magic_orb" || projectile.critical || weaponVisual === "laser" || weaponVisual === "nova" || weaponVisual === "arcane") && (
+        {lightEnabled && hotProjectile && (
           <pointLight
             color={projectile.color}
             intensity={style === "magic_orb" || weaponVisual === "nova" ? (renderQuality === "high" ? 1.55 : 0.8) : 0.72}

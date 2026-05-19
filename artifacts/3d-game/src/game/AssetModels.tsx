@@ -44,14 +44,50 @@ function prepEnvironmentModel(root: THREE.Object3D, tint?: string) {
         : new THREE.MeshStandardMaterial({ color: base?.color ?? "#7f826f" });
       material.roughness = Math.max(material.roughness ?? 0.74, 0.78);
       material.metalness = Math.min(material.metalness ?? 0.02, 0.08);
+      material.envMapIntensity = 0.35;
       if (tintColor && material.color) {
         const luminance = material.color.r * 0.2126 + material.color.g * 0.7152 + material.color.b * 0.0722;
         if (luminance < 0.08) material.color.copy(tintColor);
         else material.color.lerp(tintColor, 0.34);
       }
+      material.color?.lerp(new THREE.Color("#fff4df"), 0.035);
       material.needsUpdate = true;
       return material;
     });
+    mesh.material = Array.isArray(mesh.material) ? materials : materials[0];
+  });
+}
+
+function prepEnemyModel(root: THREE.Object3D, tint: string) {
+  const tintColor = new THREE.Color(tint);
+  root.traverse(child => {
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    if (mesh.geometry) {
+      mesh.geometry.computeVertexNormals();
+      mesh.geometry.computeBoundingSphere();
+    }
+
+    const sourceMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const materials = sourceMaterials.map(source => {
+      const base = source as THREE.MeshStandardMaterial & { map?: THREE.Texture | null };
+      const material = new THREE.MeshStandardMaterial({
+        color: base?.color ?? tintColor,
+        map: null,
+        roughness: Math.max(base?.roughness ?? 0.48, 0.42),
+        metalness: Math.min(base?.metalness ?? 0.04, 0.18),
+      });
+      const luminance = material.color.r * 0.2126 + material.color.g * 0.7152 + material.color.b * 0.0722;
+      if (luminance < 0.11) material.color.copy(tintColor);
+      else material.color.lerp(tintColor, 0.22);
+      material.emissive.copy(tintColor).multiplyScalar(0.06);
+      material.envMapIntensity = 0.42;
+      material.needsUpdate = true;
+      return material;
+    });
+
     mesh.material = Array.isArray(mesh.material) ? materials : materials[0];
   });
 }
@@ -136,8 +172,8 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
   const { actions, names } = useAnimations((fbx as THREE.Group & { animations?: THREE.AnimationClip[] }).animations ?? [], groupRef);
 
   useEffect(() => {
-    prepModel(scene);
-  }, [scene]);
+    prepEnemyModel(scene, cfg.color);
+  }, [cfg.color, scene]);
 
   useFrame((_, delta) => {
     const group = groupRef.current;
