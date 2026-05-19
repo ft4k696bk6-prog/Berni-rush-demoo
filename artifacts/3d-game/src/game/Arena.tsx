@@ -631,17 +631,17 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
     terrainDetailTexture.needsUpdate = true;
     return terrainDetailTexture;
   }, [terrainDetailTexture, quality, biome]);
-  const treeCount = quality === "low" ? 6 : quality === "medium" ? 13 : 22;
-  const rockCount = quality === "low" ? 10 : quality === "medium" ? 22 : 36;
-  const flowerCount = quality === "low" ? 5 : quality === "medium" ? 13 : 24;
-  const grassCount = quality === "low" ? 18 : quality === "medium" ? 46 : 72;
-  const bushCount = quality === "low" ? 5 : quality === "medium" ? 12 : 20;
-  const ruinCount = quality === "low" ? 3 : quality === "medium" ? 7 : 13;
-  const assetCount = quality === "low" ? 0 : quality === "medium" ? 10 : 24;
+  const treeCount = 0;
+  const rockCount = quality === "low" ? 3 : quality === "medium" ? 5 : 7;
+  const flowerCount = quality === "low" ? 2 : quality === "medium" ? 5 : 8;
+  const grassCount = quality === "low" ? 0 : quality === "medium" ? 6 : 10;
+  const bushCount = 0;
+  const ruinCount = quality === "low" ? 2 : quality === "medium" ? 5 : 8;
+  const assetCount = 0;
   const scuffCount = quality === "low" ? 12 : quality === "medium" ? 24 : 38;
   const pondCount = quality === "low" ? 1 : quality === "medium" ? 3 : 5;
   const crystalCount = quality === "low" ? 3 : quality === "medium" ? 7 : 10;
-  const horizonTreeCount = quality === "low" ? 8 : quality === "medium" ? 18 : 34;
+  const horizonTreeCount = 0;
   const ridgeCount = quality === "low" ? 8 : quality === "medium" ? 18 : 30;
 
   const biomeTrees = DECOR.trees.filter(item => item.biomes.includes(biome)).slice(0, treeCount);
@@ -845,7 +845,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           position={[asset.x, asset.y, asset.z]}
           rotation={[0, asset.rotation, 0]}
           scale={asset.scale}
-          tint={asset.tint ?? theme.accentSoft}
+          tint={asset.tint}
         />
       ))}
     </group>
