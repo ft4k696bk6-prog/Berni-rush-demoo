@@ -15,7 +15,6 @@ import CoinItem from "./CoinItem";
 import FloatingText from "./FloatingText";
 import { useGameStore } from "./useGameStore";
 import { BIOME_THEMES, getBiomeForStage } from "./worldTheme";
-import { useCompactViewport } from "./useCompactViewport";
 import type { QualityLevel } from "./types";
 
 enum Controls {
@@ -54,15 +53,6 @@ type SceneProfile = {
 function detectMobileLikeViewport() {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) <= 900;
-}
-
-function getEnemyAssetBudget(quality: QualityLevel, compactViewport: boolean) {
-  if (compactViewport) {
-    if (quality === "low") return 14;
-    return 24;
-  }
-
-  return 24;
 }
 
 function getSceneProfile(_quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
@@ -142,15 +132,12 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const quality = useGameStore(s => s.quality);
   const stage = useGameStore(s => s.stage);
   const runId = useGameStore(s => s.runId);
-  const compactViewport = useCompactViewport();
   const lockedBiomeRef = useRef<{ runId: number; biome: ReturnType<typeof getBiomeForStage> } | null>(null);
   if (!lockedBiomeRef.current || lockedBiomeRef.current.runId !== runId) {
     lockedBiomeRef.current = { runId, biome: getBiomeForStage(stage) };
   }
   const theme = BIOME_THEMES[lockedBiomeRef.current.biome];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
-  const enemyAssetBudget = getEnemyAssetBudget(profile.worldQuality, compactViewport);
-  let enemyAssetCount = 0;
 
   return (
     <>
@@ -196,14 +183,11 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
           <Player />
           {drugs.map(d => <DrugItem key={d.id} drug={d} />)}
           {poisons.map(p => {
-            const isBoss = p.type === "boss_dragon" || p.type === "boss10" || p.type === "boss20";
-            const assetModelAllowed = isBoss || (Boolean(p.assetPath) && enemyAssetCount < enemyAssetBudget);
-            if (!isBoss && assetModelAllowed) enemyAssetCount += 1;
+            const assetModelAllowed = Boolean(p.assetPath);
             return (
               <PoisonItem
                 key={p.id}
                 poison={p}
-                compactViewport={compactViewport}
                 renderQuality={profile.worldQuality}
                 assetModelAllowed={assetModelAllowed}
               />

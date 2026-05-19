@@ -85,15 +85,14 @@ function prepEnemyModel(root: THREE.Object3D, tint: string) {
     const sourceMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const materials = sourceMaterials.map(source => {
       const base = source as THREE.MeshStandardMaterial & { map?: THREE.Texture | null };
-      const material = new THREE.MeshStandardMaterial({
-        color: base?.color ?? tintColor,
-        map: null,
-        roughness: Math.max(base?.roughness ?? 0.48, 0.42),
-        metalness: Math.min(base?.metalness ?? 0.04, 0.18),
-      });
+      const material = base?.isMeshStandardMaterial
+        ? base.clone()
+        : new THREE.MeshStandardMaterial({ color: base?.color ?? tintColor });
+      material.roughness = Math.max(material.roughness ?? 0.48, 0.42);
+      material.metalness = Math.min(material.metalness ?? 0.04, 0.18);
       const luminance = material.color.r * 0.2126 + material.color.g * 0.7152 + material.color.b * 0.0722;
       if (luminance < 0.11) material.color.copy(tintColor);
-      else material.color.lerp(tintColor, 0.22);
+      else material.color.lerp(tintColor, 0.1);
       material.emissive.copy(tintColor).multiplyScalar(0.06);
       material.envMapIntensity = 0.42;
       material.needsUpdate = true;
