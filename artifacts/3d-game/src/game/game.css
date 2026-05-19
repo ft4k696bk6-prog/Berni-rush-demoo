@@ -44,6 +44,22 @@ button {
   cursor: crosshair;
 }
 
+.map-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(25, 38, 31, 0.52), rgba(3, 8, 8, 0.92) 72%),
+    #030606;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.map-transition-overlay.visible {
+  opacity: 1;
+}
+
 .menu-stage *,
 .pause-shell *,
 .ability-shell * {

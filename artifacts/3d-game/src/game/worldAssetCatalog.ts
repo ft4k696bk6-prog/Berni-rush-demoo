@@ -222,7 +222,7 @@ export const worldAssetCatalog: WorldAssetDefinition[] = [
   {
     id: "quaternius-ruin-door",
     path: quaterniusMedievalAsset("Wall_UnevenBrick_Door_Round.gltf"),
-    biomes: ["boss_courtyard", "crystal_gate"],
+    biomes: ["ruins_forest", "boss_courtyard", "crystal_gate"],
     role: "ruin",
     scaleRange: [1.5, 2.25],
     density: 6,
@@ -249,7 +249,7 @@ export const worldAssetCatalog: WorldAssetDefinition[] = [
   {
     id: "quaternius-stone-floor",
     path: quaterniusMedievalAsset("Floor_UnevenBrick.gltf"),
-    biomes: ["boss_courtyard", "crystal_gate", "mine_quarry"],
+    biomes: ["ruins_forest", "boss_courtyard", "crystal_gate", "mine_quarry"],
     role: "prop",
     scaleRange: [2.8, 4.4],
     density: 9,
@@ -441,6 +441,67 @@ type AuthoredPlacement = {
 
 const DEF_BY_ID = new Map(worldAssetCatalog.map(def => [def.id, def]));
 const deg = (value: number) => value * Math.PI / 180;
+const GROUND_SNAP_Y: Record<string, number> = {
+  "quaternius-common-tree-a": 0.22,
+  "quaternius-common-tree-b": 0.22,
+  "quaternius-pine-wall": 0.22,
+  "quaternius-common-wall": 0.22,
+  "quaternius-dead-tree-a": 0.32,
+  "quaternius-dead-tree-b": 0.32,
+  "quaternius-twisted-landmark": 0.18,
+  "quaternius-flowering-bush": 0.2,
+  "quaternius-bush": 0.2,
+  "quaternius-fern": 0.22,
+  "quaternius-mushroom-cluster": 0.14,
+  "quaternius-rock-medium-a": 0.29,
+  "quaternius-rock-medium-b": 0.24,
+  "quaternius-pebble": 0.06,
+  "quaternius-path-rocks": 0.02,
+  "quaternius-stone-floor": 0.018,
+  "quaternius-stairs": 0.18,
+  "quaternius-crate": 0.06,
+  "quaternius-chest": 0.02,
+  "quaternius-lantern": -0.08,
+};
+const LOW_KEEP_RETENTION: Record<WorldAssetRole, number> = {
+  canopy: 0.9,
+  horizon: 1,
+  ruin: 1,
+  landmark: 1,
+  rock: 0.82,
+  grass: 0.72,
+  prop: 0.84,
+  mine: 0.84,
+};
+const REDUCED_LOD_RETENTION: Record<WorldAssetRole, Record<"medium" | "low", number>> = {
+  canopy: { medium: 0.66, low: 0.34 },
+  horizon: { medium: 0.78, low: 0.52 },
+  ruin: { medium: 0.72, low: 0.46 },
+  landmark: { medium: 0.82, low: 0.58 },
+  rock: { medium: 0.72, low: 0.48 },
+  grass: { medium: 0.58, low: 0.28 },
+  prop: { medium: 0.64, low: 0.4 },
+  mine: { medium: 0.64, low: 0.4 },
+};
+
+function placementScore(placement: AuthoredPlacement, index: number) {
+  const value = Math.sin(
+    placement.x * 12.9898 +
+    placement.z * 78.233 +
+    index * 37.719 +
+    placement.id.length * 11.137,
+  ) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function keepForQuality(def: WorldAssetDefinition, placement: AuthoredPlacement, quality: QualityLevel, index: number) {
+  if (quality === "high") return true;
+  if (def.mobileLOD === "desktop") return false;
+  if (def.mobileLOD === "keep") {
+    return quality === "medium" || placementScore(placement, index) <= LOW_KEEP_RETENTION[def.role];
+  }
+  return placementScore(placement, index) <= REDUCED_LOD_RETENTION[def.role][quality];
+}
 
 function addRing(
   placements: AuthoredPlacement[],
@@ -599,16 +660,16 @@ function buildMineQuarry(arenaBound: number) {
   return p;
 }
 
-function mountedY(mount: PropMount | undefined, y: number | undefined) {
+function mountedY(id: string, mount: PropMount | undefined, y: number | undefined) {
   if (typeof y === "number") return y;
   if (mount === "wall") return 1.75;
   if (mount === "ceiling") return 3.2;
   if (mount === "table") return 0.78;
-  return 0;
+  return GROUND_SNAP_Y[id] ?? 0;
 }
 
 function buildAuthoredLayout(biome: BiomeId, arenaBound: number, mapId?: MapId) {
-  if (mapId) return [...baseHorizon(biome, arenaBound), ...getMapDefinition(mapId).scenery];
+  if (mapId) return getMapDefinition(mapId).scenery;
   if (biome === "boss_courtyard") return buildBossCourtyard(arenaBound);
   if (biome === "marsh") return buildMarsh(arenaBound);
   if (biome === "crystal_gate") return buildCrystalGate(arenaBound);
@@ -617,16 +678,16 @@ function buildAuthoredLayout(biome: BiomeId, arenaBound: number, mapId?: MapId) 
 }
 
 export function buildWorldAssetInstances(biome: BiomeId, quality: QualityLevel, arenaBound: number, mapId?: MapId) {
-  void quality;
-  return buildAuthoredLayout(biome, arenaBound, mapId).flatMap((placement): WorldAssetInstance[] => {
+  return buildAuthoredLayout(biome, arenaBound, mapId).flatMap((placement, index): WorldAssetInstance[] => {
     const def = DEF_BY_ID.get(placement.id);
     if (!def) return [];
+    if (!keepForQuality(def, placement, quality, index)) return [];
     const fallbackScale = (def.scaleRange[0] + def.scaleRange[1]) * 0.5;
     return [{
       ...def,
       x: placement.x,
       z: placement.z,
-      y: mountedY(placement.mount, placement.y),
+      y: mountedY(placement.id, placement.mount, placement.y),
       scale: placement.scale ?? fallbackScale,
       rotation: placement.rotation ?? 0,
       tint: placement.tint ?? def.tint,

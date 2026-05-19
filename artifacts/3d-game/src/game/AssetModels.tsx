@@ -36,8 +36,9 @@ function prepModel(root: THREE.Object3D) {
   });
 }
 
-function prepEnvironmentModel(root: THREE.Object3D, tint?: string) {
+function prepEnvironmentModel(root: THREE.Object3D, tint?: string, assetPath = "") {
   const tintColor = tint ? new THREE.Color(tint) : null;
+  const warmProp = /Lantern|Torch|Banner|Vine|Candle/i.test(assetPath);
   root.traverse(child => {
     const mesh = child as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -61,6 +62,11 @@ function prepEnvironmentModel(root: THREE.Object3D, tint?: string) {
         const luminance = material.color.r * 0.2126 + material.color.g * 0.7152 + material.color.b * 0.0722;
         if (luminance < 0.08) material.color.copy(tintColor);
         else material.color.lerp(tintColor, 0.34);
+      }
+      if (warmProp) {
+        const glow = new THREE.Color("#ffcf73");
+        material.emissive.copy(glow);
+        material.emissiveIntensity = /Lantern|Torch/i.test(assetPath) ? 0.42 : 0.14;
       }
       material.color?.lerp(new THREE.Color("#fff4df"), 0.035);
       material.needsUpdate = true;
@@ -266,8 +272,8 @@ function EnvironmentFBXModel({ path, position, rotation = [0, 0, 0], scale = 1, 
   const scene = useMemo(() => cloneScene(fbx), [fbx, path]);
 
   useEffect(() => {
-    prepEnvironmentModel(scene, tint);
-  }, [scene, tint]);
+    prepEnvironmentModel(scene, tint, path);
+  }, [scene, tint, path]);
 
   return (
     <group position={position} rotation={rotation} scale={scale}>
@@ -281,8 +287,8 @@ function EnvironmentGLBModel({ path, position, rotation = [0, 0, 0], scale = 1, 
   const scene = useMemo(() => cloneScene(gltf.scene), [gltf.scene, path]);
 
   useEffect(() => {
-    prepEnvironmentModel(scene, tint);
-  }, [scene, tint]);
+    prepEnvironmentModel(scene, tint, path);
+  }, [scene, tint, path]);
 
   return (
     <group position={position} rotation={rotation} scale={scale}>

@@ -16,6 +16,9 @@ export interface RoomDefinition {
   label: string;
   center: [number, number];
   halfSize: [number, number];
+  height?: number;
+  cameraMaxY?: number;
+  zoneId?: string;
 }
 
 export interface MapWallSegment {
@@ -30,6 +33,27 @@ export interface MapWallSegment {
 export type CollisionShape =
   | { id: string; type: "rect"; center: [number, number]; halfSize: [number, number] }
   | { id: string; type: "circle"; center: [number, number]; radius: number };
+
+export interface GateTriggerDefinition {
+  center: [number, number];
+  halfSize: [number, number];
+}
+
+export interface MapGateDefinition {
+  id: string;
+  label: string;
+  fromRoomId: string;
+  toRoomId: string;
+  unlockAfter?: string;
+  trigger: GateTriggerDefinition;
+  blocker?: CollisionShape;
+}
+
+export interface ActiveGateTrigger {
+  gate: MapGateDefinition;
+  locked: boolean;
+  bounds: MapBounds;
+}
 
 export interface MapHazardDefinition {
   id: string;
@@ -73,6 +97,7 @@ export interface MapDefinition {
   exit: { position: [number, number]; radius: number };
   bounds: MapBounds;
   rooms: RoomDefinition[];
+  gates?: MapGateDefinition[];
   wallSegments: MapWallSegment[];
   collisions: CollisionShape[];
   hazards: MapHazardDefinition[];
@@ -81,14 +106,17 @@ export interface MapDefinition {
 }
 
 const deg = (value: number) => value * Math.PI / 180;
-const WALL_HEIGHT = 6.4;
-const WALL_THICKNESS = 2.2;
+const WALL_HEIGHT = 14.4;
+const WALL_THICKNESS = 3.0;
 
-const room = (id: string, label: string, x: number, z: number, hx: number, hz: number): RoomDefinition => ({
+type RoomOptions = Pick<RoomDefinition, "height" | "cameraMaxY" | "zoneId">;
+
+const room = (id: string, label: string, x: number, z: number, hx: number, hz: number, options: RoomOptions = {}): RoomDefinition => ({
   id,
   label,
   center: [x, z],
   halfSize: [hx, hz],
+  ...options,
 });
 
 const wall = (id: string, x: number, z: number, width: number, depth: number, height = WALL_HEIGHT, tint?: string): MapWallSegment => ({
@@ -98,6 +126,82 @@ const wall = (id: string, x: number, z: number, width: number, depth: number, he
   height,
   tint,
 });
+
+const rectCollision = (id: string, x: number, z: number, hx: number, hz: number): CollisionShape => ({
+  id,
+  type: "rect",
+  center: [x, z],
+  halfSize: [hx, hz],
+});
+
+const circleCollision = (id: string, x: number, z: number, radius: number): CollisionShape => ({
+  id,
+  type: "circle",
+  center: [x, z],
+  radius,
+});
+
+const gate = (
+  id: string,
+  label: string,
+  fromRoomId: string,
+  toRoomId: string,
+  unlockAfter: string,
+  x: number,
+  z: number,
+  hx: number,
+  hz: number,
+  blockerHx = hx,
+  blockerHz = Math.max(1.8, hz * 0.5),
+): MapGateDefinition => ({
+  id,
+  label,
+  fromRoomId,
+  toRoomId,
+  unlockAfter,
+  trigger: { center: [x, z], halfSize: [hx, hz] },
+  blocker: rectCollision(`${id}-blocker`, x, z, blockerHx, blockerHz),
+});
+
+const perimeterWalls = (prefix: string, bounds: MapBounds, height = WALL_HEIGHT, tint?: string): MapWallSegment[] => {
+  const width = bounds.maxX - bounds.minX;
+  const depth = bounds.maxZ - bounds.minZ;
+  const cx = (bounds.minX + bounds.maxX) * 0.5;
+  const cz = (bounds.minZ + bounds.maxZ) * 0.5;
+
+  return [
+    wall(`${prefix}-west`, bounds.minX - WALL_THICKNESS * 0.5, cz, WALL_THICKNESS, depth + WALL_THICKNESS * 2, height, tint),
+    wall(`${prefix}-east`, bounds.maxX + WALL_THICKNESS * 0.5, cz, WALL_THICKNESS, depth + WALL_THICKNESS * 2, height, tint),
+    wall(`${prefix}-north`, cx, bounds.maxZ + WALL_THICKNESS * 0.5, width + WALL_THICKNESS * 2, WALL_THICKNESS, height, tint),
+    wall(`${prefix}-south`, cx, bounds.minZ - WALL_THICKNESS * 0.5, width + WALL_THICKNESS * 2, WALL_THICKNESS, height, tint),
+  ];
+};
+
+const partitionWall = (
+  prefix: string,
+  bounds: MapBounds,
+  z: number,
+  doorCenterX: number,
+  doorWidth: number,
+  height = WALL_HEIGHT,
+  tint?: string,
+): MapWallSegment[] => {
+  const doorMinX = Math.max(bounds.minX, doorCenterX - doorWidth * 0.5);
+  const doorMaxX = Math.min(bounds.maxX, doorCenterX + doorWidth * 0.5);
+  const segments: MapWallSegment[] = [];
+
+  if (doorMinX > bounds.minX) {
+    const width = doorMinX - bounds.minX;
+    segments.push(wall(`${prefix}-l`, bounds.minX + width * 0.5, z, width, WALL_THICKNESS, height, tint));
+  }
+
+  if (doorMaxX < bounds.maxX) {
+    const width = bounds.maxX - doorMaxX;
+    segments.push(wall(`${prefix}-r`, doorMaxX + width * 0.5, z, width, WALL_THICKNESS, height, tint));
+  }
+
+  return segments;
+};
 
 const closedWalls = (
   prefix: string,
@@ -138,13 +242,35 @@ const wallCollisions = (walls: MapWallSegment[]): CollisionShape[] => (
 );
 
 const wallRun = (id: string, z: number, xs: number[], scale = 2.25): MapSceneryPlacement[] => {
-  void id; void z; void xs; void scale;
-  return [];
+  return xs.map((x, index) => ({
+    id,
+    x,
+    z,
+    scale,
+    rotation: deg(index % 2 === 0 ? 0 : 180),
+    mount: "ground",
+  }));
 };
 
 const sideWalls = (zValues: number[], left = -34, right = 34, id = "quaternius-uneven-wall", scale = 2.0): MapSceneryPlacement[] => {
-  void zValues; void left; void right; void id; void scale;
-  return [];
+  return zValues.flatMap((z, index) => [
+    {
+      id,
+      x: left,
+      z,
+      scale,
+      rotation: deg(90 + (index % 2 === 0 ? 0 : 8)),
+      mount: "ground" as const,
+    },
+    {
+      id,
+      x: right,
+      z,
+      scale,
+      rotation: deg(-90 - (index % 2 === 0 ? 0 : 8)),
+      mount: "ground" as const,
+    },
+  ]);
 };
 
 const groundDetails = (points: Array<[string, number, number, number?, number?]>): MapSceneryPlacement[] => (
@@ -153,13 +279,23 @@ const groundDetails = (points: Array<[string, number, number, number?, number?]>
 
 export const MAP_SEQUENCE: MapId[] = ["ruins_path", "marsh_trail", "mine_passage", "crystal_gate"];
 
-const ruinsBounds: MapBounds = { minX: -28, maxX: 28, minZ: -78, maxZ: 84 };
+const ruinsBounds: MapBounds = { minX: -48, maxX: 48, minZ: -108, maxZ: 108 };
 const marshBounds: MapBounds = { minX: -30, maxX: 30, minZ: -78, maxZ: 82 };
 const mineBounds: MapBounds = { minX: -26, maxX: 26, minZ: -78, maxZ: 84 };
 const crystalBounds: MapBounds = { minX: -30, maxX: 30, minZ: -80, maxZ: 82 };
 const bossBounds: MapBounds = { minX: -42, maxX: 42, minZ: -52, maxZ: 58 };
 
-const ruinsWalls = closedWalls("ruins", ruinsBounds, [34, -24], 12, "#53614f");
+const ruinsWalls = [
+  ...perimeterWalls("ruins", ruinsBounds, 15.8, "#53614f"),
+  ...partitionWall("ruins-entry-hall", ruinsBounds, 42, -8, 19, 14.2, "#596b54"),
+  ...partitionWall("ruins-hall-root", ruinsBounds, -34, 14, 18, 15.4, "#4d5e49"),
+  wall("ruins-entry-west-rootwall", -42, 74, 5.4, 42, 14.8, "#465a45"),
+  wall("ruins-entry-east-rootwall", 40, 85, 5.2, 30, 14.2, "#465a45"),
+  wall("ruins-hall-west-buttress", -40, 4, 5.4, 50, 15.2, "#435341"),
+  wall("ruins-hall-east-buttress", 41, -3, 5.2, 42, 15.2, "#435341"),
+  wall("ruins-root-west-buttress", -41, -74, 5.6, 48, 16.2, "#3f503f"),
+  wall("ruins-root-east-buttress", 39, -70, 5.3, 38, 16.2, "#3f503f"),
+];
 const marshWalls = closedWalls("marsh", marshBounds, [30, -22], 13, "#425c52");
 const mineWalls = closedWalls("mine", mineBounds, [34, -22], 12, "#5b5045");
 const crystalWalls = closedWalls("crystal", crystalBounds, [30, -24], 12, "#5b6178");
@@ -168,74 +304,97 @@ const bossWalls = closedWalls("boss", bossBounds, [], 16, "#6b5a52");
 export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
   ruins_path: {
     id: "ruins_path",
-    label: "Elderwood Road",
+    label: "Elderwood Ruin Enclosure",
     biome: "ruins_forest",
-    start: [0, 72],
+    start: [-18, 96],
     startAngle: Math.PI,
-    exit: { position: [0, -70], radius: 7 },
+    exit: { position: [-10, -98], radius: 8 },
     bounds: ruinsBounds,
     rooms: [
-      room("ruins-entry", "Entry Hall", 0, 58, 22, 20),
-      room("ruins-court", "Broken Court", 0, 4, 24, 28),
-      room("ruins-sanctum", "Old Arch", 0, -54, 23, 22),
+      room("entry_clearing", "Entry Clearing", -18, 75, 30, 33, { height: 17.2, cameraMaxY: 14.2, zoneId: "entry_clearing" }),
+      room("ruin_hall", "Ruin Hall", 14, 4, 34, 40, { height: 18.4, cameraMaxY: 15.0, zoneId: "ruin_hall" }),
+      room("root_gate", "Root Gate", -10, -72, 34, 38, { height: 18.0, cameraMaxY: 14.7, zoneId: "root_gate" }),
+    ],
+    gates: [
+      gate("entry_clearing_to_ruin_hall", "Root-Sealed Archway", "entry_clearing", "ruin_hall", "entry_clearing", -8, 42, 12, 6, 10.4, 2.7),
+      gate("ruin_hall_to_root_gate", "Ancient Root Gate", "ruin_hall", "root_gate", "ruin_hall", 14, -34, 12, 6, 10.4, 2.7),
     ],
     wallSegments: ruinsWalls,
     collisions: [
       ...wallCollisions(ruinsWalls),
-      { id: "ruins-crate-block", type: "circle", center: [-22, 58], radius: 2.2 },
-      { id: "ruins-chest-block", type: "circle", center: [21, -58], radius: 2.1 },
+      circleCollision("ruins-entry-fallen-pillar", -31, 84, 3.2),
+      circleCollision("ruins-entry-root-knot", 9, 62, 2.8),
+      rectCollision("ruins-hall-broken-dais", 10, 13, 6.8, 2.8),
+      circleCollision("ruins-hall-cracked-column", 28, -16, 3.1),
+      rectCollision("ruins-root-braid-left", -29, -65, 3.1, 12.5),
+      rectCollision("ruins-root-braid-right", 23, -82, 2.8, 11.5),
+      circleCollision("ruins-root-altar-block", -8, -57, 3.2),
     ],
     hazards: [
-      { id: "ruins-tree-ambush-a", type: "hostile_tree", position: [-21, 38], radius: 4.2, triggerRadius: 8.6, damage: 18, cooldownMs: 3600, windupMs: 780, scale: 0.42 },
-      { id: "ruins-tree-ambush-b", type: "hostile_tree", position: [21, -30], radius: 4.6, triggerRadius: 9.2, damage: 21, cooldownMs: 4100, windupMs: 820, scale: 0.46 },
+      { id: "ruins-tree-ambush-a", type: "hostile_tree", position: [-36, 58], radius: 4.5, triggerRadius: 9.2, damage: 18, cooldownMs: 3600, windupMs: 780, scale: 0.44 },
+      { id: "ruins-tree-ambush-b", type: "hostile_tree", position: [32, -20], radius: 4.7, triggerRadius: 9.6, damage: 20, cooldownMs: 4000, windupMs: 820, scale: 0.46 },
+      { id: "ruins-tree-ambush-c", type: "hostile_tree", position: [-35, -84], radius: 5.0, triggerRadius: 10.2, damage: 22, cooldownMs: 4300, windupMs: 860, scale: 0.5 },
     ],
     zones: [
       {
-        id: "outer-gate",
-        label: "Outer Gate",
-        center: [0, 58],
-        radius: 18,
-        enemyTypes: ["basic_melee", "basic_melee", "ranged_enemy"],
-        spawnPoints: [[-15, 48], [15, 47], [0, 41]],
+        id: "entry_clearing",
+        label: "Entry Clearing",
+        center: [-18, 74],
+        radius: 26,
+        enemyTypes: ["basic_melee", "basic_melee", "ranged_enemy", "fast_melee"],
+        spawnPoints: [[-37, 72], [2, 83], [-20, 53], [-35, 58]],
       },
       {
-        id: "broken-court",
-        label: "Broken Court",
-        center: [0, 4],
-        radius: 22,
-        unlockAfter: "outer-gate",
-        enemyTypes: ["basic_melee", "fast_melee", "ranged_enemy"],
-        spawnPoints: [[-18, -6], [18, -7], [0, -16]],
+        id: "ruin_hall",
+        label: "Ruin Hall",
+        center: [14, 4],
+        radius: 31,
+        unlockAfter: "entry_clearing",
+        enemyTypes: ["basic_melee", "fast_melee", "ranged_enemy", "tank_enemy"],
+        spawnPoints: [[-6, 4], [34, 17], [16, -19], [31, -8]],
       },
       {
-        id: "old-arch",
-        label: "Old Arch",
-        center: [0, -54],
-        radius: 21,
-        unlockAfter: "broken-court",
-        enemyTypes: ["tank_enemy", "basic_melee", "fast_melee", "ranged_enemy"],
-        spawnPoints: [[-18, -58], [18, -59], [0, -69], [-10, -43]],
+        id: "root_gate",
+        label: "Root Gate",
+        center: [-10, -72],
+        radius: 29,
+        unlockAfter: "ruin_hall",
+        enemyTypes: ["tank_enemy", "basic_melee", "fast_melee", "ranged_enemy", "exploder_enemy"],
+        spawnPoints: [[-31, -74], [11, -75], [-10, -94], [-25, -51], [14, -58]],
       },
     ],
     scenery: [
-      ...sideWalls([74, 48, 20, -10, -42, -72], -35, 35, "quaternius-uneven-wall", 2.05),
-      ...wallRun("quaternius-ruin-arch", -72, [-20, 0, 20], 2.35),
+      ...sideWalls([98, 72, 42, 6, -34, -70, -102], -52, 52, "quaternius-uneven-wall", 2.22),
+      ...wallRun("quaternius-ruin-arch", -102, [-34, -10, 14], 2.6),
+      ...wallRun("quaternius-uneven-wall", 110, [-36, -18, 0, 18, 36], 2.6),
+      ...sideWalls([84, 54, 20, -10, -48, -84], -58, 58, "quaternius-pine-wall", 1.72),
       ...groundDetails([
-        ["quaternius-stone-floor", 0, 82, 3.3, 0],
-        ["quaternius-stone-floor", 0, 48, 3.0, 0],
-        ["quaternius-stone-floor", 0, 8, 3.1, 0],
-        ["quaternius-stone-floor", 0, -45, 3.35, 0],
-        ["quaternius-ruin-door", 0, -88, 2.35, 0],
-        ["quaternius-stairs", -17, -25, 1.45, 90],
-        ["quaternius-crate", -25, 61, 1.16, 24],
-        ["quaternius-barrel", 24, 30, 1.12, -34],
-        ["quaternius-bench", -24, -4, 1.22, 88],
-        ["quaternius-chest", 24, -62, 1.08, -28],
-        ["quaternius-flowering-bush", -30, 73, 1.28, 15],
-        ["quaternius-bush", 30, 69, 1.35, -20],
-        ["quaternius-rock-medium-a", -31, -83, 1.24, 42],
-        ["quaternius-rock-medium-b", 31, -85, 1.2, -38],
+        ["quaternius-stone-floor", -18, 98, 3.55, 0],
+        ["quaternius-stone-floor", -18, 72, 3.75, 5],
+        ["quaternius-stone-floor", -5, 40, 3.15, -6],
+        ["quaternius-stone-floor", 14, 14, 3.9, 0],
+        ["quaternius-stone-floor", 14, -18, 3.45, 10],
+        ["quaternius-stone-floor", 0, -46, 3.25, -8],
+        ["quaternius-stone-floor", -10, -74, 3.95, 0],
+        ["quaternius-stone-floor", -10, -100, 3.3, 0],
+        ["quaternius-ruin-door", -10, -118, 2.7, 0],
+        ["quaternius-ruin-arch", -8, 42, 2.2, 0],
+        ["quaternius-ruin-arch", 14, -34, 2.35, 0],
+        ["quaternius-stairs", 27, -35, 1.6, 90],
+        ["quaternius-crate", -35, 91, 1.2, 24],
+        ["quaternius-barrel", 31, 25, 1.14, -34],
+        ["quaternius-bench", -30, 4, 1.24, 88],
+        ["quaternius-chest", 18, -91, 1.1, -28],
+        ["quaternius-flowering-bush", -43, 99, 1.32, 15],
+        ["quaternius-bush", 40, 98, 1.38, -20],
+        ["quaternius-vines", -45, -45, 1.8, 84],
+        ["quaternius-rock-medium-a", -41, -103, 1.3, 42],
+        ["quaternius-rock-medium-b", 36, -104, 1.26, -38],
       ]),
+      { id: "quaternius-lantern", x: -45, z: 40, scale: 1.26, rotation: deg(90), mount: "wall", y: 2.45 },
+      { id: "quaternius-lantern", x: 45, z: -34, scale: 1.26, rotation: deg(-90), mount: "wall", y: 2.45 },
+      { id: "quaternius-banner", x: -8, z: 42.8, scale: 1.18, rotation: deg(0), mount: "wall", y: 3.25 },
+      { id: "quaternius-banner", x: 14, z: -33.2, scale: 1.22, rotation: deg(0), mount: "wall", y: 3.35 },
     ],
   },
   marsh_trail: {
@@ -521,8 +680,77 @@ export function getMapCollisionShapes(mapId: MapId) {
   return getMapDefinition(mapId).collisions;
 }
 
-export function pointCollidesWithMap(mapId: MapId, x: number, z: number, radius = 0.8) {
-  const shapes = getMapCollisionShapes(mapId);
+function boundsFromRect(center: [number, number], halfSize: [number, number]): MapBounds {
+  return {
+    minX: center[0] - halfSize[0],
+    maxX: center[0] + halfSize[0],
+    minZ: center[1] - halfSize[1],
+    maxZ: center[1] + halfSize[1],
+  };
+}
+
+function pointInRect(center: [number, number], halfSize: [number, number], x: number, z: number) {
+  return (
+    x >= center[0] - halfSize[0] &&
+    x <= center[0] + halfSize[0] &&
+    z >= center[1] - halfSize[1] &&
+    z <= center[1] + halfSize[1]
+  );
+}
+
+export function getRoomBounds(mapId: MapId, roomId: string) {
+  const room = getMapDefinition(mapId).rooms.find(item => item.id === roomId);
+  return room ? boundsFromRect(room.center, room.halfSize) : null;
+}
+
+export function isInsideRoom(room: RoomDefinition, x: number, z: number) {
+  return pointInRect(room.center, room.halfSize, x, z);
+}
+
+export function getActiveRoom(mapId: MapId, x: number, z: number) {
+  return getMapDefinition(mapId).rooms.find(room => isInsideRoom(room, x, z)) ?? null;
+}
+
+export function getActiveRoomBounds(mapId: MapId, x: number, z: number) {
+  const room = getActiveRoom(mapId, x, z);
+  return room ? boundsFromRect(room.center, room.halfSize) : getMapDefinition(mapId).bounds;
+}
+
+export function getActiveRoomCameraMaxY(mapId: MapId, x: number, z: number) {
+  const room = getActiveRoom(mapId, x, z);
+  return room?.cameraMaxY ?? room?.height ?? 7.2;
+}
+
+export function getMapGates(mapId: MapId) {
+  return getMapDefinition(mapId).gates ?? [];
+}
+
+export function isGateUnlocked(gate: MapGateDefinition, clearedZoneIds: string[]) {
+  return !gate.unlockAfter || clearedZoneIds.includes(gate.unlockAfter);
+}
+
+export function getGateTriggerBounds(gate: MapGateDefinition) {
+  return boundsFromRect(gate.trigger.center, gate.trigger.halfSize);
+}
+
+export function getActiveGateTrigger(mapId: MapId, x: number, z: number, clearedZoneIds: string[] = []): ActiveGateTrigger | null {
+  const gate = getMapGates(mapId).find(item => pointInRect(item.trigger.center, item.trigger.halfSize, x, z));
+  if (!gate) return null;
+
+  return {
+    gate,
+    locked: !isGateUnlocked(gate, clearedZoneIds),
+    bounds: getGateTriggerBounds(gate),
+  };
+}
+
+export function getLockedGateCollisionShapes(mapId: MapId, clearedZoneIds: string[]) {
+  return getMapGates(mapId)
+    .filter(item => !isGateUnlocked(item, clearedZoneIds))
+    .map(item => item.blocker ?? rectCollision(`gate-${item.id}-fallback-blocker`, item.trigger.center[0], item.trigger.center[1], item.trigger.halfSize[0], item.trigger.halfSize[1]));
+}
+
+function pointCollidesWithShapes(shapes: CollisionShape[], x: number, z: number, radius = 0.8) {
   return shapes.some(shape => {
     if (shape.type === "circle") {
       const dx = x - shape.center[0];
@@ -537,6 +765,10 @@ export function pointCollidesWithMap(mapId: MapId, x: number, z: number, radius 
       z < shape.center[1] + shape.halfSize[1] + radius
     );
   });
+}
+
+export function pointCollidesWithMap(mapId: MapId, x: number, z: number, radius = 0.8) {
+  return pointCollidesWithShapes(getMapCollisionShapes(mapId), x, z, radius);
 }
 
 function pushOutOfShape(shape: CollisionShape, x: number, z: number, radius: number): [number, number] {
@@ -566,29 +798,57 @@ function pushOutOfShape(shape: CollisionShape, x: number, z: number, radius: num
   return [x, maxZ];
 }
 
-export function resolveMapMovement(mapId: MapId, fromX: number, fromZ: number, toX: number, toZ: number, radius = 0.8): [number, number] {
+function resolveMovementAgainstShapes(
+  mapId: MapId,
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+  radius = 0.8,
+  extraShapes: CollisionShape[] = [],
+): [number, number] {
+  const shapes = extraShapes.length > 0
+    ? [...getMapCollisionShapes(mapId), ...extraShapes]
+    : getMapCollisionShapes(mapId);
   const [boundedX, boundedZ] = clampPointToMap(mapId, toX, toZ, radius);
-  if (!pointCollidesWithMap(mapId, boundedX, boundedZ, radius)) return [boundedX, boundedZ];
+  if (!pointCollidesWithShapes(shapes, boundedX, boundedZ, radius)) return [boundedX, boundedZ];
 
   const [xOnly] = clampPointToMap(mapId, boundedX, fromZ, radius);
-  if (!pointCollidesWithMap(mapId, xOnly, fromZ, radius)) return [xOnly, fromZ];
+  if (!pointCollidesWithShapes(shapes, xOnly, fromZ, radius)) return [xOnly, fromZ];
 
   const [, zOnly] = clampPointToMap(mapId, fromX, boundedZ, radius);
-  if (!pointCollidesWithMap(mapId, fromX, zOnly, radius)) return [fromX, zOnly];
+  if (!pointCollidesWithShapes(shapes, fromX, zOnly, radius)) return [fromX, zOnly];
 
   let x = boundedX;
   let z = boundedZ;
   for (let i = 0; i < 4; i++) {
-    for (const shape of getMapCollisionShapes(mapId)) {
+    for (const shape of shapes) {
       [x, z] = pushOutOfShape(shape, x, z, radius);
     }
     [x, z] = clampPointToMap(mapId, x, z, radius);
   }
 
-  return pointCollidesWithMap(mapId, x, z, radius) ? clampPointToMap(mapId, fromX, fromZ, radius) : [x, z];
+  return pointCollidesWithShapes(shapes, x, z, radius) ? clampPointToMap(mapId, fromX, fromZ, radius) : [x, z];
+}
+
+export function resolveMapMovement(mapId: MapId, fromX: number, fromZ: number, toX: number, toZ: number, radius = 0.8): [number, number] {
+  return resolveMovementAgainstShapes(mapId, fromX, fromZ, toX, toZ, radius);
 }
 
 export function clampPlayerToProgress(mapId: MapId, fromX: number, fromZ: number, x: number, z: number, clearedZoneIds: string[], margin = 1): [number, number] {
+  const map = getMapDefinition(mapId);
+  if (map.gates?.length) {
+    return resolveMovementAgainstShapes(
+      mapId,
+      fromX,
+      fromZ,
+      x,
+      z,
+      margin,
+      getLockedGateCollisionShapes(mapId, clearedZoneIds),
+    );
+  }
+
   const [clampedX, clampedZ] = resolveMapMovement(mapId, fromX, fromZ, x, z, margin);
   const nextZone = getNextUnlockedZone(mapId, clearedZoneIds);
   if (!nextZone) return [clampedX, clampedZ];
@@ -597,13 +857,16 @@ export function clampPlayerToProgress(mapId: MapId, fromX: number, fromZ: number
   return [clampedX, Math.max(forwardGateZ, clampedZ)];
 }
 
-export function segmentHitsMapCollision(mapId: MapId, ax: number, az: number, bx: number, bz: number, radius = 0.22) {
+export function segmentHitsMapCollision(mapId: MapId, ax: number, az: number, bx: number, bz: number, radius = 0.22, clearedZoneIds: string[] = []) {
+  const shapes = clearedZoneIds.length > 0
+    ? [...getMapCollisionShapes(mapId), ...getLockedGateCollisionShapes(mapId, clearedZoneIds)]
+    : getMapCollisionShapes(mapId);
   const steps = Math.max(2, Math.ceil(Math.hypot(bx - ax, bz - az) / 1.2));
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     const x = ax + (bx - ax) * t;
     const z = az + (bz - az) * t;
-    if (pointCollidesWithMap(mapId, x, z, radius)) return true;
+    if (pointCollidesWithShapes(shapes, x, z, radius)) return true;
   }
   return false;
 }

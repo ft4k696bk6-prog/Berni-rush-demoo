@@ -264,7 +264,7 @@ function activateEnemyFromPool(pool: PoisonItem[], type: EnemySubType, position:
   };
 }
 
-function safeSpawnPoint(point: [number, number], zoneCenter: [number, number], minDistance = 16): [number, number, number] {
+function safeSpawnPoint(point: [number, number], zoneCenter: [number, number], minDistance = 22): [number, number, number] {
   const dx = point[0] - playerRuntime.x;
   const dz = point[1] - playerRuntime.z;
   const distance = Math.hypot(dx, dz);
@@ -934,7 +934,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           return bd - ad;
         });
         const point = sortedSpawnPoints[index % sortedSpawnPoints.length];
-        const safe = safeSpawnPoint(point, nextZone.center, isBossType(type) ? 20 : 16);
+        const safe = safeSpawnPoint(point, nextZone.center, isBossType(type) ? 28 : 22);
         const [x, z] = resolveMapMovement(s.mapId, point[0], point[1], safe[0], safe[2], 1.4);
         return activateEnemyFromPool(nextPool, type, [x, 1.2, z], s.stage);
       });
@@ -1097,6 +1097,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           next.position[0],
           next.position[2],
           next.radius * 0.72,
+          s.clearedZoneIds,
         )) {
           impactBursts.push(impactBurst(next.position[0], next.position[2], next.color, themeFromAttackStyle(next.attackStyle), "hit", 0.72));
           continue;
@@ -1236,6 +1237,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           p.position[0],
           p.position[2],
           0.28,
+          get().clearedZoneIds,
         )) return false;
         const dd = (p.position[0] - px) ** 2 + (p.position[2] - pz) ** 2;
         if (dd < 1.05 * 1.05) {

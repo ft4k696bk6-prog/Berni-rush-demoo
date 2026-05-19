@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Scene from "./Scene";
 import HUD from "./HUD";
 import MenuScreen from "./MenuScreen";
@@ -13,10 +13,13 @@ const TESTER_COIN_CODE = "BERNIRICH";
 
 export default function Game() {
   const phase = useGameStore(s => s.phase);
+  const mapId = useGameStore(s => s.mapId);
   const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
   const pauseGame = useGameStore(s => s.pauseGame);
   const resumeGame = useGameStore(s => s.resumeGame);
   const grantTesterCoins = useGameStore(s => s.grantTesterCoins);
+  const previousMapId = useRef(mapId);
+  const [mapTransitionVisible, setMapTransitionVisible] = useState(false);
 
   useEffect(() => {
     let codeBuffer = "";
@@ -86,9 +89,20 @@ export default function Game() {
     };
   }, [pauseGame]);
 
+  useEffect(() => {
+    if (previousMapId.current === mapId) return;
+    previousMapId.current = mapId;
+    if (phase !== "playing") return;
+
+    setMapTransitionVisible(true);
+    const timer = window.setTimeout(() => setMapTransitionVisible(false), 720);
+    return () => window.clearTimeout(timer);
+  }, [mapId, phase]);
+
   return (
     <div className={`game-root ${phase} ${mobileLeftHanded ? "mobile-left-handed" : ""}`.trim()}>
       <Scene />
+      <div className={`map-transition-overlay ${mapTransitionVisible ? "visible" : ""}`} aria-hidden="true" />
       <HUD />
       <AbilityDraft />
       <TouchControls />

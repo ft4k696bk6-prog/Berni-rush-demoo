@@ -14,6 +14,7 @@ import MapHazards from "./MapHazards";
 import CameraRig from "./CameraRig";
 import CoinItem from "./CoinItem";
 import FloatingText from "./FloatingText";
+import ScenePostEffects from "./ScenePostEffects";
 import { useGameStore } from "./useGameStore";
 import { getMapDefinition } from "./mapDefinitions";
 import { BIOME_THEMES } from "./worldTheme";
@@ -45,20 +46,40 @@ type SceneProfile = {
   powerPreference: WebGLPowerPreference;
   shadows: boolean;
   contactShadows: boolean;
+  fillLights: boolean;
   shadowMapSize: [number, number];
   contactShadowResolution: number;
+  impactBurstLimit: number;
+  floatingTextLimit: number;
   performanceMin: number;
   toneMappingExposure: number;
   worldQuality: QualityLevel;
+  postProcessing: boolean;
+  shadowBias: number;
+  shadowNormalBias: number;
 };
 
 function detectMobileLikeViewport() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) <= 900;
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const anyCoarsePointer = window.matchMedia("(any-pointer: coarse)").matches;
+  const touchPoints = navigator.maxTouchPoints ?? 0;
+  const screenWidth = window.screen?.width ?? window.innerWidth;
+  const screenHeight = window.screen?.height ?? window.innerHeight;
+  const handheldScreen = Math.min(screenWidth, screenHeight) <= 1180;
+  return coarsePointer || (handheldScreen && (anyCoarsePointer || touchPoints > 1));
 }
 
-function getSceneProfile(_quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
+function resolveWorldQuality(quality: QualityLevel, mobileLike: boolean, renderTier: number): QualityLevel {
+  if (quality === "low") return "low";
+  if (!mobileLike) return quality;
+  if (renderTier >= 2) return "low";
+  return "medium";
+}
+
+function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
   const mobileDprScale = mobileLike ? (renderTier === 0 ? 1 : renderTier === 1 ? 0.84 : 0.7) : 1;
+  const worldQuality = resolveWorldQuality(quality, mobileLike, renderTier);
 
   return {
     dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.35],
@@ -66,11 +87,17 @@ function getSceneProfile(_quality: QualityLevel, mobileLike: boolean, renderTier
     powerPreference: mobileLike ? "default" : "high-performance",
     shadows: mobileLike ? renderTier === 0 : renderTier < 2,
     contactShadows: mobileLike ? false : renderTier === 0,
-    shadowMapSize: mobileLike ? [1024, 1024] : renderTier === 0 ? [1536, 1536] : [1024, 1024],
+    fillLights: !mobileLike || renderTier === 0,
+    shadowMapSize: mobileLike ? [1024, 1024] : renderTier === 0 ? [2048, 2048] : [1536, 1536],
     contactShadowResolution: mobileLike ? 256 : 384,
+    impactBurstLimit: mobileLike ? (renderTier === 0 ? 18 : renderTier === 1 ? 12 : 7) : 48,
+    floatingTextLimit: mobileLike ? (renderTier === 0 ? 18 : renderTier === 1 ? 12 : 8) : 64,
     performanceMin: mobileLike ? 0.42 : 0.58,
-    toneMappingExposure: mobileLike ? 1 : 1.02,
-    worldQuality: "high",
+    toneMappingExposure: mobileLike ? (renderTier >= 2 ? 0.98 : 1) : 1.04,
+    worldQuality,
+    postProcessing: !mobileLike && worldQuality !== "low" && renderTier < 2,
+    shadowBias: -0.00014,
+    shadowNormalBias: 0.048,
   };
 }
 
@@ -131,42 +158,55 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const coins = useGameStore(s => s.coinItems);
   const floatingTexts = useGameStore(s => s.floatingTexts);
   const phase = useGameStore(s => s.phase);
-  const quality = useGameStore(s => s.quality);
   const mapId = useGameStore(s => s.mapId);
-  const theme = BIOME_THEMES[getMapDefinition(mapId).biome];
+  const map = getMapDefinition(mapId);
+  const theme = BIOME_THEMES[map.biome];
+  const closedRuins = mapId === "ruins_path";
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
+  const sceneQuality = profile.worldQuality;
+  const fogNear = closedRuins ? Math.max(48, theme.fogNear - 18) : theme.fogNear;
+  const fogFar = closedRuins ? Math.min(210, theme.fogFar - 28) : theme.fogFar;
+  const visibleImpactBursts = impactBursts.slice(-profile.impactBurstLimit);
+  const visibleFloatingTexts = floatingTexts.slice(-profile.floatingTextLimit);
 
   return (
     <>
       <SceneColorGrade exposure={profile.toneMappingExposure * theme.exposure} />
-      <ambientLight intensity={quality === "low" ? theme.ambientIntensity + 0.16 : theme.ambientIntensity} color="#efe6d6" />
+      <ambientLight
+        intensity={sceneQuality === "low" ? theme.ambientIntensity + 0.16 : theme.ambientIntensity + (closedRuins ? 0.06 : 0)}
+        color={closedRuins ? "#e8efe0" : "#efe6d6"}
+      />
       <directionalLight
-        position={[16, 28, 12]}
-        intensity={quality === "low" ? 1.55 : 2.45}
+        position={closedRuins ? [10, 26, 16] : [16, 28, 12]}
+        intensity={sceneQuality === "low" ? (closedRuins ? 1.72 : 1.55) : (closedRuins ? 2.72 : 2.45)}
         castShadow={profile.shadows}
         shadow-mapSize={profile.shadowMapSize}
-        shadow-camera-far={245}
-        shadow-camera-left={-138}
-        shadow-camera-right={138}
-        shadow-camera-top={138}
-        shadow-camera-bottom={-138}
+        shadow-bias={profile.shadowBias}
+        shadow-normalBias={profile.shadowNormalBias}
+        shadow-camera-near={4}
+        shadow-camera-far={closedRuins ? 190 : 245}
+        shadow-camera-left={closedRuins ? -96 : -138}
+        shadow-camera-right={closedRuins ? 96 : 138}
+        shadow-camera-top={closedRuins ? 118 : 138}
+        shadow-camera-bottom={closedRuins ? -118 : -138}
         color={theme.keyLight}
       />
-      {quality !== "low" && (
+      {sceneQuality !== "low" && profile.fillLights && (
         <>
-          <directionalLight position={[-18, 11, -24]} intensity={0.68} color={theme.rimLight} />
-          <hemisphereLight args={["#d8f4ff", theme.hemiGround, theme.hemiIntensity]} />
+          <directionalLight position={[-18, 11, -24]} intensity={closedRuins ? 0.82 : 0.68} color={theme.rimLight} />
+          <directionalLight position={[0, 8, -28]} intensity={closedRuins ? 0.34 : 0} color={theme.accentSoft} />
+          <hemisphereLight args={[closedRuins ? "#d9f6ff" : "#d8f4ff", theme.hemiGround, theme.hemiIntensity + (closedRuins ? 0.08 : 0)]} />
         </>
       )}
 
-      <fog attach="fog" args={[theme.fog, theme.fogNear, theme.fogFar]} />
+      <fog attach="fog" args={[theme.fog, fogNear, fogFar]} />
       <color attach="background" args={[theme.sky]} />
 
       <Arena qualityOverride={profile.worldQuality} />
       {profile.contactShadows && (
         <ContactShadows
           position={[0, 0.045, 0]}
-          opacity={quality === "high" ? 0.34 : 0.26}
+          opacity={closedRuins ? (sceneQuality === "high" ? 0.4 : 0.32) : sceneQuality === "high" ? 0.34 : 0.26}
           scale={240}
           blur={3.4}
           far={18}
@@ -195,12 +235,14 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
           {projectiles.map(p => <Projectile key={p.id} projectile={p} renderQuality={profile.worldQuality} />)}
           {enemyProjectiles.map(p => <EnemyProjectile key={p.id} projectile={p} renderQuality={profile.worldQuality} />)}
           {meleeSwings.map(m => <MeleeEffect key={m.id} swing={m} />)}
-          {impactBursts.map(b => <ImpactEffect key={b.id} burst={b} />)}
-          {floatingTexts.map(t => <FloatingText key={t.id} item={t} />)}
+          {visibleImpactBursts.map(b => <ImpactEffect key={b.id} burst={b} />)}
+          {visibleFloatingTexts.map(t => <FloatingText key={t.id} item={t} />)}
         </>
       )}
 
       <CameraRig />
+
+      <ScenePostEffects enabled={profile.postProcessing} ruins={closedRuins} quality={sceneQuality} />
     </>
   );
 }
@@ -213,21 +255,24 @@ export default function Scene() {
   const profile = useMemo(() => getSceneProfile(quality, mobileLike, renderTier), [quality, mobileLike, renderTier]);
 
   useEffect(() => {
-    const media = window.matchMedia("(pointer: coarse)");
+    const pointerMedia = window.matchMedia("(pointer: coarse)");
+    const anyPointerMedia = window.matchMedia("(any-pointer: coarse)");
     const syncViewport = () => setMobileLike(detectMobileLikeViewport());
     syncViewport();
-    window.addEventListener("resize", syncViewport);
-    if (media.addEventListener) {
-      media.addEventListener("change", syncViewport);
+    if (pointerMedia.addEventListener) {
+      pointerMedia.addEventListener("change", syncViewport);
+      anyPointerMedia.addEventListener("change", syncViewport);
     } else {
-      media.addListener(syncViewport);
+      pointerMedia.addListener(syncViewport);
+      anyPointerMedia.addListener(syncViewport);
     }
     return () => {
-      window.removeEventListener("resize", syncViewport);
-      if (media.removeEventListener) {
-        media.removeEventListener("change", syncViewport);
+      if (pointerMedia.removeEventListener) {
+        pointerMedia.removeEventListener("change", syncViewport);
+        anyPointerMedia.removeEventListener("change", syncViewport);
       } else {
-        media.removeListener(syncViewport);
+        pointerMedia.removeListener(syncViewport);
+        anyPointerMedia.removeListener(syncViewport);
       }
     };
   }, []);
@@ -264,6 +309,7 @@ export default function Scene() {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = profile.toneMappingExposure;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
+          gl.shadowMap.enabled = true;
           gl.setClearColor("#143027");
         }}
       >
