@@ -20,17 +20,17 @@ export default function ScenePostEffects({ enabled, ruins, quality }: ScenePostE
       : 0.32;
 
   return (
-    <EffectComposer multisampling={quality === "high" ? 4 : 0}>
+    <EffectComposer enableNormalPass={false} multisampling={quality === "high" ? 4 : 0}>
       <Bloom
         intensity={bloomIntensity}
-        luminanceThreshold={ruins ? 0.46 : 0.54}
-        luminanceSmoothing={0.34}
+        luminanceThreshold={ruins ? 0.5 : 0.58}
+        luminanceSmoothing={0.32}
         mipmapBlur
-        radius={0.72}
+        radius={0.68}
       />
       <Vignette
-        offset={ruins ? 0.24 : 0.18}
-        darkness={ruins ? (quality === "high" ? 0.58 : 0.48) : 0.32}
+        offset={ruins ? 0.22 : 0.16}
+        darkness={ruins ? (quality === "high" ? 0.42 : 0.34) : 0.24}
         blendFunction={BlendFunction.NORMAL}
       />
     </EffectComposer>

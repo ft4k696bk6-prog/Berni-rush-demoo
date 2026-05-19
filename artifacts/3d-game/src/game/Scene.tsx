@@ -80,10 +80,11 @@ function resolveWorldQuality(quality: QualityLevel, mobileLike: boolean, renderT
 function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
   const mobileDprScale = mobileLike ? (renderTier === 0 ? 1 : renderTier === 1 ? 0.84 : 0.7) : 1;
   const worldQuality = resolveWorldQuality(quality, mobileLike, renderTier);
+  const postProcessing = !mobileLike && worldQuality !== "low" && renderTier < 2;
 
   return {
     dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.35],
-    antialias: !mobileLike,
+    antialias: !mobileLike && !postProcessing,
     powerPreference: mobileLike ? "default" : "high-performance",
     shadows: mobileLike ? renderTier === 0 : renderTier < 2,
     contactShadows: mobileLike ? false : renderTier === 0,
@@ -95,7 +96,7 @@ function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier:
     performanceMin: mobileLike ? 0.42 : 0.58,
     toneMappingExposure: mobileLike ? (renderTier >= 2 ? 0.98 : 1) : 1.04,
     worldQuality,
-    postProcessing: !mobileLike && worldQuality !== "low" && renderTier < 2,
+    postProcessing,
     shadowBias: -0.00014,
     shadowNormalBias: 0.048,
   };
@@ -136,6 +137,19 @@ function AdaptiveFrameBudget({ mobileLike, onTierChange }: { mobileLike: boolean
   });
 
   return null;
+}
+
+function SceneLoadingFallback() {
+  return (
+  <>
+    <color attach="background" args={["#102822"]} />
+    <ambientLight intensity={0.55} />
+    <mesh position={[0, 1.2, 0]}>
+      <boxGeometry args={[1.2, 1.2, 1.2]} />
+      <meshStandardMaterial color="#4f8852" emissive="#2d5a3d" emissiveIntensity={0.35} />
+    </mesh>
+  </>
+  );
 }
 
 function SceneColorGrade({ exposure }: { exposure: number }) {
@@ -300,7 +314,7 @@ export default function Scene() {
         dpr={profile.dpr}
         frameloop="always"
         performance={{ min: profile.performanceMin }}
-        gl={{ antialias: profile.antialias, powerPreference: profile.powerPreference }}
+        gl={{ antialias: profile.antialias, stencil: profile.postProcessing, powerPreference: profile.powerPreference }}
         style={{ width: "100vw", height: "100vh" }}
         camera={{ fov: 58, near: 0.1, far: 300, position: [0, 10, 12] }}
         onCreated={({ gl }) => {
@@ -313,7 +327,7 @@ export default function Scene() {
           gl.setClearColor("#143027");
         }}
       >
-        <Suspense fallback={null}>
+        <Suspense fallback={<SceneLoadingFallback />}>
           <AdaptiveFrameBudget mobileLike={mobileLike} onTierChange={setRenderTier} />
           <SceneContent profile={profile} />
         </Suspense>

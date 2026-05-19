@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import * as THREE from "three";
-import { useTexture } from "@react-three/drei";
 import { ARENA_BOUND } from "./balance";
 import { EnvironmentAssetModel } from "./AssetModels";
 import RuinsAtmosphere from "./RuinsAtmosphere";
@@ -13,7 +12,6 @@ import type { QualityLevel } from "./types";
 const VISUAL_MARGIN = 64;
 const VISUAL_BOUND = ARENA_BOUND + VISUAL_MARGIN;
 const VISUAL_SIZE = VISUAL_BOUND * 2;
-const TERRAIN_DETAIL_TEXTURE = "/assets/textures/ambientcg/Ground076_PREVIEW.png";
 const QUATERNIUS_MEDIEVAL = "/assets/quaternius/medieval-village/gltf/";
 const QUATERNIUS_NATURE = "/assets/quaternius/stylized-nature/gltf/";
 const RUINS_WALL_ASSETS = [
@@ -331,6 +329,51 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function makeTerrainDetailTexture(quality: QualityLevel) {
+  const rand = lcg(2048);
+  const size = quality === "high" ? 512 : quality === "medium" ? 384 : 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.fillStyle = "#808080";
+  ctx.fillRect(0, 0, size, size);
+
+  const grains = quality === "high" ? 5200 : quality === "medium" ? 3200 : 1600;
+  for (let i = 0; i < grains; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const tone = 96 + rand() * 96;
+    ctx.fillStyle = `rgba(${tone}, ${tone - 4}, ${tone - 10}, ${0.05 + rand() * 0.12})`;
+    ctx.fillRect(x, y, 1 + rand() * 2, 1 + rand() * 2);
+  }
+
+  const streaks = quality === "high" ? 120 : 72;
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < streaks; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (rand() - 0.5) * 28, y + (rand() - 0.5) * 28);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
 function makeSkyTexture(theme: typeof BIOME_THEMES[BiomeId]) {
   const canvas = document.createElement("canvas");
   canvas.width = 8;
@@ -603,23 +646,18 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const biome = map.biome;
   const theme = BIOME_THEMES[biome];
   const closedRuins = mapId === "ruins_path";
-  const terrainDetailTexture = useTexture(TERRAIN_DETAIL_TEXTURE);
   const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
+  const terrainDetailTexture = useMemo(() => makeTerrainDetailTexture(quality), [quality]);
   const skyTexture = useMemo(() => closedRuins ? null : makeSkyTexture(theme), [closedRuins, theme]);
   const ruinsCanopyTexture = useMemo(() => closedRuins ? makeRuinsCanopyTexture(theme, quality) : null, [closedRuins, quality, theme]);
   const premiumAssets = useMemo(() => buildWorldAssetInstances(biome, quality, ARENA_BOUND, mapId), [biome, quality, mapId]);
   const configuredTerrainDetail = useMemo(() => {
-    terrainDetailTexture.wrapS = THREE.RepeatWrapping;
-    terrainDetailTexture.wrapT = THREE.RepeatWrapping;
+    if (!terrainDetailTexture) return null;
     const repeat = quality === "high" ? 16 : quality === "medium" ? 12 : 8;
     terrainDetailTexture.repeat.set(repeat, repeat);
     terrainDetailTexture.offset.set(biome === "marsh" ? 0.17 : biome === "mine_quarry" ? 0.34 : 0.08, biome === "crystal_gate" ? 0.26 : 0.11);
-    terrainDetailTexture.colorSpace = THREE.SRGBColorSpace;
     terrainDetailTexture.anisotropy = quality === "high" ? 8 : quality === "medium" ? 6 : 3;
-    terrainDetailTexture.generateMipmaps = true;
-    terrainDetailTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    terrainDetailTexture.magFilter = THREE.LinearFilter;
     terrainDetailTexture.needsUpdate = true;
     return terrainDetailTexture;
   }, [terrainDetailTexture, quality, biome]);
@@ -657,20 +695,22 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
         />
       </mesh>
 
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]} receiveShadow>
-        <planeGeometry args={[VISUAL_SIZE, VISUAL_SIZE]} />
-        <meshBasicMaterial
-          map={configuredTerrainDetail}
-          color={theme.detailTint}
-          transparent
-          opacity={closedRuins
-            ? (quality === "low" ? 0.09 : quality === "medium" ? 0.12 : 0.15)
-            : (quality === "low" ? 0.075 : quality === "medium" ? 0.1 : 0.12)}
-          depthWrite={false}
-          blending={THREE.MultiplyBlending}
-          premultipliedAlpha
-        />
-      </mesh>
+      {configuredTerrainDetail && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.12, 0]} receiveShadow>
+          <planeGeometry args={[VISUAL_SIZE, VISUAL_SIZE]} />
+          <meshBasicMaterial
+            map={configuredTerrainDetail}
+            color={theme.detailTint}
+            transparent
+            opacity={closedRuins
+              ? (quality === "low" ? 0.09 : quality === "medium" ? 0.12 : 0.15)
+              : (quality === "low" ? 0.075 : quality === "medium" ? 0.1 : 0.12)}
+            depthWrite={false}
+            blending={THREE.MultiplyBlending}
+            premultipliedAlpha
+          />
+        </mesh>
+      )}
 
       {closedRuins && <RuinsEdgeMask theme={theme} bounds={map.bounds} />}
 
