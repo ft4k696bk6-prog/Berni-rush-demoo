@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { BadgePlus, Clock3, Coins, Eye, EyeOff, Gauge, HeartPulse, Maximize, Minimize, Pause, RotateCw, Skull, Swords, Trophy, Zap } from "lucide-react";
+import { Clock3, Coins, Eye, EyeOff, Gauge, HeartPulse, Maximize, Minimize, Pause, RotateCw, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { useGameStore } from "./useGameStore";
-import { DRUG_CONFIG, STAT_LABELS, StatKey } from "./types";
+import { DRUG_CONFIG } from "./types";
 import { getClassDefinition, getSkinDefinition } from "./loadout";
 import { WEAPON_CONFIG } from "./weapons";
 import { poisonCurrentPos } from "./poisonPositions";
 import { playerRuntime } from "./gameRuntime";
 import { useFullscreenStatus } from "./fullscreen";
 import { useCompactViewport } from "./useCompactViewport";
-
-const STAT_ORDER: StatKey[] = ["strength", "superpower", "vitality", "luck", "dodge", "speed"];
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
@@ -41,8 +39,9 @@ export default function HUD() {
   const selectedSkinId = useGameStore(s => s.selectedSkinId);
   const activeEffects = useGameStore(s => s.activeEffects);
   const gameTime = useGameStore(s => s.gameTime);
-  const statPoints = useGameStore(s => s.statPoints);
-  const stats = useGameStore(s => s.stats);
+  const mapObjective = useGameStore(s => s.mapObjective);
+  const activeZoneId = useGameStore(s => s.activeZoneId);
+  const exitUnlocked = useGameStore(s => s.exitUnlocked);
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
   const impactBursts = useGameStore(s => s.impactBursts);
@@ -50,7 +49,6 @@ export default function HUD() {
   const poisons = useGameStore(s => s.poisons);
   const playerPos = useGameStore(s => s.playerPos);
   const boss = useGameStore(s => s.poisons.find(enemy => enemy.type === "boss_dragon" || enemy.type === "boss10" || enemy.type === "boss20"));
-  const upgradeStat = useGameStore(s => s.upgradeStat);
   const pauseGame = useGameStore(s => s.pauseGame);
   const compactViewport = useCompactViewport();
 
@@ -98,6 +96,7 @@ export default function HUD() {
   const klass = getClassDefinition(selectedClassId);
   const skin = getSkinDefinition(selectedSkinId);
   const monstersLeft = Math.max(0, killsRequired - killsThisStage);
+  const zoneEnemiesLeft = activeZoneId ? poisons.length : monstersLeft;
   const runVisible = phase === "playing" || phase === "paused" || phase === "upgrade";
   const perkCount = Object.values(perks).reduce((total, value) => total + (value ?? 0), 0);
   const bossHpPct = boss ? Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) : 0;
@@ -206,13 +205,13 @@ export default function HUD() {
         <section className="hud-center-panel">
           <div className="stage-badge">
             <Trophy size={18} />
-            <span>LEVEL {stage}</span>
+            <span>MAP {stage}</span>
           </div>
           <div className="stage-progress">
-            <strong>{monstersLeft}</strong>
-            <span>LEFT</span>
+            <strong>{zoneEnemiesLeft}</strong>
+            <span>{activeZoneId ? "ZONE LEFT" : "TOTAL LEFT"}</span>
           </div>
-          <div className="wave-strip">WAVE {wave}/{wavesTotal} - {killsThisStage}/{killsRequired}</div>
+          <div className="wave-strip">{exitUnlocked ? "GATE UNLOCKED" : `ZONE ${wave}/${wavesTotal}`} - {mapObjective}</div>
           <div className="archero-hint">MOVE: WASD / LEFT STICK - LOOK: MOUSE / RIGHT STICK</div>
         </section>
 
@@ -293,23 +292,9 @@ export default function HUD() {
       {mobilePortrait && (
         <div className="mobile-orientation-hint" aria-live="polite">
           <RotateCw size={14} />
-          <strong>Rotate to landscape for clearer arena combat</strong>
+          <strong>Rotate to landscape for clearer expedition combat</strong>
           <span>Run auto-pauses in portrait to prevent unfair hits.</span>
         </div>
-      )}
-
-      {statPoints > 0 && (
-        <aside className="upgrade-panel">
-          <div className="upgrade-title"><BadgePlus size={18} /> {statPoints} STAT POINT{statPoints > 1 ? "S" : ""}</div>
-          <div className="upgrade-grid">
-            {STAT_ORDER.map(stat => (
-              <button key={stat} type="button" onClick={() => upgradeStat(stat)}>
-                <span>{STAT_LABELS[stat].label}</span>
-                <b>{stats[stat]}</b>
-              </button>
-            ))}
-          </div>
-        </aside>
       )}
 
       {centerMessage && (

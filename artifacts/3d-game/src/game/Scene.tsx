@@ -14,7 +14,8 @@ import CameraRig from "./CameraRig";
 import CoinItem from "./CoinItem";
 import FloatingText from "./FloatingText";
 import { useGameStore } from "./useGameStore";
-import { BIOME_THEMES, getBiomeForStage } from "./worldTheme";
+import { getMapDefinition } from "./mapDefinitions";
+import { BIOME_THEMES } from "./worldTheme";
 import type { QualityLevel } from "./types";
 
 enum Controls {
@@ -59,13 +60,13 @@ function getSceneProfile(_quality: QualityLevel, mobileLike: boolean, renderTier
   const mobileDprScale = mobileLike ? (renderTier === 0 ? 1 : renderTier === 1 ? 0.84 : 0.7) : 1;
 
   return {
-    dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.55],
+    dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.35],
     antialias: !mobileLike,
     powerPreference: mobileLike ? "default" : "high-performance",
-    shadows: mobileLike ? renderTier === 0 : true,
-    contactShadows: mobileLike ? false : true,
-    shadowMapSize: mobileLike ? [1024, 1024] : [2048, 2048],
-    contactShadowResolution: mobileLike ? 256 : 512,
+    shadows: mobileLike ? renderTier === 0 : renderTier < 2,
+    contactShadows: mobileLike ? false : renderTier === 0,
+    shadowMapSize: mobileLike ? [1024, 1024] : renderTier === 0 ? [1536, 1536] : [1024, 1024],
+    contactShadowResolution: mobileLike ? 256 : 384,
     performanceMin: mobileLike ? 0.42 : 0.58,
     toneMappingExposure: mobileLike ? 1 : 1.02,
     worldQuality: "high",
@@ -130,13 +131,8 @@ function SceneContent({ profile }: { profile: SceneProfile }) {
   const floatingTexts = useGameStore(s => s.floatingTexts);
   const phase = useGameStore(s => s.phase);
   const quality = useGameStore(s => s.quality);
-  const stage = useGameStore(s => s.stage);
-  const runId = useGameStore(s => s.runId);
-  const lockedBiomeRef = useRef<{ runId: number; biome: ReturnType<typeof getBiomeForStage> } | null>(null);
-  if (!lockedBiomeRef.current || lockedBiomeRef.current.runId !== runId) {
-    lockedBiomeRef.current = { runId, biome: getBiomeForStage(stage) };
-  }
-  const theme = BIOME_THEMES[lockedBiomeRef.current.biome];
+  const mapId = useGameStore(s => s.mapId);
+  const theme = BIOME_THEMES[getMapDefinition(mapId).biome];
   const inRun = phase === "playing" || phase === "paused" || phase === "upgrade";
 
   return (

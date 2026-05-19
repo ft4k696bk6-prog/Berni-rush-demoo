@@ -1,7 +1,7 @@
 import { memo, Suspense, useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { ARENA_BOUND, clampToArena } from "./balance";
+import { clampPointToMap } from "./mapDefinitions";
 import { playerRuntime } from "./gameRuntime";
 import { EnemyAssetModel } from "./AssetModels";
 import { PoisonItem as EnemyType, QualityLevel } from "./types";
@@ -155,8 +155,9 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
       posRef.current[1] += (moveZ / moveLen) * speed * delta;
     }
 
-    posRef.current[0] = clampToArena(posRef.current[0], 1.4);
-    posRef.current[1] = clampToArena(posRef.current[1], 1.4);
+    const [clampedX, clampedZ] = clampPointToMap(store.mapId, posRef.current[0], posRef.current[1], 1.4);
+    posRef.current[0] = clampedX;
+    posRef.current[1] = clampedZ;
     poisonCurrentPos[poison.id] = [posRef.current[0], posRef.current[1]];
 
     const moving = !lockedByAttack && dist > stopDistance;

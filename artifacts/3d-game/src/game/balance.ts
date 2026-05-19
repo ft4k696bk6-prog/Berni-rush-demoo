@@ -1,16 +1,16 @@
 import type { EnemySubType, QualityLevel } from "./types";
+import { getMapEnemyTotalForStage, getMapWaveCountForStage } from "./mapDefinitions";
 
 export const ARENA_BOUND = 112;
 export const SAFE_SPAWN_RADIUS = 25;
 export const PLAYER_RADIUS = 0.8;
 
 export function getStageKillTarget(stage: number) {
-  return 10 + Math.max(0, stage - 1) * 5;
+  return getMapEnemyTotalForStage(stage);
 }
 
 export function getStageWaveCount(stage: number) {
-  if (stage % 5 === 0) return 3;
-  return stage >= 4 ? 2 : 1;
+  return getMapWaveCountForStage(stage);
 }
 
 export function getWaveIndex(stage: number, spawnedOrKilled: number) {

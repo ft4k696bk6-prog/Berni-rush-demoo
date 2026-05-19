@@ -38,18 +38,24 @@ import {
 } from "./loadout";
 import {
   ARENA_BOUND,
-  clampToArena,
-  getEnemyBudget,
   getEnemyLevelScale,
-  getSpawnInterval,
   getStageKillTarget,
   getStageReward,
   getStageWaveCount,
   getWaveIndex,
   getXpRequirement,
-  pickEnemyType,
   SAFE_SPAWN_RADIUS,
 } from "./balance";
+import {
+  clampPointToMap,
+  getMapDefinition,
+  getMapForStage,
+  getNextUnlockedZone,
+  getZoneEnemyTypes,
+  isAtExit,
+  isInsideZone,
+  type MapId,
+} from "./mapDefinitions";
 import { playerRuntime, resetPlayerRuntime } from "./gameRuntime";
 import { PERK_CONFIG, perkLevel, rollPerkChoices } from "./perks";
 import { SHOP_UPGRADES, shopUpgradeCost, shopUpgradeLevel } from "./shop";
@@ -157,14 +163,15 @@ function themeFromAttackStyle(style: Projectile["attackStyle"]): VfxTheme {
   return "knight";
 }
 
-function randomArenaPoint(margin = 5): [number, number, number] {
-  const x = (Math.random() * 2 - 1) * (ARENA_BOUND - margin);
-  const z = (Math.random() * 2 - 1) * (ARENA_BOUND - margin);
+function randomMapPoint(mapId: MapId, margin = 5): [number, number, number] {
+  const bounds = getMapDefinition(mapId).bounds;
+  const x = bounds.minX + margin + Math.random() * Math.max(1, bounds.maxX - bounds.minX - margin * 2);
+  const z = bounds.minZ + margin + Math.random() * Math.max(1, bounds.maxZ - bounds.minZ - margin * 2);
   return [x, 1.05, z];
 }
 
-function spawnMushroom(): DrugItem {
-  const pos = randomArenaPoint(7);
+function spawnMushroom(mapId: MapId): DrugItem {
+  const pos = randomMapPoint(mapId, 9);
   return {
     id: nid("drug"),
     position: [pos[0], 1.15, pos[2]],
@@ -178,12 +185,12 @@ function mutationFromMushroom(type: DrugType, perks: Partial<Record<PerkId, numb
 }
 
 function spawnPositionAwayFromPlayer(minDistance = SAFE_SPAWN_RADIUS): [number, number, number] {
+  const mapId = useGameStore.getState().mapId;
   const maxDistance = Math.min(ARENA_BOUND - 7, minDistance + 18);
   for (let i = 0; i < 12; i++) {
     const angle = Math.random() * Math.PI * 2;
     const distance = minDistance + Math.random() * Math.max(4, maxDistance - minDistance);
-    const x = clampToArena(playerRuntime.x + Math.cos(angle) * distance, 2.5);
-    const z = clampToArena(playerRuntime.z + Math.sin(angle) * distance, 2.5);
+    const [x, z] = clampPointToMap(mapId, playerRuntime.x + Math.cos(angle) * distance, playerRuntime.z + Math.sin(angle) * distance, 2.5);
     const dx = x - playerRuntime.x;
     const dz = z - playerRuntime.z;
     if (dx * dx + dz * dz > minDistance * minDistance) {
@@ -192,11 +199,8 @@ function spawnPositionAwayFromPlayer(minDistance = SAFE_SPAWN_RADIUS): [number, 
   }
 
   const a = Math.random() * Math.PI * 2;
-  return [
-    clampToArena(playerRuntime.x + Math.cos(a) * minDistance * 1.35, 2),
-    1.2,
-    clampToArena(playerRuntime.z + Math.sin(a) * minDistance * 1.35, 2),
-  ];
+  const [x, z] = clampPointToMap(mapId, playerRuntime.x + Math.cos(a) * minDistance * 1.35, playerRuntime.z + Math.sin(a) * minDistance * 1.35, 2);
+  return [x, 1.2, z];
 }
 
 function createEnemy(stage: number, type: EnemySubType, position = spawnPositionAwayFromPlayer()): PoisonItem {
@@ -224,18 +228,120 @@ function createEnemy(stage: number, type: EnemySubType, position = spawnPosition
   };
 }
 
-function initialEnemies(stage: number, quality: QualityLevel) {
-  const stageOneCount = quality === "low" ? 2 : 3;
-  const count = Math.min(stage === 1 ? stageOneCount : quality === "low" ? 3 : 4, getStageKillTarget(stage));
-  const spawnDistance = stage === 1 ? SAFE_SPAWN_RADIUS + 9 : SAFE_SPAWN_RADIUS;
-  return Array.from({ length: count }, (_, index) => {
-    const type = pickEnemyType(stage, 1, stage % 5 === 0 && index === count - 1);
-    return createEnemy(stage, type, spawnPositionAwayFromPlayer(spawnDistance));
-  });
+const AUTO_LEVEL_STATS: Record<ClassId, StatKey[]> = {
+  knight: ["vitality", "strength"],
+  ranger: ["superpower", "speed"],
+  mage: ["superpower", "strength"],
+  assassin: ["luck", "speed"],
+  tank: ["vitality", "dodge"],
+  miner: ["luck", "speed"],
+};
+
+function applyAutoClassStats(
+  stats: PlayerStats,
+  maxHealth: number,
+  health: number,
+  classId: ClassId,
+  points: number,
+) {
+  if (points <= 0) return { stats, maxHealth, health, summary: "" };
+  const nextStats = { ...stats };
+  const pattern = AUTO_LEVEL_STATS[classId];
+  const gained: Partial<Record<StatKey, number>> = {};
+  let hpGain = 0;
+
+  for (let i = 0; i < points; i++) {
+    const stat = pattern[i % pattern.length];
+    nextStats[stat] += 1;
+    gained[stat] = (gained[stat] ?? 0) + 1;
+    if (stat === "vitality") hpGain += 18;
+  }
+
+  const summary = Object.entries(gained)
+    .map(([stat, value]) => `${stat.toUpperCase()} +${value}`)
+    .join(", ");
+
+  return {
+    stats: nextStats,
+    maxHealth: maxHealth + hpGain,
+    health: Math.min(maxHealth + hpGain, health + hpGain),
+    summary,
+  };
+}
+
+function mapObjectiveForNextZone(mapId: MapId, clearedZoneIds: string[], exitUnlocked: boolean) {
+  if (exitUnlocked) return "Find the gate";
+  const nextZone = getNextUnlockedZone(mapId, clearedZoneIds);
+  return nextZone ? `Reach ${nextZone.label}` : "Find the gate";
+}
+
+function completeExpedition(state: GameState) {
+  const loadoutMods = getLoadoutModifiers(state.selectedClassId, state.selectedSkinId);
+  const reward = getStageReward(state.stage);
+  let xpResult = addXp(state.playerLevel, state.xp, state.xpToNext, reward.xp);
+  const autoPoints = reward.statPoints + xpResult.levelUps;
+  const auto = applyAutoClassStats(state.stats, state.maxHealth, state.health, state.selectedClassId, autoPoints);
+  const classCoins = Math.round(reward.coins * loadoutMods.coinMultiplier);
+  const nextStage = state.stage + 1;
+  const nextMap = getMapForStage(nextStage);
+  const startAim: [number, number] = [
+    nextMap.start[0] + Math.sin(nextMap.startAngle) * 8,
+    nextMap.start[1] + Math.cos(nextMap.startAngle) * 8,
+  ];
+
+  playerRuntime.x = nextMap.start[0];
+  playerRuntime.z = nextMap.start[1];
+  playerRuntime.angle = nextMap.startAngle;
+  playerRuntime.aimWorldX = startAim[0];
+  playerRuntime.aimWorldZ = startAim[1];
+  playerRuntime.aimX = Math.sin(nextMap.startAngle);
+  playerRuntime.aimZ = Math.cos(nextMap.startAngle);
+  clearAllEnemyRuntime();
+
+  return {
+    score: state.score + reward.xp * 9 + classCoins * 20,
+    playerLevel: xpResult.playerLevel,
+    xp: xpResult.xp,
+    xpToNext: xpResult.xpToNext,
+    statPoints: 0,
+    stats: auto.stats,
+    maxHealth: auto.maxHealth,
+    health: auto.health,
+    coins: state.coins + classCoins,
+    coinsCollected: state.coinsCollected + classCoins,
+    stage: nextStage,
+    wave: 1,
+    wavesTotal: getStageWaveCount(nextStage),
+    killsThisStage: 0,
+    killsRequired: getStageKillTarget(nextStage),
+    spawnedThisStage: 0,
+    mapId: nextMap.id,
+    activeZoneId: null,
+    clearedZoneIds: [],
+    exitUnlocked: false,
+    mapObjective: mapObjectiveForNextZone(nextMap.id, [], false),
+    poisons: [],
+    drugs: Array.from({ length: 2 }, () => spawnMushroom(nextMap.id)),
+    projectiles: [],
+    enemyProjectiles: [],
+    meleeSwings: [],
+    impactBursts: [],
+    coinItems: [],
+    playerPos: nextMap.start,
+    playerAngle: nextMap.startAngle,
+    aimWorld: startAim,
+    centerMessage: centerMessage(
+      "MAP COMPLETE",
+      `${nextMap.label} ahead. +${reward.xp} XP, +${classCoins} coins${auto.summary ? `, ${auto.summary}` : ""}`,
+      "reward",
+      3000,
+    ),
+  };
 }
 
 function fresh(quality: QualityLevel = "high", records: GameRecords = loadRecords()): GameState {
   const profile = loadProfile();
+  const map = getMapForStage(1);
   const loadout = normalizeLoadout({
     selectedClassId: profile.selectedClassId,
     selectedSkinId: profile.selectedSkinId,
@@ -256,6 +362,11 @@ function fresh(quality: QualityLevel = "high", records: GameRecords = loadRecord
     killsThisStage: 0,
     killsRequired: getStageKillTarget(1),
     spawnedThisStage: 0,
+    mapId: map.id,
+    activeZoneId: null,
+    clearedZoneIds: [],
+    exitUnlocked: false,
+    mapObjective: mapObjectiveForNextZone(map.id, [], false),
     totalKills: 0,
     bossesDefeated: 0,
     totalBossesDefeated: profile.bossesDefeated,
@@ -277,9 +388,9 @@ function fresh(quality: QualityLevel = "high", records: GameRecords = loadRecord
     coinItems: [],
     floatingTexts: [],
     centerMessage: null,
-    playerPos: [0, 0],
-    playerAngle: Math.PI,
-    aimWorld: [0, -8],
+    playerPos: map.start,
+    playerAngle: map.startAngle,
+    aimWorld: [map.start[0] + Math.sin(map.startAngle) * 8, map.start[1] + Math.cos(map.startAngle) * 8],
     ownedWeapons: ["blaster"],
     currentWeapon: "blaster",
     selectedClassId: loadout.selectedClassId,
@@ -345,85 +456,65 @@ function applyKills(state: GameState, nextPoisons: PoisonItem[], killed: PoisonI
     newFloaters.push(floater(`+${enemy.xp} XP`, live[0], live[1], "#7dffb2", 2.1, 720));
   }
 
-  let nextStage = state.stage;
   let nextWave = getWaveIndex(state.stage, state.killsThisStage + uniqueKilled.length);
-  let nextWavesTotal = state.wavesTotal;
   let nextKillsThisStage = state.killsThisStage + uniqueKilled.length;
-  let nextKillsRequired = state.killsRequired;
-  let nextSpawnedThisStage = state.spawnedThisStage;
   let nextScore = state.score + scoreGain;
-  let nextCoins = state.coins;
-  let nextCoinsCollected = state.coinsCollected;
-  let nextStatPoints = state.statPoints;
-  let nextProjectiles = state.projectiles;
-  let nextEnemyProjectiles = state.enemyProjectiles;
+  let nextStats = state.stats;
+  let nextMaxHealth = state.maxHealth;
+  let nextHealth = state.health;
   let nextCenterMessage = state.centerMessage;
-  let nextPhase: GamePhase = state.phase;
-  let nextPerkChoices = state.perkChoices;
-  let nextPendingLevelUps = state.pendingLevelUps;
+  let nextActiveZoneId = state.activeZoneId;
+  let nextClearedZoneIds = state.clearedZoneIds;
+  let nextExitUnlocked = state.exitUnlocked;
+  let nextMapObjective = state.mapObjective;
 
   let xpResult = addXp(state.playerLevel, state.xp, state.xpToNext, xpGain);
+  let autoStatPoints = xpResult.levelUps;
   if (xpResult.levelUps > 0) {
-    nextStatPoints += xpResult.levelUps;
-    nextCenterMessage = centerMessage(
-      "HERO LEVEL",
-      `+${xpResult.levelUps} stat point${xpResult.levelUps > 1 ? "s" : ""}. Mutations now come from mushrooms.`,
-      "level",
-      2600,
-    );
+    const auto = applyAutoClassStats(nextStats, nextMaxHealth, nextHealth, state.selectedClassId, autoStatPoints);
+    nextStats = auto.stats;
+    nextMaxHealth = auto.maxHealth;
+    nextHealth = auto.health;
+    nextCenterMessage = centerMessage("HERO LEVEL", `Auto training: ${auto.summary}`, "level", 2300);
   }
 
-  if (nextKillsThisStage >= state.killsRequired) {
-    const reward = getStageReward(state.stage);
-    xpResult = addXp(xpResult.playerLevel, xpResult.xp, xpResult.xpToNext, reward.xp);
-    nextStatPoints += reward.statPoints + xpResult.levelUps;
-    const classCoins = Math.round(reward.coins * loadoutMods.coinMultiplier);
-    nextCoins += classCoins;
-    nextCoinsCollected += classCoins;
-    nextScore += reward.xp * 9 + classCoins * 20;
-    nextStage = state.stage + 1;
-    nextWave = 1;
-    nextWavesTotal = getStageWaveCount(nextStage);
-    nextKillsThisStage = 0;
-    nextKillsRequired = getStageKillTarget(nextStage);
-    nextSpawnedThisStage = 0;
-    nextPoisons = [];
-    nextProjectiles = [];
-    nextEnemyProjectiles = [];
-    clearAllEnemyRuntime();
+  if (state.activeZoneId && nextPoisons.length === 0) {
+    nextClearedZoneIds = Array.from(new Set([...state.clearedZoneIds, state.activeZoneId]));
+    nextActiveZoneId = null;
+    const nextZone = getNextUnlockedZone(state.mapId, nextClearedZoneIds);
+    nextExitUnlocked = !nextZone;
+    nextMapObjective = mapObjectiveForNextZone(state.mapId, nextClearedZoneIds, nextExitUnlocked);
     nextCenterMessage = centerMessage(
-      "LEVEL COMPLETE",
-      `LEVEL ${nextStage} START - +${reward.xp} XP, +${classCoins} coins, +${reward.statPoints} stat point${reward.statPoints > 1 ? "s" : ""}`,
-      "reward",
-      3100,
+      nextExitUnlocked ? "GATE OPEN" : "ZONE CLEAR",
+      nextExitUnlocked ? "Find the exit gate to enter the next map." : `Next: ${nextZone?.label}`,
+      nextExitUnlocked ? "reward" : "level",
+      nextExitUnlocked ? 2300 : 1600,
     );
   }
 
   return {
-    phase: nextPhase,
     score: nextScore,
     playerLevel: xpResult.playerLevel,
     xp: xpResult.xp,
     xpToNext: xpResult.xpToNext,
-    statPoints: nextStatPoints,
-    coins: nextCoins,
-    coinsCollected: nextCoinsCollected,
-    stage: nextStage,
+    statPoints: 0,
+    stats: nextStats,
+    maxHealth: nextMaxHealth,
+    health: nextHealth,
     wave: nextWave,
-    wavesTotal: nextWavesTotal,
     killsThisStage: nextKillsThisStage,
-    killsRequired: nextKillsRequired,
-    spawnedThisStage: nextSpawnedThisStage,
+    activeZoneId: nextActiveZoneId,
+    clearedZoneIds: nextClearedZoneIds,
+    exitUnlocked: nextExitUnlocked,
+    mapObjective: nextMapObjective,
     totalKills: state.totalKills + uniqueKilled.length,
     bossesDefeated: state.bossesDefeated + bossKills,
     poisons: nextPoisons,
-    projectiles: nextProjectiles,
-    enemyProjectiles: nextEnemyProjectiles,
     coinItems: [...state.coinItems.slice(-45), ...droppedCoins],
     floatingTexts: [...state.floatingTexts.slice(-18), ...newFloaters],
     centerMessage: nextCenterMessage,
-    perkChoices: nextPerkChoices,
-    pendingLevelUps: nextPendingLevelUps,
+    perkChoices: [],
+    pendingLevelUps: 0,
   };
 }
 
@@ -478,16 +569,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const now = Date.now();
     resetPlayerRuntime();
     clearAllEnemyRuntime();
-    const poisons = initialEnemies(1, quality);
+    const map = getMapForStage(1);
     set({
       ...fresh(quality, loadRecords()),
       runId,
       phase: "playing",
-      drugs: Array.from({ length: 5 }, spawnMushroom),
-      poisons,
-      spawnedThisStage: poisons.length,
+      drugs: Array.from({ length: 2 }, () => spawnMushroom(map.id)),
+      poisons: [],
+      spawnedThisStage: 0,
       activeEffects: [{ type: "invincibility", expiresAt: now + START_GRACE_MS }],
-      centerMessage: centerMessage("LEVEL 1 START", "Brief shield. Get space, then fight.", "level", 2600),
+      centerMessage: centerMessage("EXPEDITION START", `${map.label}: follow the path and clear the zones.`, "level", 2600),
     });
   },
 
@@ -531,6 +622,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     clearAllEnemyRuntime();
     const now = Date.now();
     const stage = Math.max(1, saved.stage);
+    const map = saved.mapId ? getMapDefinition(saved.mapId) : getMapForStage(stage);
+    const clearedZoneIds = saved.clearedZoneIds ?? [];
     const killsRequired = getStageKillTarget(stage);
     const killsThisStage = Math.min(killsRequired - 1, saved.killsThisStage ?? 0);
     const quality: QualityLevel = "high";
@@ -543,7 +636,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     playerRuntime.angle = savedPlayerAngle;
     playerRuntime.aimWorldX = savedAimWorld[0];
     playerRuntime.aimWorldZ = savedAimWorld[1];
-    const poisons = initialEnemies(stage, quality);
+    const poisons: PoisonItem[] = [];
     const profile = loadProfile();
     const loadout = normalizeLoadout({
       selectedClassId: saved.selectedClassId ?? profile.selectedClassId,
@@ -562,14 +655,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
       wavesTotal: getStageWaveCount(stage),
       killsThisStage,
       killsRequired,
-      spawnedThisStage: Math.max(saved.spawnedThisStage ?? poisons.length, poisons.length),
+      spawnedThisStage: Math.max(saved.spawnedThisStage ?? 0, 0),
+      mapId: map.id,
+      activeZoneId: null,
+      clearedZoneIds,
+      exitUnlocked: Boolean(saved.exitUnlocked),
+      mapObjective: mapObjectiveForNextZone(map.id, clearedZoneIds, Boolean(saved.exitUnlocked)),
       totalKills: saved.totalKills,
       bossesDefeated: saved.bossesDefeated ?? 0,
       totalBossesDefeated: profile.bossesDefeated,
       playerLevel: saved.playerLevel,
       xp: saved.xp,
       xpToNext: saved.xpToNext,
-      statPoints: saved.statPoints,
+      statPoints: 0,
       coins: saved.coins,
       coinsCollected: saved.coinsCollected,
       gameTime: saved.gameTime,
@@ -586,9 +684,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       selectedSkinId: loadout.selectedSkinId,
       unlockedSkinIds: profile.unlockedSkinIds,
       poisons,
-      drugs: Array.from({ length: 5 }, spawnMushroom),
+      drugs: Array.from({ length: 2 }, () => spawnMushroom(map.id)),
       activeEffects: [{ type: "invincibility", expiresAt: now + RESUME_GRACE_MS }],
-      centerMessage: centerMessage("SAVE LOADED", `LEVEL ${stage} - brief shield`, "save", 2200),
+      centerMessage: centerMessage("SAVE LOADED", `${map.label} - brief shield`, "save", 2200),
     });
   },
 
@@ -749,43 +847,51 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(s => {
       if (s.phase !== "playing") return {};
 
-      const aliveCount = s.poisons.length;
-      const budget = getEnemyBudget(s.stage, s.quality);
-      const remaining = s.killsRequired - s.spawnedThisStage;
-      let poisons = s.poisons;
-      let spawnedThisStage = s.spawnedThisStage;
-      let wave = s.wave;
-      let center = s.centerMessage;
-
-      if (remaining > 0 && aliveCount < budget) {
-        const spawnBatch = Math.min(remaining, Math.max(1, Math.min(3, budget - aliveCount)));
-        const nextEnemies: PoisonItem[] = [];
-        let bossIncoming = false;
-        for (let i = 0; i < spawnBatch; i++) {
-          const enemyNumber = spawnedThisStage + i + 1;
-          const nextWave = getWaveIndex(s.stage, enemyNumber);
-          const forceBoss = s.stage % 5 === 0 && enemyNumber === s.killsRequired;
-          if (forceBoss) bossIncoming = true;
-          nextEnemies.push(createEnemy(s.stage, pickEnemyType(s.stage, nextWave, forceBoss)));
-        }
-        spawnedThisStage += nextEnemies.length;
-        const newWave = getWaveIndex(s.stage, spawnedThisStage);
-        if (newWave !== wave) {
-          center = centerMessage(`WAVE ${newWave}`, `${s.killsRequired - s.killsThisStage} monsters left`, "level", 1300);
-        }
-        if (bossIncoming) {
-          center = centerMessage("BOSS INCOMING", "Watch the telegraphs and shockwave.", "danger", 2200);
-        }
-        wave = newWave;
-        poisons = [...poisons, ...nextEnemies];
+      if (s.exitUnlocked && s.poisons.length === 0 && isAtExit(s.mapId, playerRuntime.x, playerRuntime.z)) {
+        return completeExpedition(s);
       }
 
-      const maxDrugs = s.quality === "low" ? 3 : s.quality === "medium" ? 4 : 5;
-      const drugs = s.drugs.length < maxDrugs && Math.random() < 0.5
-        ? [...s.drugs, spawnMushroom()]
+      if (s.poisons.length > 0) return {};
+
+      const nextZone = getNextUnlockedZone(s.mapId, s.clearedZoneIds);
+      if (!nextZone) {
+        return s.exitUnlocked
+          ? { mapObjective: "Find the gate" }
+          : { exitUnlocked: true, mapObjective: "Find the gate", centerMessage: centerMessage("GATE OPEN", "Move to the exit portal.", "reward", 1600) };
+      }
+
+      if (!isInsideZone(nextZone, playerRuntime.x, playerRuntime.z)) {
+        const objective = `Reach ${nextZone.label}`;
+        return s.mapObjective === objective ? {} : { mapObjective: objective };
+      }
+
+      const map = getMapDefinition(s.mapId);
+      const zoneIndex = Math.max(0, map.zones.findIndex(zone => zone.id === nextZone.id));
+      const enemyTypes = getZoneEnemyTypes(s.stage, s.mapId, nextZone.id);
+      const nextEnemies = enemyTypes.map((type, index) => {
+        const point = nextZone.spawnPoints[index % nextZone.spawnPoints.length];
+        return createEnemy(s.stage, type, [point[0], 1.2, point[1]]);
+      });
+      const bossIncoming = nextEnemies.some(enemy => isBossType(enemy.type));
+      const maxDrugs = 2;
+      const drugs = s.drugs.length < maxDrugs && Math.random() < 0.28
+        ? [...s.drugs, spawnMushroom(s.mapId)]
         : s.drugs;
 
-      return { poisons, spawnedThisStage, wave, drugs, centerMessage: center };
+      return {
+        poisons: nextEnemies,
+        activeZoneId: nextZone.id,
+        spawnedThisStage: s.spawnedThisStage + nextEnemies.length,
+        wave: zoneIndex + 1,
+        drugs,
+        mapObjective: `Clear ${nextZone.label}`,
+        centerMessage: centerMessage(
+          bossIncoming ? "BOSS ZONE" : nextZone.label.toUpperCase(),
+          `${nextEnemies.length} enemies. Clear the area to open the path.`,
+          bossIncoming ? "danger" : "level",
+          bossIncoming ? 2200 : 1500,
+        ),
+      };
     });
   },
 
@@ -891,6 +997,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const poisons = s.poisons.map(enemy => ({ ...enemy }));
       const aliveProjectiles: Projectile[] = [];
       const impactBursts: ImpactBurst[] = [];
+      const bounds = getMapDefinition(s.mapId).bounds;
 
       for (const projectile of s.projectiles) {
         const step = projectile.speed * delta;
@@ -908,8 +1015,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         if (
           next.age > 3.2 ||
           next.distance > next.range ||
-          Math.abs(next.position[0]) > ARENA_BOUND + 5 ||
-          Math.abs(next.position[2]) > ARENA_BOUND + 5
+          next.position[0] < bounds.minX - 5 ||
+          next.position[0] > bounds.maxX + 5 ||
+          next.position[2] < bounds.minZ - 5 ||
+          next.position[2] > bounds.maxZ + 5
         ) {
           continue;
         }
@@ -1027,6 +1136,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (enemyProjectiles.length === 0) return;
 
     let totalDmg = 0;
+    const bounds = getMapDefinition(get().mapId).bounds;
     const alive = enemyProjectiles
       .map(p => ({
         ...p,
@@ -1038,7 +1148,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         age: p.age + delta,
       }))
       .filter(p => {
-        if (p.age > 5 || Math.abs(p.position[0]) > ARENA_BOUND + 5 || Math.abs(p.position[2]) > ARENA_BOUND + 5) return false;
+        if (p.age > 5 || p.position[0] < bounds.minX - 5 || p.position[0] > bounds.maxX + 5 || p.position[2] < bounds.minZ - 5 || p.position[2] > bounds.maxZ + 5) return false;
         const dd = (p.position[0] - px) ** 2 + (p.position[2] - pz) ** 2;
         if (dd < 1.05 * 1.05) {
           totalDmg += p.damage;
@@ -1112,10 +1222,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const knock = (is360 ? 1.55 + superLevel * 0.16 : 0.72 + damageLevel * 0.05) * (klass.attackType === "heavy_cone" ? 1.45 : 1) * enemy.scale;
         const nx = dx / Math.max(0.001, dist);
         const nz = dz / Math.max(0.001, dist);
-        poisonCurrentPos[enemy.id] = [
-          clampToArena(live[0] + nx * knock, 1.4),
-          clampToArena(live[1] + nz * knock, 1.4),
-        ];
+        poisonCurrentPos[enemy.id] = clampPointToMap(s.mapId, live[0] + nx * knock, live[1] + nz * knock, 1.4);
         return [{ ...enemy, hp }];
       });
       swing.hits = hits;
@@ -1418,5 +1525,3 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   refreshRecords: () => set({ records: loadRecords() }),
 }));
-
-export { getSpawnInterval };

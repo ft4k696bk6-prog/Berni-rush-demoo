@@ -1,4 +1,5 @@
 import { DEFAULT_CLASS_ID, DEFAULT_SKIN_ID, getStarterUnlockedSkins, normalizeLoadout } from "./loadout";
+import type { MapId } from "./mapDefinitions";
 import type { CameraViewMode, ClassId, GameRecords, GameState, MobileControlSettings, PerkId, PlayerStats, QualityLevel, ShopUpgradeId, SkinId, WeaponId } from "./types";
 
 const SAVE_KEY = "berni-rush-save-v1";
@@ -31,6 +32,10 @@ export interface SaveData {
   stage: number;
   killsThisStage: number;
   spawnedThisStage: number;
+  mapId?: MapId;
+  clearedZoneIds?: string[];
+  exitUnlocked?: boolean;
+  mapObjective?: string;
   playerLevel: number;
   xp: number;
   xpToNext: number;
@@ -197,6 +202,10 @@ export function toSaveData(state: GameState): SaveData {
     stage: state.stage,
     killsThisStage: state.killsThisStage,
     spawnedThisStage: state.spawnedThisStage,
+    mapId: state.mapId,
+    clearedZoneIds: state.clearedZoneIds,
+    exitUnlocked: state.exitUnlocked,
+    mapObjective: state.mapObjective,
     playerLevel: state.playerLevel,
     xp: state.xp,
     xpToNext: state.xpToNext,

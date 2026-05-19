@@ -1,3 +1,5 @@
+import type { MapId } from "./mapDefinitions";
+
 export type GamePhase = "menu" | "playing" | "paused" | "upgrade" | "gameover";
 export type QualityLevel = "low" | "medium" | "high";
 export type CameraViewMode = "third_person" | "first_person";
@@ -268,6 +270,11 @@ export interface GameState {
   killsThisStage: number;
   killsRequired: number;
   spawnedThisStage: number;
+  mapId: MapId;
+  activeZoneId: string | null;
+  clearedZoneIds: string[];
+  exitUnlocked: boolean;
+  mapObjective: string;
   totalKills: number;
   bossesDefeated: number;
   totalBossesDefeated: number;

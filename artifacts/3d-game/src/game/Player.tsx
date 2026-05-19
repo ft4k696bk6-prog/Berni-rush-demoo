@@ -2,7 +2,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
-import { clampToArena, getSpawnInterval } from "./balance";
+import { clampPlayerToProgress } from "./mapDefinitions";
 import { cameraRuntime, playerRuntime, touchRuntime } from "./gameRuntime";
 import { CharacterAssetModel } from "./AssetModels";
 import { getClassDefinition, getLoadoutModifiers } from "./loadout";
@@ -207,7 +207,7 @@ export default function Player() {
     }
 
     spawnTimer.current += delta * 1000;
-    if (spawnTimer.current > getSpawnInterval(store.stage, store.quality)) {
+    if (spawnTimer.current > 260) {
       store.spawnItems();
       spawnTimer.current = 0;
     }
@@ -310,8 +310,15 @@ export default function Player() {
       dashBoostZ = dashDir.current.y * dashPower;
     }
 
-    playerRuntime.x = clampToArena(playerRuntime.x + (velocity.current.x + dashBoostX) * delta, 1.2);
-    playerRuntime.z = clampToArena(playerRuntime.z + (velocity.current.y + dashBoostZ) * delta, 1.2);
+    const [nextPlayerX, nextPlayerZ] = clampPlayerToProgress(
+      store.mapId,
+      playerRuntime.x + (velocity.current.x + dashBoostX) * delta,
+      playerRuntime.z + (velocity.current.y + dashBoostZ) * delta,
+      store.clearedZoneIds,
+      1.2,
+    );
+    playerRuntime.x = nextPlayerX;
+    playerRuntime.z = nextPlayerZ;
     playerRuntime.velocityX = velocity.current.x;
     playerRuntime.velocityZ = velocity.current.y;
     playerRuntime.angle = facingAngle.current;

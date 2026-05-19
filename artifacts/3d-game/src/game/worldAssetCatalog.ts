@@ -1,5 +1,6 @@
 import type { QualityLevel } from "./types";
 import type { BiomeId } from "./worldTheme";
+import { getMapDefinition, type MapId, type PropMount } from "./mapDefinitions";
 
 const QUATERNIUS_NATURE = "/assets/quaternius/stylized-nature/gltf/";
 const QUATERNIUS_MEDIEVAL = "/assets/quaternius/medieval-village/gltf/";
@@ -434,6 +435,7 @@ type AuthoredPlacement = {
   scale?: number;
   rotation?: number;
   y?: number;
+  mount?: PropMount;
   tint?: string;
 };
 
@@ -597,7 +599,16 @@ function buildMineQuarry(arenaBound: number) {
   return p;
 }
 
-function buildAuthoredLayout(biome: BiomeId, arenaBound: number) {
+function mountedY(mount: PropMount | undefined, y: number | undefined) {
+  if (typeof y === "number") return y;
+  if (mount === "wall") return 1.75;
+  if (mount === "ceiling") return 3.2;
+  if (mount === "table") return 0.78;
+  return 0;
+}
+
+function buildAuthoredLayout(biome: BiomeId, arenaBound: number, mapId?: MapId) {
+  if (mapId) return [...baseHorizon(biome, arenaBound), ...getMapDefinition(mapId).scenery];
   if (biome === "boss_courtyard") return buildBossCourtyard(arenaBound);
   if (biome === "marsh") return buildMarsh(arenaBound);
   if (biome === "crystal_gate") return buildCrystalGate(arenaBound);
@@ -605,9 +616,9 @@ function buildAuthoredLayout(biome: BiomeId, arenaBound: number) {
   return buildRuinsForest(arenaBound);
 }
 
-export function buildWorldAssetInstances(biome: BiomeId, quality: QualityLevel, arenaBound: number) {
+export function buildWorldAssetInstances(biome: BiomeId, quality: QualityLevel, arenaBound: number, mapId?: MapId) {
   void quality;
-  return buildAuthoredLayout(biome, arenaBound).flatMap((placement): WorldAssetInstance[] => {
+  return buildAuthoredLayout(biome, arenaBound, mapId).flatMap((placement): WorldAssetInstance[] => {
     const def = DEF_BY_ID.get(placement.id);
     if (!def) return [];
     const fallbackScale = (def.scaleRange[0] + def.scaleRange[1]) * 0.5;
@@ -615,7 +626,7 @@ export function buildWorldAssetInstances(biome: BiomeId, quality: QualityLevel, 
       ...def,
       x: placement.x,
       z: placement.z,
-      y: placement.y ?? 0,
+      y: mountedY(placement.mount, placement.y),
       scale: placement.scale ?? fallbackScale,
       rotation: placement.rotation ?? 0,
       tint: placement.tint ?? def.tint,

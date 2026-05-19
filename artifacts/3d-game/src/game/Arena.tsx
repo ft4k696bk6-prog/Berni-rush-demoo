@@ -1,11 +1,12 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import * as THREE from "three";
 import { useTexture } from "@react-three/drei";
 import { ARENA_BOUND } from "./balance";
 import { EnvironmentAssetModel } from "./AssetModels";
 import { useGameStore } from "./useGameStore";
 import { buildWorldAssetInstances } from "./worldAssetCatalog";
-import { BIOME_THEMES, BiomeId, getBiomeForStage, getTextureSize } from "./worldTheme";
+import { getMapDefinition } from "./mapDefinitions";
+import { BIOME_THEMES, BiomeId, getTextureSize } from "./worldTheme";
 import type { QualityLevel } from "./types";
 
 const VISUAL_MARGIN = 64;
@@ -78,7 +79,7 @@ const DECOR = (() => {
 })();
 
 function makeTerrainGeometry(size: number) {
-  const geometry = new THREE.PlaneGeometry(size, size, 112, 112);
+  const geometry = new THREE.PlaneGeometry(size, size, 72, 72);
   const position = geometry.getAttribute("position") as THREE.BufferAttribute;
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i);
@@ -332,19 +333,14 @@ function HorizonRidge({ x, z, w, h, d, rot, tone, color, dark }: { x: number; z:
 export default function Arena({ qualityOverride }: { qualityOverride?: QualityLevel }) {
   const storedQuality = useGameStore(s => s.quality);
   const quality = qualityOverride ?? storedQuality;
-  const stage = useGameStore(s => s.stage);
-  const runId = useGameStore(s => s.runId);
-  const lockedBiomeRef = useRef<{ runId: number; biome: BiomeId } | null>(null);
-  if (!lockedBiomeRef.current || lockedBiomeRef.current.runId !== runId) {
-    lockedBiomeRef.current = { runId, biome: getBiomeForStage(stage) };
-  }
-  const biome = lockedBiomeRef.current.biome;
+  const mapId = useGameStore(s => s.mapId);
+  const biome = getMapDefinition(mapId).biome;
   const theme = BIOME_THEMES[biome];
   const terrainDetailTexture = useTexture(TERRAIN_DETAIL_TEXTURE);
   const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
   const skyTexture = useMemo(() => makeSkyTexture(theme), [theme]);
-  const premiumAssets = useMemo(() => buildWorldAssetInstances(biome, quality, ARENA_BOUND), [biome, quality]);
+  const premiumAssets = useMemo(() => buildWorldAssetInstances(biome, quality, ARENA_BOUND, mapId), [biome, quality, mapId]);
   const configuredTerrainDetail = useMemo(() => {
     terrainDetailTexture.wrapS = THREE.RepeatWrapping;
     terrainDetailTexture.wrapT = THREE.RepeatWrapping;
@@ -359,9 +355,9 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
     terrainDetailTexture.needsUpdate = true;
     return terrainDetailTexture;
   }, [terrainDetailTexture, quality, biome]);
-  const scuffCount = 42;
-  const pondCount = biome === "marsh" ? 5 : 0;
-  const ridgeCount = 34;
+  const scuffCount = 24;
+  const pondCount = biome === "marsh" ? 3 : 0;
+  const ridgeCount = 24;
 
   const roadScuffs = DECOR.roadScuffs.slice(0, scuffCount);
   const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);

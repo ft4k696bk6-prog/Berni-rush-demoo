@@ -1,4 +1,5 @@
 import type { QualityLevel } from "./types";
+import { getMapForStage } from "./mapDefinitions";
 
 export type BiomeId = "ruins_forest" | "boss_courtyard" | "marsh" | "crystal_gate" | "mine_quarry";
 
@@ -157,16 +158,11 @@ export const BIOME_THEMES: Record<BiomeId, BiomeTheme> = {
 };
 
 export function getBiomeForStage(stage: number): BiomeId {
-  if (stage > 0 && stage % 10 === 0) return "crystal_gate";
-  if (stage > 0 && stage % 5 === 0) return "boss_courtyard";
-  const chapter = Math.floor(Math.max(0, stage - 1) / 5) % 3;
-  if (chapter === 1) return "marsh";
-  if (chapter === 2) return "mine_quarry";
-  return "ruins_forest";
+  return getMapForStage(stage).biome;
 }
 
 export function getTextureSize(quality: QualityLevel) {
-  if (quality === "high") return 4096;
+  if (quality === "high") return 2048;
   if (quality === "medium") return 2048;
   return 1024;
 }
