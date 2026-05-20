@@ -2,7 +2,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
-import { clampPlayerToProgress } from "./mapDefinitions";
+import { clampPlayerToProgress, getActiveGateTrigger, getMapDefinition } from "./mapDefinitions";
 import { cameraRuntime, playerRuntime, touchRuntime } from "./gameRuntime";
 import { CharacterAssetModel } from "./AssetModels";
 import { getClassDefinition, getLoadoutModifiers } from "./loadout";
@@ -35,6 +35,31 @@ const STRAFE_MOVE_WEIGHT = 0.68;
 const MELEE_COMBO_WINDOW_MS = 1350;
 const MELEE_BUFFER_MS = 260;
 const MELEE_COMBO_MAX = 3;
+const GATE_TRANSFER_OFFSET = 13.5;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getGateArrival(mapId: ReturnType<typeof useGameStore.getState>["mapId"], toRoomId: string, triggerCenter: [number, number]) {
+  const map = getMapDefinition(mapId);
+  const targetRoom = map.rooms.find(room => room.id === toRoomId) ?? map.rooms[0];
+  if (!targetRoom) return triggerCenter;
+
+  const dx = targetRoom.center[0] - triggerCenter[0];
+  const dz = targetRoom.center[1] - triggerCenter[1];
+  const useXAxis = Math.abs(dx) > Math.abs(dz);
+  const signX = Math.sign(dx) || 1;
+  const signZ = Math.sign(dz) || 1;
+  const pad = 8.5;
+  const x = useXAxis ? triggerCenter[0] + signX * GATE_TRANSFER_OFFSET : triggerCenter[0];
+  const z = useXAxis ? triggerCenter[1] : triggerCenter[1] + signZ * GATE_TRANSFER_OFFSET;
+
+  return [
+    clamp(x, targetRoom.center[0] - targetRoom.halfSize[0] + pad, targetRoom.center[0] + targetRoom.halfSize[0] - pad),
+    clamp(z, targetRoom.center[1] - targetRoom.halfSize[1] + pad, targetRoom.center[1] + targetRoom.halfSize[1] - pad),
+  ] as [number, number];
+}
 
 export default function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -310,7 +335,7 @@ export default function Player() {
       dashBoostZ = dashDir.current.y * dashPower;
     }
 
-    const [nextPlayerX, nextPlayerZ] = clampPlayerToProgress(
+    let [nextPlayerX, nextPlayerZ] = clampPlayerToProgress(
       store.mapId,
       playerRuntime.x,
       playerRuntime.z,
@@ -319,6 +344,14 @@ export default function Player() {
       store.clearedZoneIds,
       1.2,
     );
+    const gateTrigger = getActiveGateTrigger(store.mapId, nextPlayerX, nextPlayerZ, store.clearedZoneIds);
+    const didGateTransfer = Boolean(gateTrigger && !gateTrigger.locked);
+    if (gateTrigger && !gateTrigger.locked) {
+      [nextPlayerX, nextPlayerZ] = getGateArrival(store.mapId, gateTrigger.gate.toRoomId, gateTrigger.gate.trigger.center);
+      velocity.current.multiplyScalar(0.2);
+      dashTime.current = 0;
+      spawnTimer.current = Math.min(spawnTimer.current, -420);
+    }
     playerRuntime.x = nextPlayerX;
     playerRuntime.z = nextPlayerZ;
     playerRuntime.velocityX = velocity.current.x;
@@ -415,6 +448,14 @@ export default function Player() {
 
     snapshotTimer.current += delta;
     if (snapshotTimer.current > SNAPSHOT_RATE) {
+      store.setPlayerSnapshot(
+        [playerRuntime.x, playerRuntime.z],
+        facingAngle.current,
+        [playerRuntime.aimWorldX, playerRuntime.aimWorldZ],
+      );
+      snapshotTimer.current = 0;
+    }
+    if (didGateTransfer) {
       store.setPlayerSnapshot(
         [playerRuntime.x, playerRuntime.z],
         facingAngle.current,

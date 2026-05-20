@@ -47,6 +47,7 @@ import {
   SAFE_SPAWN_RADIUS,
 } from "./balance";
 import {
+  getActiveRoom,
   getMapDefinition,
   getMapForStage,
   getNextUnlockedZone,
@@ -380,6 +381,7 @@ function completeExpedition(state: GameState) {
     killsRequired: getStageKillTarget(nextStage),
     spawnedThisStage: 0,
     mapId: nextMap.id,
+    activeRoomId: nextMap.rooms[0]?.id ?? null,
     activeZoneId: null,
     clearedZoneIds: [],
     exitUnlocked: false,
@@ -428,6 +430,7 @@ function fresh(quality: QualityLevel = "high", records: GameRecords = loadRecord
     killsRequired: getStageKillTarget(1),
     spawnedThisStage: 0,
     mapId: map.id,
+    activeRoomId: map.rooms[0]?.id ?? null,
     activeZoneId: null,
     clearedZoneIds: [],
     exitUnlocked: false,
@@ -724,6 +727,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       killsRequired,
       spawnedThisStage: Math.max(saved.spawnedThisStage ?? 0, 0),
       mapId: map.id,
+      activeRoomId: getActiveRoom(map.id, savedPlayerPos[0], savedPlayerPos[1])?.id ?? map.rooms[0]?.id ?? null,
       activeZoneId: null,
       clearedZoneIds,
       exitUnlocked: Boolean(saved.exitUnlocked),
@@ -978,7 +982,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   addScore: (n) => set(s => ({ score: s.score + n })),
 
-  setPlayerSnapshot: (pos, angle, aim) => set({ playerPos: pos, playerAngle: angle, aimWorld: aim }),
+  setPlayerSnapshot: (pos, angle, aim) => set(s => {
+    const nextRoomId = getActiveRoom(s.mapId, pos[0], pos[1])?.id ?? s.activeRoomId ?? getMapDefinition(s.mapId).rooms[0]?.id ?? null;
+    return {
+      playerPos: pos,
+      playerAngle: angle,
+      aimWorld: aim,
+      activeRoomId: nextRoomId,
+    };
+  }),
 
   fireWeapon: (ox, oz, dx, dz) => {
     const s = get();

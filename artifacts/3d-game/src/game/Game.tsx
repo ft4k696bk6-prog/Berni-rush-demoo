@@ -14,11 +14,13 @@ const TESTER_COIN_CODE = "BERNIRICH";
 export default function Game() {
   const phase = useGameStore(s => s.phase);
   const mapId = useGameStore(s => s.mapId);
+  const activeRoomId = useGameStore(s => s.activeRoomId);
   const mobileLeftHanded = useGameStore(s => s.mobileLeftHanded);
   const pauseGame = useGameStore(s => s.pauseGame);
   const resumeGame = useGameStore(s => s.resumeGame);
   const grantTesterCoins = useGameStore(s => s.grantTesterCoins);
   const previousMapId = useRef(mapId);
+  const previousRoomId = useRef(activeRoomId);
   const [mapTransitionVisible, setMapTransitionVisible] = useState(false);
 
   useEffect(() => {
@@ -92,12 +94,23 @@ export default function Game() {
   useEffect(() => {
     if (previousMapId.current === mapId) return;
     previousMapId.current = mapId;
+    previousRoomId.current = activeRoomId;
     if (phase !== "playing") return;
 
     setMapTransitionVisible(true);
     const timer = window.setTimeout(() => setMapTransitionVisible(false), 720);
     return () => window.clearTimeout(timer);
-  }, [mapId, phase]);
+  }, [activeRoomId, mapId, phase]);
+
+  useEffect(() => {
+    if (!activeRoomId || previousRoomId.current === activeRoomId) return;
+    previousRoomId.current = activeRoomId;
+    if (phase !== "playing") return;
+
+    setMapTransitionVisible(true);
+    const timer = window.setTimeout(() => setMapTransitionVisible(false), 420);
+    return () => window.clearTimeout(timer);
+  }, [activeRoomId, phase]);
 
   return (
     <div className={`game-root ${phase} ${mobileLeftHanded ? "mobile-left-handed" : ""}`.trim()}>

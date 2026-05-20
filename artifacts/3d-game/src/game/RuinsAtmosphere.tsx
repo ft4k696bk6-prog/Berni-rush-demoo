@@ -1,6 +1,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import type { RoomDefinition } from "./mapDefinitions";
 import type { QualityLevel } from "./types";
 import type { BiomeTheme } from "./worldTheme";
 
@@ -76,19 +77,31 @@ function makeMistTexture(theme: BiomeTheme) {
   return texture;
 }
 
-function RuinsFireflies({ theme, count }: { theme: BiomeTheme; count: number }) {
+function pointNearRoom(room: RoomDefinition | undefined, x: number, z: number, margin = 0) {
+  if (!room) return true;
+  const [cx, cz] = room.center;
+  const [hx, hz] = room.halfSize;
+  return (
+    x >= cx - hx - margin &&
+    x <= cx + hx + margin &&
+    z >= cz - hz - margin &&
+    z <= cz + hz + margin
+  );
+}
+
+function RuinsFireflies({ theme, count, room }: { theme: BiomeTheme; count: number; room?: RoomDefinition }) {
   const groupRef = useRef<THREE.Group>(null);
   const motes = useMemo(
     () =>
       Array.from({ length: count }, (_, index) => ({
-        x: (Math.sin(index * 2.17) * 0.5 + 0.5) * 72 - 36,
+        x: (room?.center[0] ?? 0) + (Math.sin(index * 2.17) * 0.5 + 0.5) * ((room?.halfSize[0] ?? 36) * 1.35) - ((room?.halfSize[0] ?? 36) * 0.675),
         y: 1.2 + (index % 7) * 0.55,
-        z: (Math.cos(index * 1.73) * 0.5 + 0.5) * 160 - 80,
+        z: (room?.center[1] ?? 0) + (Math.cos(index * 1.73) * 0.5 + 0.5) * ((room?.halfSize[1] ?? 80) * 1.35) - ((room?.halfSize[1] ?? 80) * 0.675),
         phase: index * 0.91,
         speed: 0.35 + (index % 5) * 0.08,
         color: index % 3 === 0 ? theme.accent : theme.accentSoft,
       })),
-    [count, theme.accent, theme.accentSoft],
+    [count, room, theme.accent, theme.accentSoft],
   );
 
   useFrame(({ clock }) => {
@@ -119,10 +132,12 @@ function RuinsFireflies({ theme, count }: { theme: BiomeTheme; count: number }) 
   );
 }
 
-export default function RuinsAtmosphere({ theme, quality }: { theme: BiomeTheme; quality: QualityLevel }) {
+export default function RuinsAtmosphere({ theme, quality, activeRoom }: { theme: BiomeTheme; quality: QualityLevel; activeRoom?: RoomDefinition }) {
   const shaftTexture = useMemo(() => makeLightShaftTexture(theme), [theme]);
   const mistTexture = useMemo(() => makeMistTexture(theme), [theme]);
-  const lanternLights = quality === "low" ? LANTERN_LIGHTS.slice(0, 3) : LANTERN_LIGHTS;
+  const lanternLights = (quality === "low" ? LANTERN_LIGHTS.slice(0, 3) : LANTERN_LIGHTS)
+    .filter(light => pointNearRoom(activeRoom, light.x, light.z, 18))
+    .slice(0, 3);
   const shaftCount = quality === "high" ? SHAFT_ANCHORS.length : quality === "medium" ? 3 : 2;
   const mistPatches =
     quality === "low"
@@ -133,7 +148,11 @@ export default function RuinsAtmosphere({ theme, quality }: { theme: BiomeTheme;
           { x: -8, z: -58, rx: 40, rz: 26 },
           ...(quality === "high" ? [{ x: 24, z: -18, rx: 30, rz: 22 }] : []),
         ];
-  const fireflyCount = quality === "high" ? 22 : quality === "medium" ? 14 : 0;
+  const visibleShafts = SHAFT_ANCHORS
+    .filter(shaft => pointNearRoom(activeRoom, shaft.x, shaft.z, 20))
+    .slice(0, shaftCount);
+  const visibleMistPatches = mistPatches.filter(patch => pointNearRoom(activeRoom, patch.x, patch.z, 24)).slice(0, 2);
+  const fireflyCount = quality === "high" ? 10 : quality === "medium" ? 7 : 0;
 
   return (
     <group>
@@ -161,7 +180,7 @@ export default function RuinsAtmosphere({ theme, quality }: { theme: BiomeTheme;
       />
 
       {shaftTexture &&
-        SHAFT_ANCHORS.slice(0, shaftCount).map((shaft, index) => (
+        visibleShafts.map((shaft, index) => (
           <mesh
             key={`ruins-shaft-${index}`}
             position={[shaft.x, 9.8, shaft.z]}
@@ -181,7 +200,7 @@ export default function RuinsAtmosphere({ theme, quality }: { theme: BiomeTheme;
         ))}
 
       {mistTexture &&
-        mistPatches.map((patch, index) => (
+        visibleMistPatches.map((patch, index) => (
           <mesh key={`ruins-mist-${index}`} rotation={[-Math.PI / 2, 0, 0]} position={[patch.x, 0.18 + index * 0.02, patch.z]} renderOrder={-3}>
             <planeGeometry args={[patch.rx, patch.rz]} />
             <meshBasicMaterial
@@ -195,7 +214,7 @@ export default function RuinsAtmosphere({ theme, quality }: { theme: BiomeTheme;
           </mesh>
         ))}
 
-      {fireflyCount > 0 && <RuinsFireflies theme={theme} count={fireflyCount} />}
+      {fireflyCount > 0 && <RuinsFireflies theme={theme} count={fireflyCount} room={activeRoom} />}
     </group>
   );
 }

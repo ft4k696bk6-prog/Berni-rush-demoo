@@ -271,6 +271,7 @@ export interface GameState {
   killsRequired: number;
   spawnedThisStage: number;
   mapId: MapId;
+  activeRoomId: string | null;
   activeZoneId: string | null;
   clearedZoneIds: string[];
   exitUnlocked: boolean;

@@ -6,6 +6,7 @@ import RuinsAtmosphere from "./RuinsAtmosphere";
 import { useGameStore } from "./useGameStore";
 import { buildWorldAssetInstances } from "./worldAssetCatalog";
 import { getMapDefinition } from "./mapDefinitions";
+import type { MapWallSegment, RoomDefinition } from "./mapDefinitions";
 import { BIOME_THEMES, BiomeId, getTextureSize } from "./worldTheme";
 import type { QualityLevel } from "./types";
 
@@ -566,16 +567,49 @@ function ExpeditionWall({ x, z, w, d, h, tint, theme, premiumRuins }: { x: numbe
   );
 }
 
-function RuinsPassageArches({ theme }: { theme: typeof BIOME_THEMES[BiomeId] }) {
+function pointNearRoom(room: RoomDefinition | undefined, x: number, z: number, margin = 0) {
+  if (!room) return true;
+  const [cx, cz] = room.center;
+  const [hx, hz] = room.halfSize;
+  return (
+    x >= cx - hx - margin &&
+    x <= cx + hx + margin &&
+    z >= cz - hz - margin &&
+    z <= cz + hz + margin
+  );
+}
+
+function wallTouchesRoom(room: RoomDefinition | undefined, segment: MapWallSegment, margin = 6) {
+  if (!room) return true;
+  const [cx, cz] = room.center;
+  const [hx, hz] = room.halfSize;
+  const wallMinX = segment.center[0] - segment.size[0] * 0.5;
+  const wallMaxX = segment.center[0] + segment.size[0] * 0.5;
+  const wallMinZ = segment.center[1] - segment.size[1] * 0.5;
+  const wallMaxZ = segment.center[1] + segment.size[1] * 0.5;
+  return (
+    wallMaxX >= cx - hx - margin &&
+    wallMinX <= cx + hx + margin &&
+    wallMaxZ >= cz - hz - margin &&
+    wallMinZ <= cz + hz + margin
+  );
+}
+
+function RuinsPassageArches({ theme, activeRoom }: { theme: typeof BIOME_THEMES[BiomeId]; activeRoom?: RoomDefinition }) {
+  const arches = [
+    { x: -8, z: 42, scale: [4.05, 3.45, 2.35] as [number, number, number] },
+    { x: 14, z: -34, scale: [4.05, 3.45, 2.35] as [number, number, number] },
+  ].filter(arch => pointNearRoom(activeRoom, arch.x, arch.z, 14));
+
   return (
     <>
-      {[42, -34].map((z, index) => (
+      {arches.map((arch, index) => (
         <EnvironmentAssetModel
           key={`ruins-passage-arch-${index}`}
           path={RUINS_ARCH_ASSET}
-          position={[index === 0 ? -8 : 14, 0.02, z]}
+          position={[arch.x, 0.02, arch.z]}
           rotation={[0, 0, 0]}
-          scale={[4.05, 3.45, 2.35]}
+          scale={arch.scale}
           tint={theme.stone}
         />
       ))}
@@ -589,6 +623,34 @@ function RoomCeiling({ x, z, w, d, theme, height = 6.95, opacity = 0.3 }: { x: n
         <boxGeometry args={[w, 0.22, d]} />
       <meshStandardMaterial color={theme.baseDark} roughness={0.96} metalness={0.01} transparent opacity={opacity} depthWrite={false} />
     </mesh>
+  );
+}
+
+function ActiveRoomVeil({ theme, room }: { theme: typeof BIOME_THEMES[BiomeId]; room?: RoomDefinition }) {
+  if (!room) return null;
+  const [cx, cz] = room.center;
+  const [hx, hz] = room.halfSize;
+  const margin = 5.5;
+  const minX = cx - hx - margin;
+  const maxX = cx + hx + margin;
+  const minZ = cz - hz - margin;
+  const maxZ = cz + hz + margin;
+  const strips = [
+    { x: (-VISUAL_BOUND + minX) * 0.5, z: 0, w: minX + VISUAL_BOUND, d: VISUAL_SIZE },
+    { x: (VISUAL_BOUND + maxX) * 0.5, z: 0, w: VISUAL_BOUND - maxX, d: VISUAL_SIZE },
+    { x: cx, z: (VISUAL_BOUND + maxZ) * 0.5, w: Math.max(1, maxX - minX), d: VISUAL_BOUND - maxZ },
+    { x: cx, z: (-VISUAL_BOUND + minZ) * 0.5, w: Math.max(1, maxX - minX), d: minZ + VISUAL_BOUND },
+  ].filter(strip => strip.w > 0.1 && strip.d > 0.1);
+
+  return (
+    <>
+      {strips.map((strip, index) => (
+        <mesh key={`active-room-veil-${index}`} rotation={[-Math.PI / 2, 0, 0]} position={[strip.x, 0.155 + index * 0.0004, strip.z]}>
+          <planeGeometry args={[strip.w, strip.d]} />
+          <meshBasicMaterial color={theme.baseDark} transparent opacity={0.74} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </>
   );
 }
 
@@ -642,16 +704,34 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const storedQuality = useGameStore(s => s.quality);
   const quality = qualityOverride ?? storedQuality;
   const mapId = useGameStore(s => s.mapId);
+  const activeRoomId = useGameStore(s => s.activeRoomId);
   const map = getMapDefinition(mapId);
   const biome = map.biome;
   const theme = BIOME_THEMES[biome];
   const closedRuins = mapId === "ruins_path";
+  const activeRoom = map.rooms.find(room => room.id === activeRoomId) ?? map.rooms[0];
   const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
   const terrainDetailTexture = useMemo(() => makeTerrainDetailTexture(quality), [quality]);
   const skyTexture = useMemo(() => closedRuins ? null : makeSkyTexture(theme), [closedRuins, theme]);
   const ruinsCanopyTexture = useMemo(() => closedRuins ? makeRuinsCanopyTexture(theme, quality) : null, [closedRuins, quality, theme]);
   const premiumAssets = useMemo(() => buildWorldAssetInstances(biome, quality, ARENA_BOUND, mapId), [biome, quality, mapId]);
+  const visiblePremiumAssets = useMemo(
+    () => closedRuins
+      ? premiumAssets.filter(asset => pointNearRoom(activeRoom, asset.x, asset.z, 18))
+      : premiumAssets,
+    [activeRoom, closedRuins, premiumAssets],
+  );
+  const visibleWalls = useMemo(
+    () => closedRuins
+      ? map.wallSegments.filter(segment => wallTouchesRoom(activeRoom, segment, 8))
+      : map.wallSegments,
+    [activeRoom, closedRuins, map.wallSegments],
+  );
+  const visibleRooms = useMemo(
+    () => closedRuins && activeRoom ? [activeRoom] : map.rooms,
+    [activeRoom, closedRuins, map.rooms],
+  );
   const configuredTerrainDetail = useMemo(() => {
     if (!terrainDetailTexture) return null;
     const repeat = quality === "high" ? 16 : quality === "medium" ? 12 : 8;
@@ -665,7 +745,9 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const pondCount = biome === "marsh" ? 3 : 0;
   const ridgeCount = closedRuins ? 0 : 24;
 
-  const roadScuffs = DECOR.roadScuffs.slice(0, scuffCount);
+  const roadScuffs = (closedRuins
+    ? DECOR.roadScuffs.filter(scuff => pointNearRoom(activeRoom, scuff.x, scuff.z, 7))
+    : DECOR.roadScuffs).slice(0, scuffCount);
   const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);
   const biomeRidges = DECOR.ridges.filter(item => item.biomes.includes(biome)).slice(0, ridgeCount);
   const edgeVeilOpacity = closedRuins ? 0.24 : quality === "low" ? 0.1 : quality === "medium" ? 0.13 : 0.16;
@@ -713,6 +795,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
       )}
 
       {closedRuins && <RuinsEdgeMask theme={theme} bounds={map.bounds} />}
+      {closedRuins && <ActiveRoomVeil theme={theme} room={activeRoom} />}
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.122, 0]}>
         <ringGeometry args={[ARENA_BOUND * 0.88, VISUAL_BOUND - 4, 128]} />
@@ -721,7 +804,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
 
       {closedRuins && ruinsCanopyTexture && <RuinsCanopy texture={ruinsCanopyTexture} theme={theme} quality={quality} />}
 
-      {closedRuins && <RuinsAtmosphere theme={theme} quality={quality} />}
+      {closedRuins && <RuinsAtmosphere theme={theme} quality={quality} activeRoom={activeRoom} />}
 
       {biomeRidges.map((ridge, i) => (
         <HorizonRidge
@@ -752,7 +835,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
         </mesh>
       ))}
 
-      {premiumAssets.map(asset => (
+      {visiblePremiumAssets.map(asset => (
         <EnvironmentAssetModel
           key={`premium-${asset.id}-${asset.x.toFixed(1)}-${asset.z.toFixed(1)}`}
           path={asset.path}
@@ -763,7 +846,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
         />
       ))}
 
-      {map.wallSegments.map(segment => (
+      {visibleWalls.map(segment => (
         <ExpeditionWall
           key={`wall-${segment.id}`}
           x={segment.center[0]}
@@ -777,9 +860,9 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
         />
       ))}
 
-      {closedRuins && <RuinsPassageArches theme={theme} />}
+      {closedRuins && <RuinsPassageArches theme={theme} activeRoom={activeRoom} />}
 
-      {map.rooms.map(room => (
+      {visibleRooms.map(room => (
         <RoomCeiling
           key={`ceiling-${room.id}`}
           x={room.center[0]}
