@@ -41,6 +41,7 @@ export default function HUD() {
   const gameTime = useGameStore(s => s.gameTime);
   const mapObjective = useGameStore(s => s.mapObjective);
   const activeZoneId = useGameStore(s => s.activeZoneId);
+  const clearedZoneIds = useGameStore(s => s.clearedZoneIds);
   const exitUnlocked = useGameStore(s => s.exitUnlocked);
   const centerMessage = useGameStore(s => s.centerMessage);
   const perks = useGameStore(s => s.perks);
@@ -96,12 +97,13 @@ export default function HUD() {
   const klass = getClassDefinition(selectedClassId);
   const skin = getSkinDefinition(selectedSkinId);
   const monstersLeft = Math.max(0, killsRequired - killsThisStage);
-  const zoneEnemiesLeft = activeZoneId ? poisons.length : monstersLeft;
+  const zonesLeft = Math.max(0, wavesTotal - clearedZoneIds.length);
+  const zoneEnemiesLeft = exitUnlocked ? 0 : activeZoneId ? poisons.length : zonesLeft;
   const runVisible = phase === "playing" || phase === "paused" || phase === "upgrade";
   const perkCount = Object.values(perks).reduce((total, value) => total + (value ?? 0), 0);
   const bossHpPct = boss ? Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) : 0;
   const objectiveStatus = exitUnlocked ? "GATE READY" : activeZoneId ? `ZONE ${wave}/${wavesTotal}` : `MAP ${stage}`;
-  const objectiveCountLabel = exitUnlocked ? "EXIT OPEN" : activeZoneId ? "ZONE LEFT" : "ENEMIES LEFT";
+  const objectiveCountLabel = exitUnlocked ? "EXIT OPEN" : activeZoneId ? "ENEMIES LEFT" : "ZONES LEFT";
   const objectiveText = exitUnlocked ? "Reach the gate to move forward" : mapObjective;
 
   const messageClass = useMemo(() => centerMessage ? `center-message ${centerMessage.tone}` : "center-message", [centerMessage]);
