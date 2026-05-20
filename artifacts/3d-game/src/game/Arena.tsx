@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { ARENA_BOUND } from "./balance";
-import { EnvironmentAssetModel } from "./AssetModels";
+import { EnvironmentAssetModel, preloadEnvironmentAsset } from "./AssetModels";
 import RuinsAtmosphere from "./RuinsAtmosphere";
 import { useGameStore } from "./useGameStore";
 import { buildWorldAssetInstances } from "./worldAssetCatalog";
@@ -23,6 +23,14 @@ const RUINS_ARCH_ASSET = `${QUATERNIUS_MEDIEVAL}Wall_Arch.gltf`;
 const RUINS_ROCK_ASSETS = [
   `${QUATERNIUS_NATURE}Rock_Medium_3.gltf`,
   `${QUATERNIUS_NATURE}Rock_Medium_1.gltf`,
+] as const;
+const RUINS_ROOM_DRESSING_ASSETS = [
+  `${QUATERNIUS_NATURE}TwistedTree_1.gltf`,
+  `${QUATERNIUS_NATURE}TwistedTree_2.gltf`,
+  `${QUATERNIUS_NATURE}TwistedTree_3.gltf`,
+  `${QUATERNIUS_NATURE}CommonTree_5.gltf`,
+  `${QUATERNIUS_NATURE}Rock_Medium_2.gltf`,
+  `${QUATERNIUS_MEDIEVAL}Prop_Vine5.gltf`,
 ] as const;
 
 function lcg(seed: number) {
@@ -626,6 +634,62 @@ function RoomCeiling({ x, z, w, d, theme, height = 6.95, opacity = 0.3 }: { x: n
   );
 }
 
+function RuinsRoomDressing({ room, theme }: { room?: RoomDefinition; theme: typeof BIOME_THEMES[BiomeId] }) {
+  if (!room) return null;
+  const [cx, cz] = room.center;
+  const [hx, hz] = room.halfSize;
+  const height = room.height ?? 26.8;
+  const cornerPadX = Math.max(7.5, hx * 0.72);
+  const cornerPadZ = Math.max(8.5, hz * 0.66);
+  const treeScale = room.id === "ruin_hall" ? 1.72 : room.id === "root_gate" ? 1.92 : 1.62;
+  const dressings = [
+    { path: RUINS_ROOM_DRESSING_ASSETS[0], x: cx - cornerPadX, z: cz + cornerPadZ, scale: treeScale, rot: 0.22 },
+    { path: RUINS_ROOM_DRESSING_ASSETS[1], x: cx + cornerPadX, z: cz - cornerPadZ * 0.82, scale: treeScale * 0.95, rot: -0.58 },
+    { path: RUINS_ROOM_DRESSING_ASSETS[2], x: cx - cornerPadX * 0.9, z: cz - cornerPadZ, scale: treeScale * 0.88, rot: 0.82 },
+    { path: RUINS_ROOM_DRESSING_ASSETS[3], x: cx + cornerPadX * 0.88, z: cz + cornerPadZ * 0.82, scale: treeScale * 1.04, rot: -0.18 },
+    { path: RUINS_ROOM_DRESSING_ASSETS[4], x: cx - hx * 0.48, z: cz - hz * 0.76, scale: 1.38, rot: 0.44 },
+    { path: RUINS_ROOM_DRESSING_ASSETS[4], x: cx + hx * 0.5, z: cz + hz * 0.74, scale: 1.24, rot: -0.34 },
+    { path: RUINS_ROOM_DRESSING_ASSETS[5], x: cx - hx * 0.96, z: cz, scale: 2.12, rot: Math.PI * 0.5 },
+    { path: RUINS_ROOM_DRESSING_ASSETS[5], x: cx + hx * 0.96, z: cz + hz * 0.18, scale: 2.04, rot: -Math.PI * 0.5 },
+  ];
+  const ribs = [
+    { z: cz - hz * 0.42, rot: 0.06, radius: 0.34 },
+    { z: cz + hz * 0.08, rot: -0.08, radius: 0.28 },
+    { z: cz + hz * 0.48, rot: 0.1, radius: 0.31 },
+  ];
+
+  return (
+    <group>
+      {dressings.map((item, index) => (
+        <EnvironmentAssetModel
+          key={`room-dressing-${room.id}-${index}`}
+          path={item.path}
+          position={[item.x, 0.03, item.z]}
+          rotation={[0, item.rot, 0]}
+          scale={item.scale}
+          tint={index < 4 ? theme.stoneDark : undefined}
+        />
+      ))}
+      {ribs.map((rib, index) => (
+        <mesh
+          key={`root-rib-${room.id}-${index}`}
+          position={[cx, height - 3.15 - index * 0.18, rib.z]}
+          rotation={[0, rib.rot, Math.PI * 0.5]}
+          castShadow
+          receiveShadow
+        >
+          <cylinderGeometry args={[rib.radius, rib.radius * 1.24, hx * 2.18, 8]} />
+          <meshStandardMaterial color={index === 1 ? "#4b3a27" : "#59442c"} roughness={0.94} metalness={0.01} />
+        </mesh>
+      ))}
+      <mesh position={[cx, height - 1.05, cz]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[Math.min(hx, hz) * 0.55, Math.max(hx, hz) * 1.02, 80]} />
+        <meshBasicMaterial color={theme.baseDark} transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+}
+
 function ActiveRoomVeil({ theme, room }: { theme: typeof BIOME_THEMES[BiomeId]; room?: RoomDefinition }) {
   if (!room) return null;
   const [cx, cz] = room.center;
@@ -716,6 +780,13 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const skyTexture = useMemo(() => closedRuins ? null : makeSkyTexture(theme), [closedRuins, theme]);
   const ruinsCanopyTexture = useMemo(() => closedRuins ? makeRuinsCanopyTexture(theme, quality) : null, [closedRuins, quality, theme]);
   const premiumAssets = useMemo(() => buildWorldAssetInstances(biome, quality, ARENA_BOUND, mapId), [biome, quality, mapId]);
+  const preloadPaths = useMemo(
+    () => Array.from(new Set([
+      ...premiumAssets.map(asset => asset.path),
+      ...(closedRuins ? [...RUINS_WALL_ASSETS, RUINS_ARCH_ASSET, ...RUINS_ROCK_ASSETS, ...RUINS_ROOM_DRESSING_ASSETS] : []),
+    ])),
+    [closedRuins, premiumAssets],
+  );
   const visiblePremiumAssets = useMemo(
     () => closedRuins
       ? premiumAssets.filter(asset => pointNearRoom(activeRoom, asset.x, asset.z, 18))
@@ -753,6 +824,16 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const edgeVeilOpacity = closedRuins ? 0.24 : quality === "low" ? 0.1 : quality === "medium" ? 0.13 : 0.16;
   const roomCeilingHeight = closedRuins ? 26.8 : 6.95;
   const roomCeilingOpacity = closedRuins ? 0.16 : 0.3;
+
+  useEffect(() => {
+    const preload = () => preloadPaths.forEach(preloadEnvironmentAsset);
+    const idle = window.requestIdleCallback?.(preload, { timeout: 1800 });
+    if (!idle) {
+      const timer = window.setTimeout(preload, 250);
+      return () => window.clearTimeout(timer);
+    }
+    return () => window.cancelIdleCallback?.(idle);
+  }, [preloadPaths]);
 
   return (
     <group>
@@ -805,6 +886,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
       {closedRuins && ruinsCanopyTexture && <RuinsCanopy texture={ruinsCanopyTexture} theme={theme} quality={quality} />}
 
       {closedRuins && <RuinsAtmosphere theme={theme} quality={quality} activeRoom={activeRoom} />}
+      {closedRuins && <RuinsRoomDressing room={activeRoom} theme={theme} />}
 
       {biomeRidges.map((ridge, i) => (
         <HorizonRidge

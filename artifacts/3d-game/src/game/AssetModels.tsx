@@ -338,6 +338,14 @@ export function EnvironmentAssetModel(props: EnvironmentAssetModelProps) {
   return <EnvironmentFBXModel {...props} />;
 }
 
-Object.values(ENEMY_CONFIG).forEach(cfg => {
-  if (cfg.assetPath) useFBX.preload(cfg.assetPath);
+export function preloadEnvironmentAsset(path: string) {
+  if (path.endsWith(".glb") || path.endsWith(".gltf")) {
+    useGLTF.preload(path);
+    return;
+  }
+  useFBX.preload(path);
+}
+
+Array.from(new Set(Object.values(ENEMY_CONFIG).map(cfg => cfg.assetPath).filter(Boolean))).forEach(path => {
+  if (path) useFBX.preload(path);
 });
