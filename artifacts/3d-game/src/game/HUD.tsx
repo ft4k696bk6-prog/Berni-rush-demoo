@@ -100,6 +100,9 @@ export default function HUD() {
   const runVisible = phase === "playing" || phase === "paused" || phase === "upgrade";
   const perkCount = Object.values(perks).reduce((total, value) => total + (value ?? 0), 0);
   const bossHpPct = boss ? Math.max(0, Math.min(100, (boss.hp / boss.maxHp) * 100)) : 0;
+  const objectiveStatus = exitUnlocked ? "GATE READY" : activeZoneId ? `ZONE ${wave}/${wavesTotal}` : `MAP ${stage}`;
+  const objectiveCountLabel = exitUnlocked ? "EXIT OPEN" : activeZoneId ? "ZONE LEFT" : "ENEMIES LEFT";
+  const objectiveText = exitUnlocked ? "Reach the gate to move forward" : mapObjective;
 
   const messageClass = useMemo(() => centerMessage ? `center-message ${centerMessage.tone}` : "center-message", [centerMessage]);
   const handlePausePress = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -209,9 +212,12 @@ export default function HUD() {
           </div>
           <div className="stage-progress">
             <strong>{zoneEnemiesLeft}</strong>
-            <span>{activeZoneId ? "ZONE LEFT" : "TOTAL LEFT"}</span>
+            <span>{objectiveCountLabel}</span>
           </div>
-          <div className="wave-strip">{exitUnlocked ? "GATE UNLOCKED" : `ZONE ${wave}/${wavesTotal}`} - {mapObjective}</div>
+          <div className="wave-strip">
+            <span>{objectiveStatus}</span>
+            <strong>{objectiveText}</strong>
+          </div>
           <div className="archero-hint">MOVE: WASD / LEFT STICK - LOOK: MOUSE / RIGHT STICK</div>
         </section>
 

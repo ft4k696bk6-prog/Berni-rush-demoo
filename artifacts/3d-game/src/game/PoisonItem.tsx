@@ -36,6 +36,7 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
   const slamWindup = useRef<number | null>(null);
   const shockwaveWindup = useRef<number | null>(null);
   const chargeState = useRef<{ phase: "windup" | "dash" | "recover"; startedAt: number; dirX: number; dirZ: number } | null>(null);
+  const attackRecovery = useRef<{ startedAt: number; power: number; lift: number } | null>(null);
   const t = useRef(Math.random() * Math.PI * 2);
   const previousHp = useRef(poison.hp);
   const hitPulse = useRef(0);
@@ -86,6 +87,10 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
     const wantsRange = poison.mechanics.includes("shoot") && !poison.mechanics.includes("melee");
     const stopDistance = wantsRange ? 8.2 : poison.mechanics.includes("slam") ? 3.6 : 0.55;
     const phaseScale = slow ? 0.42 : 1;
+    let attackLean = 0;
+    let attackLift = 0;
+    let attackScale = 1;
+    let attackStep = 0;
 
     setTelegraph(meleeTelegraphRef.current, false, 0);
     setTelegraph(chargeTelegraphRef.current, false, 0);
@@ -109,10 +114,19 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
         group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(state.dirX, state.dirZ), 12, delta);
 
         if (state.phase === "windup") {
+          const wind = THREE.MathUtils.smoothstep(Math.min(1, elapsed / 520), 0, 1);
+          attackLean = 0.32 * wind;
+          attackLift = -0.08 * wind;
+          attackStep = 0.24 * wind;
+          attackScale = 1 - 0.08 * wind;
           setTelegraph(chargeTelegraphRef.current, true, 0.18 + Math.sin(elapsed * 0.018) * 0.08);
           setWindupGlow(true, "#ff7048", 0.18 + Math.sin(elapsed * 0.016) * 0.08, 0.75 + elapsed / 1300);
           if (elapsed > 520) chargeState.current = { ...state, phase: "dash", startedAt: now };
         } else if (state.phase === "dash") {
+          attackLean = -0.36;
+          attackLift = 0.05;
+          attackStep = -0.18;
+          attackScale = 1.08;
           const speed = poison.speed * 4.95 * phaseScale;
           posRef.current[0] += state.dirX * speed * delta;
           posRef.current[1] += state.dirZ * speed * delta;
@@ -126,8 +140,13 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
             enemyContactTimers[poison.id] = now;
             chargeState.current = { ...state, phase: "recover", startedAt: now };
           }
-        } else if (elapsed > 720) {
-          chargeState.current = null;
+        } else {
+          const recover = 1 - THREE.MathUtils.smoothstep(Math.min(1, elapsed / 720), 0, 1);
+          attackLean = -0.16 * recover;
+          attackLift = -0.03 * recover;
+          attackStep = -0.08 * recover;
+          attackScale = 1 + 0.035 * recover;
+          if (elapsed > 720) chargeState.current = null;
         }
       }
     }
@@ -168,7 +187,7 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
     const baseY = isBoss ? 2.0 : 1.18;
     group.position.set(posRef.current[0], baseY + Math.sin(t.current) * floatAmp + strideBob, posRef.current[1]);
     group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(dx, dz), 13, delta);
-    group.rotation.z = THREE.MathUtils.damp(group.rotation.z, moving ? Math.sin(t.current * 1.8) * (isBoss ? 0.025 : 0.055) : 0, 9, delta);
+    group.rotation.z = THREE.MathUtils.damp(group.rotation.z, moving ? Math.sin(t.current * 1.8) * (isBoss ? 0.018 : 0.04) : 0, 9, delta);
 
     if (poison.mechanics.includes("slam")) {
       const slamRange = isBoss ? 5.4 : 4.35;
@@ -178,12 +197,17 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
       }
       if (slamWindup.current) {
         const elapsed = now - slamWindup.current;
+        const wind = THREE.MathUtils.smoothstep(Math.min(1, elapsed / 780), 0, 1);
+        attackLean = 0.18 * wind;
+        attackLift = 0.22 * wind;
+        attackScale = 1 + 0.06 * wind;
         setTelegraph(slamTelegraphRef.current, true, 0.16 + Math.min(0.28, elapsed / 2200), 0.55 + Math.min(0.65, elapsed / 780));
         setWindupGlow(true, "#ff3f50", 0.18 + Math.min(0.22, elapsed / 1800), 0.8 + Math.min(0.35, elapsed / 1200));
         if (elapsed > 780) {
           if (dist < slamRange) store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
           enemyContactTimers[`${poison.id}:slam`] = now;
           slamWindup.current = null;
+          attackRecovery.current = { startedAt: now, power: -0.28, lift: -0.12 };
         }
       }
     }
@@ -197,12 +221,17 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
       }
       if (shockwaveWindup.current) {
         const elapsed = now - shockwaveWindup.current;
+        const wind = THREE.MathUtils.smoothstep(Math.min(1, elapsed / 920), 0, 1);
+        attackLean = 0.11 * wind;
+        attackLift = 0.12 * wind;
+        attackScale = 1 + 0.045 * wind;
         setTelegraph(shockwaveTelegraphRef.current, true, 0.16 + Math.min(0.28, elapsed / 2600), 0.45 + Math.min(0.85, elapsed / 920));
         setWindupGlow(true, "#ffb05e", 0.2 + Math.min(0.18, elapsed / 2400), 1 + Math.min(0.5, elapsed / 1500));
         if (elapsed > 920) {
           if (dist < shockRange) store.damagePlayer(poison.damage * 1.25, posRef.current[0], posRef.current[1]);
           enemyContactTimers[`${poison.id}:shockwave`] = now;
           shockwaveWindup.current = null;
+          attackRecovery.current = { startedAt: now, power: -0.18, lift: -0.07 };
         }
       }
     }
@@ -217,12 +246,18 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
         }
         if (meleeWindup.current) {
           const elapsed = now - meleeWindup.current;
+          const wind = THREE.MathUtils.smoothstep(Math.min(1, elapsed / 420), 0, 1);
+          attackLean = 0.2 * wind;
+          attackLift = -0.035 * wind;
+          attackStep = 0.12 * wind;
+          attackScale = 1 - 0.035 * wind;
           setTelegraph(meleeTelegraphRef.current, true, 0.2 + Math.sin(elapsed * 0.02) * 0.08, poison.type === "grunt" ? 0.96 : 1.08);
           setWindupGlow(true, "#ff4d5d", 0.16 + Math.min(0.18, elapsed / 1300), 0.72 + Math.min(0.22, elapsed / 1100));
           if (elapsed > 420) {
             if (dist < meleeRange + 0.25) store.damagePlayer(poison.damage, posRef.current[0], posRef.current[1]);
             enemyContactTimers[poison.id] = now;
             meleeWindup.current = null;
+            attackRecovery.current = { startedAt: now, power: -0.32, lift: 0.07 };
           }
         }
       } else {
@@ -240,6 +275,10 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
         }
         if (shootWindup.current) {
           const elapsed = now - shootWindup.current.startedAt;
+          const wind = THREE.MathUtils.smoothstep(Math.min(1, elapsed / 620), 0, 1);
+          attackLean = 0.12 * wind;
+          attackLift = 0.04 * Math.sin(wind * Math.PI);
+          attackStep = 0.08 * wind;
           group.rotation.y = THREE.MathUtils.damp(group.rotation.y, Math.atan2(shootWindup.current.dirX, shootWindup.current.dirZ), 14, delta);
           setTelegraph(shootTelegraphRef.current, true, 0.14 + Math.sin(elapsed * 0.017) * 0.06);
           setWindupGlow(true, "#b06cff", 0.16 + Math.sin(elapsed * 0.018) * 0.08, 0.66 + Math.min(0.3, elapsed / 1400));
@@ -247,6 +286,7 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
             enemyFireTimers[poison.id] = now;
             store.fireEnemyProjectile(posRef.current[0], posRef.current[1], playerRuntime.x, playerRuntime.z, poison.damage);
             shootWindup.current = null;
+            attackRecovery.current = { startedAt: now, power: -0.14, lift: -0.02 };
           }
         }
       } else {
@@ -280,6 +320,24 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
     } else {
       group.scale.setScalar(poison.scale);
     }
+
+    if (attackRecovery.current) {
+      const elapsed = now - attackRecovery.current.startedAt;
+      const recover = 1 - THREE.MathUtils.smoothstep(Math.min(1, elapsed / 360), 0, 1);
+      attackLean += attackRecovery.current.power * recover;
+      attackLift += attackRecovery.current.lift * recover;
+      attackStep += -attackRecovery.current.power * 0.24 * recover;
+      attackScale += 0.045 * recover;
+      if (elapsed > 360) attackRecovery.current = null;
+    }
+
+    const facingX = Math.sin(group.rotation.y);
+    const facingZ = Math.cos(group.rotation.y);
+    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, attackLean, 14, delta);
+    group.position.x += facingX * attackStep;
+    group.position.y += attackLift;
+    group.position.z += facingZ * attackStep;
+    group.scale.multiplyScalar(attackScale);
 
     if (hitPulse.current > 0) {
       const pulse = hitPulse.current;
@@ -338,18 +396,7 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
       </mesh>
 
       {useAssetModel ? (
-        <Suspense fallback={
-          <group>
-            <mesh castShadow position={[0, isBoss ? 0.42 : 0.16, 0]} rotation={[0.2, 0.4, -0.1]} scale={[1.15, isBoss ? 1.28 : 0.88, 1]}>
-              <dodecahedronGeometry args={[isBoss ? 0.92 : 0.48, 1]} />
-              <meshStandardMaterial ref={flashRef} color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={0.24} roughness={0.52} />
-            </mesh>
-            <mesh castShadow position={[0, isBoss ? 1.3 : 0.72, 0.12]}>
-              <sphereGeometry args={[isBoss ? 0.46 : 0.28, 14, 9]} />
-              <meshStandardMaterial color={bodyColor} emissive={ENEMY_RING_COLOR[poison.type]} emissiveIntensity={0.18} roughness={0.44} />
-            </mesh>
-          </group>
-        }>
+        <Suspense fallback={null}>
           <EnemyAssetModel type={poison.type} />
         </Suspense>
       ) : poison.type === "ghost" || poison.type === "shooter" || poison.type === "ranged_enemy" ? (
@@ -425,14 +472,14 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
         </>
       )}
 
-      {poison.type === "elite" && (
+      {!useAssetModel && poison.type === "elite" && (
         <mesh position={[0, 1.32, 0]} rotation={[0, 0, Math.PI / 4]}>
           <torusGeometry args={[0.46, 0.035, 6, 24]} />
           <meshStandardMaterial color="#ffd1e0" emissive="#ff4f86" emissiveIntensity={1.2} />
         </mesh>
       )}
 
-      {poison.type === "charger" && (
+      {!useAssetModel && poison.type === "charger" && (
         <>
           <mesh position={[0, 0.44, 0.68]} rotation={[Math.PI / 2, 0, 0]}>
             <coneGeometry args={[0.18, 0.92, 5]} />
@@ -445,7 +492,7 @@ function PoisonItem({ poison, renderQuality, assetModelAllowed }: Props) {
         </>
       )}
 
-      {poison.type === "brute" && (
+      {!useAssetModel && poison.type === "brute" && (
         <>
           <mesh position={[0.62, 0.62, 0]} scale={[0.5, 0.48, 0.36]}>
             <boxGeometry args={[1, 1, 1]} />

@@ -180,20 +180,20 @@ export default function MenuScreen() {
             </section>
 
             <div className="menu-actions">
-              <button type="button" onClick={isGameOver ? restartGame : startGame}>
+              <button className="primary-action" type="button" onClick={isGameOver ? restartGame : startGame}>
                 {isGameOver ? <RotateCcw size={20} /> : <Play size={20} />}
                 {isGameOver ? "PLAY AGAIN" : "PLAY"}
               </button>
-              {!compactViewport && (
-                <button type="button" onClick={toggleFullscreen}>
-                  {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-                  {isFullscreen ? "WINDOW" : "FULL SCREEN"}
-                </button>
-              )}
               {hasSave && !isGameOver && (
                 <button type="button" onClick={loadGame}>
                   <Save size={20} />
                   CONTINUE
+                </button>
+              )}
+              {!compactViewport && (
+                <button type="button" onClick={toggleFullscreen}>
+                  {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                  {isFullscreen ? "WINDOW" : "FULL SCREEN"}
                 </button>
               )}
             </div>
@@ -244,33 +244,33 @@ export default function MenuScreen() {
               </header>
 
               <div className="skin-shop-grid">
-              {visibleSkinIds.map(id => {
-                const skin = SKIN_DEFINITIONS[id];
-                const unlocked = unlockedSkinIds.includes(id);
-                const equipped = selectedSkinId === id;
-                return (
-                  <article
-                    key={id}
-                    className={`skin-card ${equipped ? "equipped" : ""} ${!unlocked ? "locked" : ""}`}
-                    onPointerEnter={() => setPreviewSkinId(id)}
-                    onClick={() => setPreviewSkinId(id)}
-                  >
-                    <div>
-                      <ClassIcon icon={skin.icon} size={18} />
-                      <strong>{skin.displayName}</strong>
-                    </div>
-                    <span>{skin.rarity} - {formatSkinBonus(skin)}</span>
-                    <small>{unlocked ? "Ready for this class" : "Unlock for this class"}</small>
-                    <button
-                      type="button"
-                      disabled={!unlocked && walletCoins < skin.unlockCost}
-                      onClick={() => unlocked ? selectSkin(id) : buySkin(id)}
+                {visibleSkinIds.map(id => {
+                  const skin = SKIN_DEFINITIONS[id];
+                  const unlocked = unlockedSkinIds.includes(id);
+                  const equipped = selectedSkinId === id;
+                  return (
+                    <article
+                      key={id}
+                      className={`skin-card ${equipped ? "equipped" : ""} ${!unlocked ? "locked" : ""}`}
+                      onPointerEnter={() => setPreviewSkinId(id)}
+                      onClick={() => setPreviewSkinId(id)}
                     >
-                      {equipped ? "Equipped" : unlocked ? "Equip" : `${skin.unlockCost} coins`}
-                    </button>
-                  </article>
-                );
-              })}
+                      <div>
+                        <ClassIcon icon={skin.icon} size={18} />
+                        <strong>{skin.displayName}</strong>
+                      </div>
+                      <span>{skin.rarity} - {formatSkinBonus(skin)}</span>
+                      <small>{unlocked ? "Ready for this class" : "Unlock for this class"}</small>
+                      <button
+                        type="button"
+                        disabled={!unlocked && walletCoins < skin.unlockCost}
+                        onClick={() => unlocked ? selectSkin(id) : buySkin(id)}
+                      >
+                        {equipped ? "Equipped" : unlocked ? "Equip" : `${skin.unlockCost} coins`}
+                      </button>
+                    </article>
+                  );
+                })}
               </div>
               {visibleSkinIds.length === 0 && (
                 <div className="skin-empty-state">

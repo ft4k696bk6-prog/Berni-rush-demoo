@@ -233,7 +233,15 @@ export default function TouchControls() {
         >
           <Zap size={22} />
         </button>
-        <button type="button" onPointerDown={event => { event.preventDefault(); touchRuntime.meleePressed = true; hapticTap(12); }}>
+        <button
+          type="button"
+          aria-label="Melee"
+          onPointerDown={event => {
+            event.preventDefault();
+            touchRuntime.meleePressed = true;
+            hapticTap(12);
+          }}
+        >
           <Swords size={22} />
         </button>
         <button

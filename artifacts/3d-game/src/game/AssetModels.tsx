@@ -128,6 +128,28 @@ function playAction(actions: Record<string, THREE.AnimationAction | null>, curre
   current.current = name;
 }
 
+function attackCurve(now: number, duration: number) {
+  const progress = THREE.MathUtils.clamp(1 - (playerRuntime.attackAnimUntil - now) / duration, 0, 1);
+  const windup = THREE.MathUtils.smoothstep(progress, 0, 0.28);
+  const strike = THREE.MathUtils.smoothstep(progress, 0.24, 0.48);
+  const recovery = THREE.MathUtils.smoothstep(progress, 0.48, 1);
+  const recoil = Math.sin(Math.min(1, progress / 0.32) * Math.PI);
+  const followThrough = Math.sin(THREE.MathUtils.clamp((progress - 0.26) / 0.48, 0, 1) * Math.PI);
+
+  return {
+    progress,
+    windup: recoil * (1 - strike),
+    strike: followThrough * (1 - recovery * 0.35),
+    recovery,
+  };
+}
+
+function enemyYawOffset(type: EnemySubType, configured = 0) {
+  const airborneWasp = type === "ranged_enemy" || type === "shooter" || type === "ghost";
+  if (airborneWasp) return configured - Math.PI / 2;
+  return configured;
+}
+
 const CLASS_ANIMATION: Record<ClassId, {
   runScale: number;
   shootScale: number;
@@ -183,25 +205,35 @@ export function CharacterAssetModel({ skinId, preview = false, rotatePreview = f
     playAction(actions, currentAction, actionName);
     const action = actionName ? actions[actionName] : null;
     if (action) {
+      const movementRate = THREE.MathUtils.clamp(speed / 5.2, 0.72, 1.18);
       action.timeScale = preview ? 1 : attacking
         ? playerRuntime.attackAnimType === "shoot" ? anim.shootScale : anim.slashScale
-        : speed > 0.7 ? anim.runScale : 1;
+        : speed > 0.7 ? anim.runScale * movementRate : 1;
     }
 
     if (!preview) {
+      const moving = speed > 0.18;
       const forward = speed > 0.05
         ? (playerRuntime.velocityX * Math.sin(playerRuntime.angle) + playerRuntime.velocityZ * Math.cos(playerRuntime.angle)) / Math.max(0.001, speed)
         : 0;
       const side = speed > 0.05
         ? (playerRuntime.velocityX * Math.cos(playerRuntime.angle) - playerRuntime.velocityZ * Math.sin(playerRuntime.angle)) / Math.max(0.001, speed)
         : 0;
-      const attackT = THREE.MathUtils.clamp((playerRuntime.attackAnimUntil - now) / (playerRuntime.attackAnimType === "shoot" ? 260 : 520), 0, 1);
-      const attackPulse = Math.sin(attackT * Math.PI);
+      const duration = playerRuntime.attackAnimType === "shoot" ? 300 : 560;
+      const attack = attackCurve(now, duration);
       const classWeight = classDef.attackType === "heavy_cone" ? 1.18 : classDef.attackType === "dash_strike" ? 0.86 : 1;
-      group.rotation.x = THREE.MathUtils.damp(group.rotation.x, forward * anim.moveLean - attackPulse * anim.attackLean * classWeight, 12, delta);
-      group.rotation.z = THREE.MathUtils.damp(group.rotation.z, -side * anim.moveLean * 0.85, 12, delta);
-      group.position.y = THREE.MathUtils.damp(group.position.y, attackPulse * (playerRuntime.attackAnimType === "slash" ? 0.045 : 0.018), 14, delta);
-      group.position.z = THREE.MathUtils.damp(group.position.z, -attackPulse * (playerRuntime.attackAnimType === "shoot" ? 0.08 : 0.03), 14, delta);
+      const walkCycle = now * (0.009 + speed * 0.0012);
+      const walkWeight = THREE.MathUtils.clamp(speed / 6, 0, 1);
+      const walkBob = moving && !attacking ? Math.abs(Math.sin(walkCycle)) * walkWeight * 0.024 : 0;
+      const walkSway = moving && !attacking ? Math.sin(walkCycle * 0.5) * walkWeight * 0.028 : 0;
+      const attackLean = (attack.windup * 0.58 - attack.strike * 1.25 + attack.recovery * 0.12) * anim.attackLean * classWeight;
+      const attackLift = (attack.strike * 0.052 - attack.windup * 0.018) * (playerRuntime.attackAnimType === "slash" ? 1 : 0.45);
+      const attackStep = attack.strike * (playerRuntime.attackAnimType === "shoot" ? -0.095 : -0.05) + attack.windup * 0.035;
+
+      group.rotation.x = THREE.MathUtils.damp(group.rotation.x, forward * anim.moveLean + attackLean, 14, delta);
+      group.rotation.z = THREE.MathUtils.damp(group.rotation.z, -side * anim.moveLean * 0.72 + walkSway, 13, delta);
+      group.position.y = THREE.MathUtils.damp(group.position.y, walkBob + attackLift, 16, delta);
+      group.position.z = THREE.MathUtils.damp(group.position.z, attackStep, 16, delta);
     }
   });
 
@@ -210,7 +242,7 @@ export function CharacterAssetModel({ skinId, preview = false, rotatePreview = f
       ref={groupRef}
       position={skin.previewOffset}
       scale={skin.previewScale * (preview ? 0.68 : 1)}
-      rotation={[0, preview ? Math.PI * 0.15 : 0, 0]}
+      rotation={[0, preview ? Math.PI * 0.15 : Math.PI, 0]}
     >
       <primitive object={scene} />
     </group>
@@ -241,10 +273,14 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
     const actionName = findActionName(names, ["walk", "run", "idle", "attack"]);
     playAction(actions, currentAction, actionName);
     const action = actionName ? actions[actionName] : null;
-    if (action) action.timeScale = type === "boss_dragon" ? 0.82 : cfg.speed > 4.4 ? 1.28 : cfg.speed < 2.4 ? 0.78 : 1;
-    group.position.y = THREE.MathUtils.damp(group.position.y, (type === "ranged_enemy" ? Math.sin(phase.current * 1.4) * 0.05 : Math.abs(Math.sin(phase.current)) * 0.025), 8, delta);
-    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, type === "tank_enemy" || type === "boss_dragon" ? 0.025 : Math.sin(phase.current * 0.72) * 0.018, 8, delta);
-    if (names.length === 0) group.rotation.y += Math.sin(Date.now() * 0.002) * delta * 0.08;
+    if (action) action.timeScale = type === "boss_dragon" ? 0.78 : cfg.speed > 4.4 ? 1.16 : cfg.speed < 2.4 ? 0.72 : 0.94;
+    const airborne = type === "ranged_enemy" || type === "shooter" || type === "ghost";
+    const bob = airborne
+      ? Math.sin(phase.current * 1.7) * 0.075
+      : Math.abs(Math.sin(phase.current * 0.95)) * (type === "tank_enemy" || type === "brute" ? 0.014 : 0.025);
+    group.position.y = THREE.MathUtils.damp(group.position.y, bob, 9, delta);
+    group.rotation.x = THREE.MathUtils.damp(group.rotation.x, airborne ? Math.sin(phase.current * 1.25) * 0.035 : type === "tank_enemy" || type === "boss_dragon" ? 0.018 : Math.sin(phase.current * 0.72) * 0.014, 9, delta);
+    group.rotation.z = THREE.MathUtils.damp(group.rotation.z, airborne ? Math.sin(phase.current * 2.1) * 0.055 : 0, 9, delta);
   });
 
   return (
@@ -252,7 +288,7 @@ export function EnemyAssetModel({ type }: EnemyAssetModelProps) {
       ref={groupRef}
       position={[0, cfg.modelYOffset ?? -1.1, 0]}
       scale={cfg.modelScale ?? 0.01}
-      rotation={[0, cfg.modelYawOffset ?? 0, 0]}
+      rotation={[0, enemyYawOffset(type, cfg.modelYawOffset), 0]}
     >
       <primitive object={scene} />
     </group>

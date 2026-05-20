@@ -71,28 +71,27 @@ function detectMobileLikeViewport() {
 }
 
 function resolveWorldQuality(quality: QualityLevel, mobileLike: boolean, renderTier: number): QualityLevel {
-  if (quality === "low") return "low";
-  if (!mobileLike) return quality;
-  if (renderTier >= 2) return "low";
-  return "medium";
+  void mobileLike;
+  void renderTier;
+  return quality;
 }
 
 function getSceneProfile(quality: QualityLevel, mobileLike: boolean, renderTier: number): SceneProfile {
   const mobileDprScale = mobileLike ? (renderTier === 0 ? 1 : renderTier === 1 ? 0.84 : 0.7) : 1;
   const worldQuality = resolveWorldQuality(quality, mobileLike, renderTier);
-  const postProcessing = !mobileLike && worldQuality !== "low" && renderTier < 2;
+  const postProcessing = false;
 
   return {
-    dpr: mobileLike ? [Math.max(0.78, 0.96 * mobileDprScale), Math.max(0.96, 1.12 * mobileDprScale)] : [1, 1.35],
+    dpr: mobileLike ? [Math.max(0.72, 0.9 * mobileDprScale), Math.max(0.9, 1.06 * mobileDprScale)] : [1, 1.24],
     antialias: !mobileLike && !postProcessing,
     powerPreference: mobileLike ? "default" : "high-performance",
-    shadows: mobileLike ? renderTier === 0 : renderTier < 2,
-    contactShadows: mobileLike ? false : renderTier === 0,
-    fillLights: !mobileLike || renderTier === 0,
-    shadowMapSize: mobileLike ? [1024, 1024] : renderTier === 0 ? [2048, 2048] : [1536, 1536],
+    shadows: mobileLike ? renderTier === 0 : renderTier < 1,
+    contactShadows: false,
+    fillLights: !mobileLike && renderTier === 0,
+    shadowMapSize: mobileLike ? [768, 768] : renderTier === 0 ? [1536, 1536] : [1024, 1024],
     contactShadowResolution: mobileLike ? 256 : 384,
-    impactBurstLimit: mobileLike ? (renderTier === 0 ? 18 : renderTier === 1 ? 12 : 7) : 48,
-    floatingTextLimit: mobileLike ? (renderTier === 0 ? 18 : renderTier === 1 ? 12 : 8) : 64,
+    impactBurstLimit: mobileLike ? (renderTier === 0 ? 14 : renderTier === 1 ? 10 : 6) : 32,
+    floatingTextLimit: mobileLike ? (renderTier === 0 ? 12 : renderTier === 1 ? 9 : 6) : 28,
     performanceMin: mobileLike ? 0.42 : 0.58,
     toneMappingExposure: mobileLike ? (renderTier >= 2 ? 0.98 : 1) : 1.04,
     worldQuality,

@@ -489,10 +489,10 @@ function HorizonRidge({ x, z, w, h, d, rot, tone, color, dark }: { x: number; z:
 function PremiumRuinsWall({ x, z, w, d, h, theme }: { x: number; z: number; w: number; d: number; h: number; theme: typeof BIOME_THEMES[BiomeId] }) {
   const horizontal = w >= d;
   const length = horizontal ? w : d;
-  const panelCount = Math.max(1, Math.ceil(length / 7.4));
+  const panelCount = Math.max(1, Math.min(8, Math.ceil(length / 18)));
   const panelWidth = length / panelCount + 0.26;
-  const wallHeight = Math.max(h + 1.35, 7.85);
-  const wallScale: [number, number, number] = [panelWidth * 0.5, wallHeight / 3.12, 2.45];
+  const wallHeight = Math.max(h + 1.35, 12.5);
+  const wallScale: [number, number, number] = [panelWidth * 0.62, wallHeight / 3.12, 2.9];
   const yaw = horizontal ? 0 : Math.PI * 0.5;
   const rockOffset = length * 0.5 - Math.min(4.8, length * 0.18);
 
@@ -512,7 +512,7 @@ function PremiumRuinsWall({ x, z, w, d, h, theme }: { x: number; z: number; w: n
           />
         );
       })}
-      {[-1, 1].map((side, index) => {
+      {length > 18 && [-1, 1].map((side, index) => {
         const position: [number, number, number] = horizontal ? [side * rockOffset, 0.3, d * 0.56] : [w * 0.56, 0.3, side * rockOffset];
         return (
           <EnvironmentAssetModel
@@ -616,15 +616,15 @@ function RuinsCanopy({ texture, theme, quality }: { texture: THREE.Texture; them
   const canopyOpacity = quality === "high" ? 0.68 : quality === "medium" ? 0.62 : 0.56;
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 17.6, 2]} renderOrder={-2}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 27.2, 2]} renderOrder={-2}>
         <planeGeometry args={[108, 226]} />
         <meshBasicMaterial map={texture} transparent opacity={canopyOpacity} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 16.95, 0]} renderOrder={-3}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 26.5, 0]} renderOrder={-3}>
         <ringGeometry args={[42, 66, 96]} />
         <meshBasicMaterial color={theme.baseDark} transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 17.15, 0]} renderOrder={-1}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 26.8, 0]} renderOrder={-1}>
         <circleGeometry args={[34, 72]} />
         <meshBasicMaterial
           color={theme.accent}
@@ -669,8 +669,8 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);
   const biomeRidges = DECOR.ridges.filter(item => item.biomes.includes(biome)).slice(0, ridgeCount);
   const edgeVeilOpacity = closedRuins ? 0.24 : quality === "low" ? 0.1 : quality === "medium" ? 0.13 : 0.16;
-  const roomCeilingHeight = closedRuins ? 17.4 : 6.95;
-  const roomCeilingOpacity = closedRuins ? 0.11 : 0.3;
+  const roomCeilingHeight = closedRuins ? 26.8 : 6.95;
+  const roomCeilingOpacity = closedRuins ? 0.16 : 0.3;
 
   return (
     <group>

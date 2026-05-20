@@ -106,8 +106,8 @@ export interface MapDefinition {
 }
 
 const deg = (value: number) => value * Math.PI / 180;
-const WALL_HEIGHT = 14.4;
-const WALL_THICKNESS = 3.0;
+const WALL_HEIGHT = 22.0;
+const WALL_THICKNESS = 4.2;
 
 type RoomOptions = Pick<RoomDefinition, "height" | "cameraMaxY" | "zoneId">;
 
@@ -232,6 +232,32 @@ const closedWalls = (
   ];
 };
 
+const roomShellWalls = (
+  prefix: string,
+  bounds: MapBounds,
+  height = WALL_HEIGHT,
+  tint?: string,
+  openings: { north?: [number, number]; south?: [number, number] } = {},
+): MapWallSegment[] => {
+  const width = bounds.maxX - bounds.minX;
+  const depth = bounds.maxZ - bounds.minZ;
+  const cx = (bounds.minX + bounds.maxX) * 0.5;
+  const cz = (bounds.minZ + bounds.maxZ) * 0.5;
+  const north = openings.north
+    ? partitionWall(`${prefix}-north`, bounds, bounds.maxZ + WALL_THICKNESS * 0.5, openings.north[0], openings.north[1], height, tint)
+    : [wall(`${prefix}-north`, cx, bounds.maxZ + WALL_THICKNESS * 0.5, width + WALL_THICKNESS * 2, WALL_THICKNESS, height, tint)];
+  const south = openings.south
+    ? partitionWall(`${prefix}-south`, bounds, bounds.minZ - WALL_THICKNESS * 0.5, openings.south[0], openings.south[1], height, tint)
+    : [wall(`${prefix}-south`, cx, bounds.minZ - WALL_THICKNESS * 0.5, width + WALL_THICKNESS * 2, WALL_THICKNESS, height, tint)];
+
+  return [
+    wall(`${prefix}-west`, bounds.minX - WALL_THICKNESS * 0.5, cz, WALL_THICKNESS, depth + WALL_THICKNESS * 2, height, tint),
+    wall(`${prefix}-east`, bounds.maxX + WALL_THICKNESS * 0.5, cz, WALL_THICKNESS, depth + WALL_THICKNESS * 2, height, tint),
+    ...north,
+    ...south,
+  ];
+};
+
 const wallCollisions = (walls: MapWallSegment[]): CollisionShape[] => (
   walls.map(segment => ({
     id: `wall-${segment.id}`,
@@ -280,21 +306,28 @@ const groundDetails = (points: Array<[string, number, number, number?, number?]>
 export const MAP_SEQUENCE: MapId[] = ["ruins_path", "marsh_trail", "mine_passage", "crystal_gate"];
 
 const ruinsBounds: MapBounds = { minX: -48, maxX: 48, minZ: -108, maxZ: 108 };
+const ruinsEntryBounds: MapBounds = { minX: -48, maxX: 16, minZ: 40, maxZ: 110 };
+const ruinsHallBounds: MapBounds = { minX: -24, maxX: 48, minZ: -38, maxZ: 46 };
+const ruinsRootBounds: MapBounds = { minX: -46, maxX: 28, minZ: -112, maxZ: -32 };
 const marshBounds: MapBounds = { minX: -30, maxX: 30, minZ: -78, maxZ: 82 };
 const mineBounds: MapBounds = { minX: -26, maxX: 26, minZ: -78, maxZ: 84 };
 const crystalBounds: MapBounds = { minX: -30, maxX: 30, minZ: -80, maxZ: 82 };
 const bossBounds: MapBounds = { minX: -42, maxX: 42, minZ: -52, maxZ: 58 };
 
 const ruinsWalls = [
-  ...perimeterWalls("ruins", ruinsBounds, 15.8, "#53614f"),
-  ...partitionWall("ruins-entry-hall", ruinsBounds, 42, -8, 19, 14.2, "#596b54"),
-  ...partitionWall("ruins-hall-root", ruinsBounds, -34, 14, 18, 15.4, "#4d5e49"),
-  wall("ruins-entry-west-rootwall", -42, 74, 5.4, 42, 14.8, "#465a45"),
-  wall("ruins-entry-east-rootwall", 40, 85, 5.2, 30, 14.2, "#465a45"),
-  wall("ruins-hall-west-buttress", -40, 4, 5.4, 50, 15.2, "#435341"),
-  wall("ruins-hall-east-buttress", 41, -3, 5.2, 42, 15.2, "#435341"),
-  wall("ruins-root-west-buttress", -41, -74, 5.6, 48, 16.2, "#3f503f"),
-  wall("ruins-root-east-buttress", 39, -70, 5.3, 38, 16.2, "#3f503f"),
+  ...roomShellWalls("ruins-entry-room", ruinsEntryBounds, 24.2, "#53614f", { south: [-8, 17] }),
+  ...roomShellWalls("ruins-hall-room", ruinsHallBounds, 24.8, "#4d5e49", { north: [-8, 17], south: [14, 16] }),
+  ...roomShellWalls("ruins-root-room", ruinsRootBounds, 25.2, "#3f503f", { north: [14, 16], south: [-10, 18] }),
+  wall("ruins-entry-west-rootwall", -43, 74, 7.2, 52, 24.4, "#465a45"),
+  wall("ruins-entry-east-rootwall", 41, 85, 7.0, 40, 23.8, "#465a45"),
+  wall("ruins-hall-west-buttress", -42, 4, 7.2, 60, 24.8, "#435341"),
+  wall("ruins-hall-east-buttress", 42, -3, 7.0, 54, 24.8, "#435341"),
+  wall("ruins-root-west-buttress", -42, -74, 7.4, 58, 25.2, "#3f503f"),
+  wall("ruins-root-east-buttress", 40, -70, 7.1, 48, 25.2, "#3f503f"),
+  wall("ruins-entry-view-blocker-a", -22, 39, 24, 4.2, 24.5, "#4d5e49"),
+  wall("ruins-entry-view-blocker-b", 20, 45, 22, 4.2, 24.5, "#4d5e49"),
+  wall("ruins-root-view-blocker-a", -16, -31, 22, 4.2, 25.0, "#465a45"),
+  wall("ruins-root-view-blocker-b", 34, -37, 18, 4.2, 25.0, "#465a45"),
 ];
 const marshWalls = closedWalls("marsh", marshBounds, [30, -22], 13, "#425c52");
 const mineWalls = closedWalls("mine", mineBounds, [34, -22], 12, "#5b5045");
@@ -311,9 +344,9 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     exit: { position: [-10, -98], radius: 8 },
     bounds: ruinsBounds,
     rooms: [
-      room("entry_clearing", "Entry Clearing", -18, 75, 30, 33, { height: 17.2, cameraMaxY: 14.2, zoneId: "entry_clearing" }),
-      room("ruin_hall", "Ruin Hall", 14, 4, 34, 40, { height: 18.4, cameraMaxY: 15.0, zoneId: "ruin_hall" }),
-      room("root_gate", "Root Gate", -10, -72, 34, 38, { height: 18.0, cameraMaxY: 14.7, zoneId: "root_gate" }),
+      room("entry_clearing", "Entry Clearing", -18, 75, 32, 35, { height: 26.8, cameraMaxY: 19.4, zoneId: "entry_clearing" }),
+      room("ruin_hall", "Ruin Hall", 14, 4, 36, 42, { height: 28.0, cameraMaxY: 20.2, zoneId: "ruin_hall" }),
+      room("root_gate", "Root Gate", -10, -72, 36, 40, { height: 27.6, cameraMaxY: 19.8, zoneId: "root_gate" }),
     ],
     gates: [
       gate("entry_clearing_to_ruin_hall", "Root-Sealed Archway", "entry_clearing", "ruin_hall", "entry_clearing", -8, 42, 12, 6, 10.4, 2.7),
@@ -339,8 +372,8 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
       {
         id: "entry_clearing",
         label: "Entry Clearing",
-        center: [-18, 74],
-        radius: 26,
+        center: [-18, 65],
+        radius: 16,
         enemyTypes: ["basic_melee", "basic_melee", "ranged_enemy", "fast_melee"],
         spawnPoints: [[-37, 72], [2, 83], [-20, 53], [-35, 58]],
       },
