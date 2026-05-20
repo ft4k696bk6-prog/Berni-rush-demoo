@@ -221,6 +221,7 @@ function MeleeEffect({ swing }: Props) {
   const weaponRef = useRef<THREE.Group>(null);
   const arcRef = useRef<THREE.Mesh>(null);
   const edgeRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
   const groundRef = useRef<THREE.Mesh>(null);
   const shockRef = useRef<THREE.Mesh>(null);
   const theme = swing.theme ?? "knight";
@@ -255,6 +256,11 @@ function MeleeEffect({ swing }: Props) {
         mat.emissiveIntensity = fade * (swing.hits ? 4.4 : 3.2);
         mat.opacity = fade * 0.88;
       }
+      if (coreRef.current) {
+        const mat = coreRef.current.material as THREE.MeshBasicMaterial;
+        mat.opacity = fade * 0.38;
+        coreRef.current.rotation.y -= 0.12;
+      }
       return;
     }
 
@@ -282,6 +288,12 @@ function MeleeEffect({ swing }: Props) {
       mat.emissiveIntensity = (2.6 + (swing.hits ?? 0) * 0.18 + (comboStep - 1) * 0.85) * fade;
     }
 
+    if (coreRef.current) {
+      const mat = coreRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = clamp01(Math.sin(hit * Math.PI)) * 0.28 * fade;
+      coreRef.current.scale.setScalar((0.82 + hit * 0.34) * comboPower);
+    }
+
     if (groundRef.current) {
       const mat = groundRef.current.material as THREE.MeshBasicMaterial;
       mat.opacity = (0.08 + anticipation * 0.08 + hit * 0.12) * fade;
@@ -302,6 +314,10 @@ function MeleeEffect({ swing }: Props) {
           <torusGeometry args={[3.36, 0.13, 8, 72]} />
           <meshStandardMaterial color={color} emissive={color} emissiveIntensity={3.8} transparent opacity={0.86} side={THREE.DoubleSide} />
         </mesh>
+        <mesh ref={coreRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.98, 0]}>
+          <ringGeometry args={[2.28, 3.82, 72]} />
+          <meshBasicMaterial color={color} transparent opacity={0.28} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+        </mesh>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry args={[2.5, 0.045, 6, 56]} />
           <meshStandardMaterial color="#fff2a8" emissive={color} emissiveIntensity={2.2} transparent opacity={0.62} />
@@ -310,8 +326,8 @@ function MeleeEffect({ swing }: Props) {
           const angle = (index / Math.min(14, Math.max(7, swing.hits ?? 7))) * Math.PI * 2;
           return (
             <mesh key={index} position={[Math.sin(angle) * 2.65, 0.04, Math.cos(angle) * 2.65]} rotation={[0.3, angle, 0]}>
-              <boxGeometry args={[0.04, 0.04, 0.7]} />
-              <meshBasicMaterial color="#fff2a8" transparent opacity={0.74} />
+              <coneGeometry args={[0.055, 0.78, 5]} />
+              <meshBasicMaterial color="#fff2a8" transparent opacity={0.78} depthWrite={false} blending={THREE.AdditiveBlending} />
             </mesh>
           );
         })}
@@ -332,8 +348,13 @@ function MeleeEffect({ swing }: Props) {
         </group>
 
         <mesh ref={arcRef} position={[0, 0.44, cfg.reach * 0.68]} rotation={[0, 0, 0]}>
-          <torusGeometry args={[cfg.reach * 0.48, cfg.tube * (2.2 + comboStep * 0.16), 8, 44, Math.PI * (1.12 + comboStep * 0.08)]} />
-          <meshBasicMaterial color={cfg.color} transparent opacity={0.34} depthWrite={false} side={THREE.DoubleSide} />
+          <torusGeometry args={[cfg.reach * 0.5, cfg.tube * (2.55 + comboStep * 0.18), 8, 48, Math.PI * (1.14 + comboStep * 0.08)]} />
+          <meshBasicMaterial color={cfg.color} transparent opacity={0.4} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+        </mesh>
+
+        <mesh ref={coreRef} position={[0, 0.43, cfg.reach * 0.74]} rotation={[0, 0, 0]}>
+          <torusGeometry args={[cfg.reach * 0.42, cfg.tube * (4.4 + comboStep * 0.24), 6, 34, Math.PI * (0.92 + comboStep * 0.08)]} />
+          <meshBasicMaterial color={cfg.core} transparent opacity={0.18} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
         </mesh>
 
         <mesh ref={edgeRef} position={[0, 0.48, cfg.reach * 0.72]} rotation={[0, 0, 0]}>
@@ -349,9 +370,9 @@ function MeleeEffect({ swing }: Props) {
               {theme === "miner" || theme === "tank" ? (
                 <dodecahedronGeometry args={[0.045 + index * 0.003, 0]} />
               ) : (
-                <boxGeometry args={[0.03, 0.03, 0.3 + index * 0.02]} />
+                <coneGeometry args={[0.035 + index * 0.002, 0.32 + index * 0.025, 5]} />
               )}
-              <meshBasicMaterial color={theme === "assassin" ? "#ffffff" : cfg.edge} transparent opacity={0.66} depthWrite={false} />
+              <meshBasicMaterial color={theme === "assassin" ? "#ffffff" : cfg.edge} transparent opacity={0.7} depthWrite={false} blending={THREE.AdditiveBlending} />
             </mesh>
           );
         })}

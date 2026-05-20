@@ -70,7 +70,7 @@ export default function PauseMenu() {
         </header>
 
         <nav className="pause-actions">
-          <button type="button" onClick={resumeGame}><Play size={18} /> Wznow</button>
+          <button className="primary-action" type="button" onClick={resumeGame}><Play size={18} /> Wznow</button>
           <button type="button" onClick={saveGame}><Save size={18} /> Zapisz</button>
           <button type="button" onClick={() => setTab("stats")} className={tab === "stats" ? "active" : ""}><BarChart3 size={18} /> Statystyki</button>
           <button type="button" onClick={() => setTab("shop")} className={tab === "shop" ? "active" : ""}><ShoppingBag size={18} /> Sklep</button>
@@ -78,7 +78,7 @@ export default function PauseMenu() {
           {!compactViewport && (
             <button type="button" onClick={toggleFullscreen}>{isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />} Pelny ekran</button>
           )}
-          <button type="button" onClick={exitToMenu}><X size={18} /> Wyjdz</button>
+          <button className="danger-action" type="button" onClick={exitToMenu}><X size={18} /> Wyjdz</button>
         </nav>
 
         <main className="pause-content">

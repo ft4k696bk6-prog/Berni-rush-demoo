@@ -91,7 +91,7 @@ const MUSHROOM_MUTATIONS: Record<DrugType, PerkId[]> = {
 let idc = 0;
 const nid = (prefix = "g") => `${prefix}${++idc}`;
 const MELEE_DUR = 620;
-const START_GRACE_MS = 2600;
+const START_GRACE_MS = 5200;
 const RESUME_GRACE_MS = 1500;
 const TESTER_COINS = 999999;
 const isBossType = (type: EnemySubType) => type === "boss10" || type === "boss20" || type === "boss_dragon";
@@ -264,21 +264,31 @@ function activateEnemyFromPool(pool: PoisonItem[], type: EnemySubType, position:
   };
 }
 
-function safeSpawnPoint(point: [number, number], zoneCenter: [number, number], minDistance = 22): [number, number, number] {
+function safeSpawnPoint(point: [number, number], zoneCenter: [number, number], minDistance = 30): [number, number, number] {
   const dx = point[0] - playerRuntime.x;
   const dz = point[1] - playerRuntime.z;
   const distance = Math.hypot(dx, dz);
-  if (distance >= minDistance) return [point[0], 1.2, point[1]];
+  const forwardDot = distance > 0.001
+    ? (dx / distance) * playerRuntime.aimX + (dz / distance) * playerRuntime.aimZ
+    : 0;
+  if (distance >= minDistance && forwardDot < 0.62) return [point[0], 1.2, point[1]];
 
   const fallbackX = zoneCenter[0] - playerRuntime.x;
   const fallbackZ = zoneCenter[1] - playerRuntime.z;
   const awayX = distance > 0.001 ? dx / distance : fallbackX;
   const awayZ = distance > 0.001 ? dz / distance : fallbackZ;
   const len = Math.max(0.001, Math.hypot(awayX, awayZ));
+  const sideSign = Math.sin((point[0] + point[1]) * 12.9898) > 0 ? 1 : -1;
+  const sideX = playerRuntime.aimZ * sideSign;
+  const sideZ = -playerRuntime.aimX * sideSign;
+  const blendedX = (awayX / len) * 0.62 + sideX * 0.38;
+  const blendedZ = (awayZ / len) * 0.62 + sideZ * 0.38;
+  const blendedLen = Math.max(0.001, Math.hypot(blendedX, blendedZ));
+
   return [
-    playerRuntime.x + (awayX / len) * minDistance,
+    playerRuntime.x + (blendedX / blendedLen) * minDistance,
     1.2,
-    playerRuntime.z + (awayZ / len) * minDistance,
+    playerRuntime.z + (blendedZ / blendedLen) * minDistance,
   ];
 }
 
@@ -931,10 +941,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
         const sortedSpawnPoints = [...nextZone.spawnPoints].sort((a, b) => {
           const ad = (a[0] - playerRuntime.x) ** 2 + (a[1] - playerRuntime.z) ** 2;
           const bd = (b[0] - playerRuntime.x) ** 2 + (b[1] - playerRuntime.z) ** 2;
-          return bd - ad;
+          const aLen = Math.max(0.001, Math.sqrt(ad));
+          const bLen = Math.max(0.001, Math.sqrt(bd));
+          const aDot = ((a[0] - playerRuntime.x) / aLen) * playerRuntime.aimX + ((a[1] - playerRuntime.z) / aLen) * playerRuntime.aimZ;
+          const bDot = ((b[0] - playerRuntime.x) / bLen) * playerRuntime.aimX + ((b[1] - playerRuntime.z) / bLen) * playerRuntime.aimZ;
+          return (bd - bDot * 220) - (ad - aDot * 220);
         });
         const point = sortedSpawnPoints[index % sortedSpawnPoints.length];
-        const safe = safeSpawnPoint(point, nextZone.center, isBossType(type) ? 28 : 22);
+        const safe = safeSpawnPoint(point, nextZone.center, isBossType(type) ? 38 : 30);
         const [x, z] = resolveMapMovement(s.mapId, point[0], point[1], safe[0], safe[2], 1.4);
         return activateEnemyFromPool(nextPool, type, [x, 1.2, z], s.stage);
       });

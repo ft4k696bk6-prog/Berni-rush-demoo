@@ -12,16 +12,20 @@ function Trail({ color, length, width, hot = false }: { color: string; length: n
   return (
     <group position={[0, 0, -length * 0.56]}>
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.04, 0]}>
-        <planeGeometry args={[width, length]} />
-        <meshBasicMaterial color={color} transparent opacity={hot ? 0.34 : 0.2} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+        <planeGeometry args={[width * 1.12, length * 1.08]} />
+        <meshBasicMaterial color={color} transparent opacity={hot ? 0.42 : 0.27} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.035, length * 0.04]}>
-        <planeGeometry args={[width * 0.42, length * 0.72]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.16 : 0.08} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+        <planeGeometry args={[width * 0.5, length * 0.82]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.23 : 0.12} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh position={[0, 0.02, length * 0.18]}>
-        <boxGeometry args={[width * 0.22, width * 0.22, length * 0.5]} />
-        <meshBasicMaterial color={color} transparent opacity={hot ? 0.24 : 0.13} depthWrite={false} blending={THREE.AdditiveBlending} />
+        <coneGeometry args={[width * 0.42, length * 0.72, 7]} />
+        <meshBasicMaterial color={color} transparent opacity={hot ? 0.3 : 0.17} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      <mesh position={[0, 0.025, length * 0.42]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[width * 0.28, Math.max(0.006, width * 0.028), 5, 18]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.34 : 0.18} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
     </group>
   );
@@ -31,12 +35,12 @@ function ProjectileAura({ color, radius, hot }: { color: string; radius: number;
   return (
     <group>
       <mesh>
-        <sphereGeometry args={[radius * (hot ? 1.28 : 1.04), 18, 12]} />
-        <meshBasicMaterial color={color} transparent opacity={hot ? 0.16 : 0.08} depthWrite={false} blending={THREE.AdditiveBlending} />
+        <sphereGeometry args={[radius * (hot ? 1.42 : 1.14), 18, 12]} />
+        <meshBasicMaterial color={color} transparent opacity={hot ? 0.2 : 0.11} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[radius * (hot ? 1.5 : 1.22), radius * 0.026, 6, 32]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.22 : 0.1} depthWrite={false} blending={THREE.AdditiveBlending} />
+        <torusGeometry args={[radius * (hot ? 1.62 : 1.3), radius * 0.03, 6, 32]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={hot ? 0.28 : 0.14} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
     </group>
   );
@@ -55,8 +59,8 @@ function RangerArrow({ color, radius }: { color: string; radius: number }) {
       </mesh>
       {[-1, 1].map(side => (
         <mesh key={side} position={[side * radius * 0.22, 0, -0.52]} rotation={[0, 0, side * 0.42]}>
-          <boxGeometry args={[radius * 0.12, radius * 0.04, 0.26]} />
-          <meshBasicMaterial color="#d8fff3" transparent opacity={0.76} />
+          <coneGeometry args={[radius * 0.08, 0.34, 4]} />
+          <meshBasicMaterial color="#d8fff3" transparent opacity={0.76} depthWrite={false} blending={THREE.AdditiveBlending} />
         </mesh>
       ))}
     </group>
@@ -135,8 +139,8 @@ function TankShock({ color, radius }: { color: string; radius: number }) {
         <meshBasicMaterial color={color} transparent opacity={0.5} depthWrite={false} />
       </mesh>
       <mesh position={[0, 0, -radius * 0.46]}>
-        <boxGeometry args={[radius * 0.18, radius * 0.18, radius * 0.78]} />
-        <meshBasicMaterial color="#fff3bd" transparent opacity={0.54} />
+        <coneGeometry args={[radius * 0.24, radius * 0.92, 6]} />
+        <meshBasicMaterial color="#fff3bd" transparent opacity={0.58} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
     </group>
   );
@@ -155,8 +159,8 @@ function MinerShard({ color, radius }: { color: string; radius: number }) {
       </mesh>
       {[0, 1, 2].map(index => (
         <mesh key={index} position={[(index - 1) * radius * 0.26, 0.02, -radius * 0.52]} rotation={[0.3, index, 0.2]}>
-          <boxGeometry args={[radius * 0.08, radius * 0.08, radius * 0.2]} />
-          <meshBasicMaterial color="#ffd85a" transparent opacity={0.68} />
+          <octahedronGeometry args={[radius * 0.12, 0]} />
+          <meshBasicMaterial color="#ffd85a" transparent opacity={0.72} depthWrite={false} blending={THREE.AdditiveBlending} />
         </mesh>
       ))}
     </group>
@@ -167,8 +171,12 @@ function LaserBolt({ color, radius }: { color: string; radius: number }) {
   return (
     <group>
       <mesh position={[0, 0, 0.2]}>
-        <boxGeometry args={[radius * 0.18, radius * 0.18, 1.55]} />
+        <cylinderGeometry args={[radius * 0.12, radius * 0.18, 1.65, 8]} />
         <meshStandardMaterial color="#ffe8ff" emissive={color} emissiveIntensity={2.6} roughness={0.08} metalness={0.45} />
+      </mesh>
+      <mesh position={[0, 0, 0.2]}>
+        <sphereGeometry args={[radius * 0.34, 12, 8]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
       <mesh position={[0, 0, -0.22]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[radius * 0.38, radius * 0.025, 6, 24]} />

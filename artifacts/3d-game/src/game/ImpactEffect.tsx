@@ -23,16 +23,18 @@ function easeOut(t: number) {
 function ImpactEffect({ burst }: Props) {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
   const flashRef = useRef<THREE.Mesh>(null);
   const sparks = useMemo(() => {
-    const count = burst.kind === "death" ? 12 : burst.kind === "heavy" ? 10 : 7;
+    const count = burst.kind === "death" ? 14 : burst.kind === "heavy" ? 11 : 8;
     return Array.from({ length: count }, (_, index) => {
       const angle = (index / count) * Math.PI * 2 + (index % 2) * 0.18;
       return {
         angle,
-        distance: 0.55 + (index % 4) * 0.18,
-        height: 0.08 + (index % 3) * 0.12,
-        size: 0.045 + (index % 3) * 0.012,
+        distance: 0.58 + (index % 4) * 0.2,
+        height: 0.1 + (index % 3) * 0.13,
+        size: 0.05 + (index % 3) * 0.014,
+        tilt: 0.24 + (index % 4) * 0.08,
       };
     });
   }, [burst.kind]);
@@ -53,10 +55,17 @@ function ImpactEffect({ burst }: Props) {
       ringRef.current.scale.setScalar(0.45 + eased * (burst.kind === "heavy" ? 1.55 : 1.05) * burst.power);
     }
 
+    if (haloRef.current) {
+      const mat = haloRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = fade * (burst.kind === "crit" ? 0.42 : 0.26);
+      haloRef.current.scale.setScalar(0.32 + eased * (burst.kind === "heavy" ? 1.25 : 0.86) * burst.power);
+      haloRef.current.rotation.z += 0.04;
+    }
+
     if (flashRef.current) {
       const mat = flashRef.current.material as THREE.MeshBasicMaterial;
-      mat.opacity = Math.max(0, 0.82 - t * 1.65);
-      flashRef.current.scale.setScalar(0.3 + eased * 0.75 * burst.power);
+      mat.opacity = Math.max(0, 0.96 - t * 1.8);
+      flashRef.current.scale.setScalar(0.38 + eased * 0.82 * burst.power);
     }
   });
 
@@ -71,14 +80,29 @@ function ImpactEffect({ burst }: Props) {
       )}
 
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.96, 0]}>
-        <ringGeometry args={[ringRadius, ringRadius + 0.08, 40]} />
-        <meshBasicMaterial color={burst.color} transparent opacity={0.34} depthWrite={false} side={THREE.DoubleSide} />
+        <ringGeometry args={[ringRadius, ringRadius + 0.11, 44]} />
+        <meshBasicMaterial color={burst.color} transparent opacity={0.38} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+      </mesh>
+
+      <mesh ref={haloRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.94, 0]}>
+        <ringGeometry args={[ringRadius * 0.18, ringRadius * 0.76, 36]} />
+        <meshBasicMaterial color={accent} transparent opacity={0.22} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
 
       <mesh ref={flashRef}>
-        <sphereGeometry args={[0.34, 10, 8]} />
-        <meshBasicMaterial color={burst.kind === "crit" ? "#ffffff" : burst.color} transparent opacity={0.72} depthWrite={false} />
+        <sphereGeometry args={[0.42, 12, 8]} />
+        <meshBasicMaterial color={burst.kind === "crit" ? "#ffffff" : burst.color} transparent opacity={0.82} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
+
+      {[0, 1, 2, 3].map(index => {
+        const angle = index * Math.PI * 0.5 + 0.18;
+        return (
+          <mesh key={`ray-${index}`} position={[Math.sin(angle) * 0.28, 0.02, Math.cos(angle) * 0.28]} rotation={[Math.PI / 2, 0, angle]}>
+            <coneGeometry args={[0.085, 0.86 + ringRadius * 0.28, 5]} />
+            <meshBasicMaterial color={burst.kind === "crit" ? "#ffffff" : accent} transparent opacity={0.42} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+        );
+      })}
 
       {burst.kind === "magic" && (
         <mesh rotation={[Math.PI / 2, 0, 0]}>
@@ -102,14 +126,14 @@ function ImpactEffect({ burst }: Props) {
             spark.height,
             Math.cos(spark.angle) * spark.distance,
           ]}
-          rotation={[0.6, spark.angle, 0.35]}
+          rotation={[spark.tilt, spark.angle, 0.35]}
         >
           {burst.theme === "miner" || burst.kind === "heavy" ? (
             <dodecahedronGeometry args={[spark.size * 1.45, 0]} />
           ) : (
-            <boxGeometry args={[spark.size, spark.size, spark.size * 5.4]} />
+            <coneGeometry args={[spark.size * 0.78, spark.size * 6.4, 5]} />
           )}
-          <meshBasicMaterial color={sparkColor} transparent opacity={0.72} depthWrite={false} />
+          <meshBasicMaterial color={sparkColor} transparent opacity={0.78} depthWrite={false} blending={THREE.AdditiveBlending} />
         </mesh>
       ))}
     </group>
