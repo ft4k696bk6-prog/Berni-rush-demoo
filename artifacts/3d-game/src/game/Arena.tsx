@@ -5,7 +5,7 @@ import { EnvironmentAssetModel, preloadEnvironmentAsset } from "./AssetModels";
 import RuinsAtmosphere from "./RuinsAtmosphere";
 import { useGameStore } from "./useGameStore";
 import { buildWorldAssetInstances } from "./worldAssetCatalog";
-import { getMapDefinition } from "./mapDefinitions";
+import { getMapDefinition, isGateUnlocked } from "./mapDefinitions";
 import type { MapWallSegment, RoomDefinition } from "./mapDefinitions";
 import { BIOME_THEMES, BiomeId, getTextureSize } from "./worldTheme";
 import type { QualityLevel } from "./types";
@@ -690,6 +690,46 @@ function RuinsRoomDressing({ room, theme }: { room?: RoomDefinition; theme: type
   );
 }
 
+function ExpeditionGateMarker({ gate, unlocked, theme }: { gate: NonNullable<ReturnType<typeof getMapDefinition>["gates"]>[number]; unlocked: boolean; theme: typeof BIOME_THEMES[BiomeId] }) {
+  const [x, z] = gate.trigger.center;
+  const [hx, hz] = gate.trigger.halfSize;
+  const horizontal = hx >= hz;
+  const width = Math.max(6, horizontal ? hx * 1.55 : hz * 1.55);
+  const barrierScale: [number, number, number] = horizontal ? [width, 2.9, 0.16] : [0.16, 2.9, width];
+  const auraScale: [number, number, number] = horizontal ? [width * 0.32, 1, 1] : [1, 1, width * 0.32];
+  const color = unlocked ? theme.accent : "#b64d32";
+  const glow = unlocked ? theme.rimLight : "#ff7a45";
+
+  return (
+    <group position={[x, 0, z]}>
+      {!unlocked && (
+        <>
+          <mesh position={[0, 1.45, 0]} scale={barrierScale}>
+            <boxGeometry args={[1, 1, 1]} />
+            <meshStandardMaterial color="#3d2c21" emissive="#7d2f23" emissiveIntensity={0.18} roughness={0.86} metalness={0.02} transparent opacity={0.86} />
+          </mesh>
+          {[-0.34, 0, 0.34].map((offset, index) => (
+            <mesh key={`gate-root-${index}`} position={horizontal ? [width * offset, 1.42, 0] : [0, 1.42, width * offset]} rotation={[0, horizontal ? 0 : Math.PI * 0.5, Math.PI * 0.08]}>
+              <cylinderGeometry args={[0.1, 0.16, 3.2, 7]} />
+              <meshStandardMaterial color="#5b3d2b" roughness={0.92} metalness={0.01} />
+            </mesh>
+          ))}
+        </>
+      )}
+      {unlocked && (
+        <mesh position={[0, 1.52, 0]} rotation={[0, horizontal ? 0 : Math.PI * 0.5, 0]} scale={[width * 0.42, 1.45, 1]}>
+          <torusGeometry args={[1, 0.055, 8, 42]} />
+          <meshBasicMaterial color={glow} transparent opacity={0.72} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </mesh>
+      )}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.14, 0]} scale={auraScale}>
+        <ringGeometry args={[1.08, 1.46, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={unlocked ? 0.28 : 0.18} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+      </mesh>
+    </group>
+  );
+}
+
 function ActiveRoomVeil({ theme, room }: { theme: typeof BIOME_THEMES[BiomeId]; room?: RoomDefinition }) {
   if (!room) return null;
   const [cx, cz] = room.center;
@@ -769,6 +809,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const quality = qualityOverride ?? storedQuality;
   const mapId = useGameStore(s => s.mapId);
   const activeRoomId = useGameStore(s => s.activeRoomId);
+  const clearedZoneIds = useGameStore(s => s.clearedZoneIds);
   const map = getMapDefinition(mapId);
   const biome = map.biome;
   const theme = BIOME_THEMES[biome];
@@ -803,6 +844,10 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const visibleRooms = useMemo(
     () => guidedMap && activeRoom ? [activeRoom] : map.rooms,
     [activeRoom, guidedMap, map.rooms],
+  );
+  const visibleGates = useMemo(
+    () => (map.gates ?? []).filter(gate => pointNearRoom(activeRoom, gate.trigger.center[0], gate.trigger.center[1], 18)),
+    [activeRoom, map.gates],
   );
   const configuredTerrainDetail = useMemo(() => {
     if (!terrainDetailTexture) return null;
@@ -942,6 +987,15 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
           tint={segment.tint}
           theme={theme}
           premiumRuins={closedRuins}
+        />
+      ))}
+
+      {visibleGates.map(gate => (
+        <ExpeditionGateMarker
+          key={`gate-marker-${gate.id}`}
+          gate={gate}
+          unlocked={isGateUnlocked(gate, clearedZoneIds)}
+          theme={theme}
         />
       ))}
 
