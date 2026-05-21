@@ -6,7 +6,7 @@ import { playerRuntime } from "./gameRuntime";
 import { getMapDefinition, type MapHazardDefinition } from "./mapDefinitions";
 import { useGameStore } from "./useGameStore";
 
-const HOSTILE_TREE_MODEL = "/assets/quaternius/stylized-nature/gltf/TwistedTree_1.gltf";
+const HOSTILE_TREE_MODEL = "/assets/quaternius/stylized-nature/gltf/DeadTree_3.gltf";
 
 function HostileTreeTrap({ hazard }: { hazard: MapHazardDefinition }) {
   const rootRef = useRef<THREE.Group>(null);

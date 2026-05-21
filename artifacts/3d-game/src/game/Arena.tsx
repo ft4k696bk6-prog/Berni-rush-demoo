@@ -25,10 +25,10 @@ const RUINS_ROCK_ASSETS = [
   `${QUATERNIUS_NATURE}Rock_Medium_1.gltf`,
 ] as const;
 const RUINS_ROOM_DRESSING_ASSETS = [
-  `${QUATERNIUS_NATURE}TwistedTree_1.gltf`,
-  `${QUATERNIUS_NATURE}TwistedTree_2.gltf`,
+  `${QUATERNIUS_NATURE}DeadTree_1.gltf`,
+  `${QUATERNIUS_NATURE}DeadTree_2.gltf`,
   `${QUATERNIUS_NATURE}TwistedTree_3.gltf`,
-  `${QUATERNIUS_NATURE}CommonTree_5.gltf`,
+  `${QUATERNIUS_NATURE}Pine_5.gltf`,
   `${QUATERNIUS_NATURE}Rock_Medium_2.gltf`,
   `${QUATERNIUS_MEDIEVAL}Prop_Vine5.gltf`,
 ] as const;
@@ -773,11 +773,12 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
   const biome = map.biome;
   const theme = BIOME_THEMES[biome];
   const closedRuins = mapId === "ruins_path";
+  const guidedMap = map.rooms.length > 1;
   const activeRoom = map.rooms.find(room => room.id === activeRoomId) ?? map.rooms[0];
   const groundGeom = useMemo(() => makeTerrainGeometry(VISUAL_SIZE), []);
   const groundTexture = useMemo(() => makeGroundTexture(theme, quality), [quality, theme]);
   const terrainDetailTexture = useMemo(() => makeTerrainDetailTexture(quality), [quality]);
-  const skyTexture = useMemo(() => closedRuins ? null : makeSkyTexture(theme), [closedRuins, theme]);
+  const skyTexture = useMemo(() => guidedMap ? null : makeSkyTexture(theme), [guidedMap, theme]);
   const ruinsCanopyTexture = useMemo(() => closedRuins ? makeRuinsCanopyTexture(theme, quality) : null, [closedRuins, quality, theme]);
   const premiumAssets = useMemo(() => buildWorldAssetInstances(biome, quality, ARENA_BOUND, mapId), [biome, quality, mapId]);
   const preloadPaths = useMemo(
@@ -788,20 +789,20 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
     [closedRuins, premiumAssets],
   );
   const visiblePremiumAssets = useMemo(
-    () => closedRuins
+    () => guidedMap
       ? premiumAssets.filter(asset => pointNearRoom(activeRoom, asset.x, asset.z, 18))
       : premiumAssets,
-    [activeRoom, closedRuins, premiumAssets],
+    [activeRoom, guidedMap, premiumAssets],
   );
   const visibleWalls = useMemo(
-    () => closedRuins
+    () => guidedMap
       ? map.wallSegments.filter(segment => wallTouchesRoom(activeRoom, segment, 8))
       : map.wallSegments,
-    [activeRoom, closedRuins, map.wallSegments],
+    [activeRoom, guidedMap, map.wallSegments],
   );
   const visibleRooms = useMemo(
-    () => closedRuins && activeRoom ? [activeRoom] : map.rooms,
-    [activeRoom, closedRuins, map.rooms],
+    () => guidedMap && activeRoom ? [activeRoom] : map.rooms,
+    [activeRoom, guidedMap, map.rooms],
   );
   const configuredTerrainDetail = useMemo(() => {
     if (!terrainDetailTexture) return null;
@@ -812,18 +813,20 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
     terrainDetailTexture.needsUpdate = true;
     return terrainDetailTexture;
   }, [terrainDetailTexture, quality, biome]);
-  const scuffCount = closedRuins ? 14 : 24;
-  const pondCount = biome === "marsh" ? 3 : 0;
-  const ridgeCount = closedRuins ? 0 : 24;
+  const scuffCount = guidedMap ? 14 : 24;
+  const pondCount = biome === "marsh" ? (guidedMap ? 1 : 3) : 0;
+  const ridgeCount = guidedMap ? 0 : 24;
 
-  const roadScuffs = (closedRuins
+  const roadScuffs = (guidedMap
     ? DECOR.roadScuffs.filter(scuff => pointNearRoom(activeRoom, scuff.x, scuff.z, 7))
     : DECOR.roadScuffs).slice(0, scuffCount);
-  const biomePonds = DECOR.ponds.filter(item => item.biomes.includes(biome)).slice(0, pondCount);
+  const biomePonds = DECOR.ponds
+    .filter(item => item.biomes.includes(biome) && (!guidedMap || pointNearRoom(activeRoom, item.x, item.z, 10)))
+    .slice(0, pondCount);
   const biomeRidges = DECOR.ridges.filter(item => item.biomes.includes(biome)).slice(0, ridgeCount);
-  const edgeVeilOpacity = closedRuins ? 0.24 : quality === "low" ? 0.1 : quality === "medium" ? 0.13 : 0.16;
-  const roomCeilingHeight = closedRuins ? 26.8 : 6.95;
-  const roomCeilingOpacity = closedRuins ? 0.16 : 0.3;
+  const edgeVeilOpacity = guidedMap ? 0.24 : quality === "low" ? 0.1 : quality === "medium" ? 0.13 : 0.16;
+  const roomCeilingHeight = closedRuins ? 26.8 : guidedMap ? 23.6 : 6.95;
+  const roomCeilingOpacity = closedRuins ? 0.16 : guidedMap ? 0.18 : 0.3;
 
   useEffect(() => {
     const preload = () => preloadPaths.forEach(preloadEnvironmentAsset);
@@ -876,7 +879,7 @@ export default function Arena({ qualityOverride }: { qualityOverride?: QualityLe
       )}
 
       {closedRuins && <RuinsEdgeMask theme={theme} bounds={map.bounds} />}
-      {closedRuins && <ActiveRoomVeil theme={theme} room={activeRoom} />}
+      {guidedMap && <ActiveRoomVeil theme={theme} room={activeRoom} />}
 
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.122, 0]}>
         <ringGeometry args={[ARENA_BOUND * 0.88, VISUAL_BOUND - 4, 128]} />

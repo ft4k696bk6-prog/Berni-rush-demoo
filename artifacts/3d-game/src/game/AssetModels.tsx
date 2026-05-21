@@ -45,8 +45,8 @@ function prepEnvironmentModel(root: THREE.Object3D, tint?: string, assetPath = "
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     if (mesh.geometry) {
-      mesh.geometry.computeVertexNormals();
-      mesh.geometry.computeBoundingSphere();
+      if (!mesh.geometry.getAttribute("normal")) mesh.geometry.computeVertexNormals();
+      if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
     }
 
     const sourceMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];

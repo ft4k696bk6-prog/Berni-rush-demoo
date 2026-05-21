@@ -439,9 +439,13 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     exit: { position: [14, -70], radius: 7 },
     bounds: marshBounds,
     rooms: [
-      room("marsh-entry", "Reed Bed", -8, 56, 22, 20),
-      room("marsh-shrine", "Sunken Shrine", 8, 5, 24, 26),
-      room("marsh-gate", "Bog Gate", 12, -52, 23, 22),
+      room("marsh-entry", "Reed Bed", -8, 56, 22, 20, { height: 22.5, cameraMaxY: 16.2, zoneId: "reed-bed" }),
+      room("marsh-shrine", "Sunken Shrine", 8, 5, 24, 26, { height: 23.5, cameraMaxY: 16.8, zoneId: "sunken-shrine" }),
+      room("marsh-gate", "Bog Gate", 12, -52, 23, 22, { height: 22.8, cameraMaxY: 16.2, zoneId: "bog-gate" }),
+    ],
+    gates: [
+      gate("marsh_entry_to_shrine", "Sinking Reed Gate", "marsh-entry", "marsh-shrine", "reed-bed", 0, 30, 10, 5, 9.4, 2.4),
+      gate("marsh_shrine_to_gate", "Bog Shrine Gate", "marsh-shrine", "marsh-gate", "sunken-shrine", 0, -22, 10, 5, 9.4, 2.4),
     ],
     wallSegments: marshWalls,
     collisions: [
@@ -510,9 +514,13 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     exit: { position: [0, -70], radius: 7 },
     bounds: mineBounds,
     rooms: [
-      room("mine-entry", "Timber Entry", 0, 58, 20, 20),
-      room("mine-yard", "Ore Yard", 0, 5, 22, 26),
-      room("mine-deep", "Deep Gate", 0, -53, 21, 22),
+      room("mine-entry", "Timber Entry", 0, 58, 20, 20, { height: 23.8, cameraMaxY: 16.8, zoneId: "timber-entry" }),
+      room("mine-yard", "Ore Yard", 0, 5, 22, 26, { height: 24.8, cameraMaxY: 17.2, zoneId: "ore-yard" }),
+      room("mine-deep", "Deep Gate", 0, -53, 21, 22, { height: 23.8, cameraMaxY: 16.8, zoneId: "deep-gate" }),
+    ],
+    gates: [
+      gate("mine_entry_to_yard", "Timber Lift Gate", "mine-entry", "mine-yard", "timber-entry", 0, 34, 9, 5, 8.8, 2.4),
+      gate("mine_yard_to_deep", "Ore Gate", "mine-yard", "mine-deep", "ore-yard", 0, -22, 9, 5, 8.8, 2.4),
     ],
     wallSegments: mineWalls,
     collisions: [
@@ -578,9 +586,13 @@ export const MAP_DEFINITIONS: Record<MapId, MapDefinition> = {
     exit: { position: [0, -72], radius: 7 },
     bounds: crystalBounds,
     rooms: [
-      room("crystal-entry", "Blue Steps", 0, 55, 24, 21),
-      room("crystal-crossing", "Rune Crossing", 0, 3, 25, 27),
-      room("crystal-mouth", "Gate Mouth", 0, -56, 24, 22),
+      room("crystal-entry", "Blue Steps", 0, 55, 24, 21, { height: 24.2, cameraMaxY: 17.0, zoneId: "blue-steps" }),
+      room("crystal-crossing", "Rune Crossing", 0, 3, 25, 27, { height: 25.4, cameraMaxY: 17.8, zoneId: "rune-crossing" }),
+      room("crystal-mouth", "Gate Mouth", 0, -56, 24, 22, { height: 24.6, cameraMaxY: 17.2, zoneId: "gate-mouth" }),
+    ],
+    gates: [
+      gate("crystal_entry_to_crossing", "Blue Rune Gate", "crystal-entry", "crystal-crossing", "blue-steps", 0, 30, 10, 5, 9.4, 2.4),
+      gate("crystal_crossing_to_mouth", "Crystal Mouth Gate", "crystal-crossing", "crystal-mouth", "rune-crossing", 0, -24, 10, 5, 9.4, 2.4),
     ],
     wallSegments: crystalWalls,
     collisions: [
